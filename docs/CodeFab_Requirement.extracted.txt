@@ -1,0 +1,1453 @@
+# NOTE
+# 이 파일은 CodeFab_Requirement.pdf를 scripts/extract_requirement_pdf.py
+# (PyMuPDF)로 추출한 결과입니다. PDF가 갱신되면 위 스크립트를 다시 실행해
+# 이 파일을 갱신하세요.
+# 원본 PDF의 표지/구분 슬라이드 일부는 텍스트 없이 이미지로만 되어 있어
+# 추출되지 않습니다(아래 목록 참고). 그 외 페이지는 한글 포함 전체 텍스트가
+# 정상적으로 추출됩니다.
+#
+# 텍스트 없는 페이지(이미지 전용 슬라이드로 추정): [1, 2, 3, 19, 29, 44, 53, 69, 74, 89]
+#
+----- page 1 -----
+
+
+----- page 2 -----
+
+
+----- page 3 -----
+
+
+----- page 4 -----
+이곳에서말하는Code Fab이란?
+•
+인터프리터(Interpreter) 를의미
+•
+파이썬의Interpreter로비유될수있음
+•
+Code를넣으면공장처럼동작된다는의미로, Code Fab 이라고이름지음
+스크립트
+실행결과
+LangFactory
+
+----- page 5 -----
+프로젝트목표
+1. Custom Language 개발
+팀전용Custom한Language를제작
+2. Code Fab (Interpreter) 개발
+Custom Lanange로동작되는인터프리터제작후실행되게끔함
+팀에서
+Custom한
+프로그래밍
+언어를만든다.
+문법을
+트리구조
+로만들기
+2. Code Fab (Interpreter) 동작순서
+1 .Custom Language 제작
+오류검증
+트리구조대로
+실행하기
+
+----- page 6 -----
+3. Prompt Shell 제작
+CLI Shell을제작하여,
+Custom Language 언어를사용해서즉시결과를확인할수있음
+3. CLI 기반Prompt Shell 예시
+
+----- page 7 -----
+1일~ 2일차
+-
+Custom Language 제작
+-
+Code Fab 제작
+-
+Prompt shell 제작
+3일~ 4일차
+-
+기능추가예정
+5일차
+- 프로젝트발표
+
+----- page 8 -----
+NO!!!
+
+----- page 9 -----
+Code Fab 는마치파이프라인을갖춘공장처럼동작되는인터프리터
+•
+총3개의Unit 으로구성되어있음
+
+----- page 10 -----
+소스코드를입력받아
+부품(Token) 들로분해한뒤,
+가공하여
+Tree구조조립체를만든다
+프로젝트는3개의Unit 으로파이프라인이구성된다.
+조립체를실행하기전에오류
+및경고를검출한다.
+조립체를실제로실행하여, 
+실행결과가나온다.
+var a
+= 3;
+Assembler Unit
+Checker Unit
+Executor Unit
+
+----- page 11 -----
+Token (부품으로비유)
+•
+소스코드를의미있는단위로잘라낸조각
+Token의종류
+•
+키워드
+예시: if, for, return 
+•
+식별자(Identifier)
+예시: 변수이름, 함수이름
+•
+리터럴
+숫자, 문자열
+•
+연산자
++  - * / 등
+•
+구분자(문장끝or 블록구분)
+;  }  {  괄호등
+var a = 3;
+
+----- page 12 -----
+문법Tree (Tree구조조립체로비유)
+•
+Token 정보을가공해서, 노드들을만든다.
+이후노드들을조립하여“문법Tree”를만든다.
+•
+이문법Tree가완성되어야만
+실행가능한구조가된다.
+var a = 3;
+
+----- page 13 -----
+Expression 노드(표현식, 이하Expr)
+•
+값을만드는것
+•
+실행하면, 값하나로평가(치환)되는코드단위
+•
+예시: Binary Expression(이항연산+) 
+•
+예시: Assign Expression(대입연산=)
+Statement 노드(문장, 이하Stmt)
+•
+값반환없이동작을수행하는코드단위
+•
+예시
+•
+선언문– var a (변수선언)
+•
+조건문, 반복문- if, for
+Stmt
+Expr
+Expr
+Stmt
+Expr
+
+----- page 14 -----
+Stmt
+if
+Expr
+Binary 
+(>)
+Stmt
+{ }
+Stmt
+for
+if(a > 3)
+{
+for(…){ … } 
+} 
+Stmt 노드와Expr 노드예시
+•
+색깔별로코드– 노드대응
+Expr
+Variable
+Expr
+Literal
+…. 생략….
+
+----- page 15 -----
+코드간규칙들이잘지켜졌는지검사
+재귀호출로구현한DFS 알고리즘을사용해각노드들탐색
+검사하는것
+DFS를돌면서각Stmt, Expr 들이의미적으로올바른지검사
+-
+변수중복선언인지(같은블록내중복)
+-
+선언시자기참조
+등코드간의의미적인규칙을어겼는지검사합니다.
+Stmt
+Expr
+Expr
+Stmt
+Expr
+
+----- page 16 -----
+문법Tree가다만들어졌으니,
+재귀호출으로구현된DFS 알고리즘을사용하여
+각Expr와Stmt를실행합니다.
+Stmt
+Expr
+Expr
+Stmt
+Expr
+
+----- page 17 -----
+한줄한줄입력받을때마다
+3 단계파이프라인이모두수행된다.
+Assembler Unit
+Checker Unit
+Executor Unit
+
+----- page 18 -----
+Code Fab 은마치공장처럼, 한줄의프롬프트입력을받고,
+즉시세Unit 공정(Assembler, Check, Executer) 를거쳐실행하는하나의공장으로비유될수있습니다.
+이제여러분께서는팀만의프로그래밍언어를만들고,
+Interpreter 와PromptShell을직접제작해야는프로젝트를진행할것입니다.
+
+----- page 19 -----
+
+
+----- page 20 -----
+Token 생산과Expr / Stmt 조립
+1) Assembler Unit 은프롬프트쉘에서사용자입력으로소스코드를받는다.
+2) 소스코드로부터부품(Token)들을생산한다.
+3) 생산된부품(Token)들을가공하여실행할수있는Expr / Stmt 로만든다.
+var a = 3;
+Token화
+가공
+St
+m
+t
+Ex
+pr
+Ex
+pr
+St
+m
+t
+Ex
+pr
+
+----- page 21 -----
+주어진소스코드를여러Token 으로분해한다.
+•
+소스코드를읽어단순한텍스트가아닌, 의미있는최소단위로분해한다.
+var a = 3;
+소스코드
+VAR_DECL
+IDENTIFIER
+NUMBER
+EQUAL
+SEMICOLON
+조립체에사용할Token List 를생산한다
+
+----- page 22 -----
+규격이정해져있는Token
+•
+키워드: if , for, var 등
+•
+연산자: > <, =, +, -, *, /, !, and, or 등
+•
+리터럴: True, False, 숫자리터럴, 문자열리터럴등
+그외
+•
+identifier ( 식별자), 세미콜론, 소, 중괄호등
+
+----- page 23 -----
+Token 을클래스로구현할수있다.
+class Token{
+TokenType type;
+String origin; 
+…
+Token(TokenType type, String origin , … ) { } 
+…
+}
+Token 클래스예시
+TokenType 을필드로가지고있고, 
+원본문자열을따로기록해둔다
+필요시다른정보들을추가가능
+
+----- page 24 -----
+입력: age = 37
+출력: [ 
+Token(IDENTIFIER, “age”), Token(EQUAL, “=“), Token(NUMBER, “37”, value=37.0), Token(EOF, “”)
+]
+•
+1 단계: 문자읽기
+(예: “age” 읽기) 
+•
+2 단계: 문자패턴인식
+(예: age 를identifier 로인식)
+•
+3 단계: 토큰화
+(예: Token(IDENTIFIER, 필요한정보추가입력) 생성)
+•
+토큰반복수집
+
+----- page 25 -----
+입력: if ( x > 10 )
+출력: [ 
+Token(IF, “if”), Token(LEFT_PAREN, “(“ ), Token(IDENTIFIER, “x”), Token(GREATER, “>”),
+Token(NUMBER, “10”, value=10.0), Token(RIGHT_PAREN, “)”), Token(EOF, “”)
+]
+
+----- page 26 -----
+입력: a + b * 3
+출력: [ 
+Token(IDENTIFIER, “a”), Token(PLUS, “+“ ), Token(IDENTIFIER, “b”), Token(STAR, “*”),
+Token(NUMBER, “3”, value=3.0), Token(EOF, “”)
+]
+
+----- page 27 -----
+Token Type
+예시
+비고
+LEFT_PAREN, 
+RIGHT_PAREN
+( 
+)
+그룹핑
+LEFT_BRACE, 
+RIGHT_BRACE
+{
+}
+블록스코프
+SEMICOLON
+;
+구분자
+PLUS/ MINUS/ STAR/ 
+SLASH
++  - *  /
+산술연산
+EQUAL
+=
+할당
+GREATER/ LESS
+> <
+비교
+
+----- page 28 -----
+Token Type
+예시
+비고
+IDENTIFIER
+x, y, z, calcSum
+식별자
+STRING
+“hello”
+문자열
+NUMBER
+7  3.141592
+숫자(double)
+VAR
+var
+변수선언
+IF / ELSE
+if  else
+조건문
+FOR
+for
+반복문
+TRUE / FALSE
+true  false
+불리언
+AND / OR
+and  or
+논리
+PRINT
+print
+출력문
+EOF
+토큰스트림끝
+이외에필요한토큰이있는경우추가로구현가능
+
+----- page 29 -----
+
+
+----- page 30 -----
+Token 생산과Expr / Stmt 조립
+1) Assembler Unit 은텍스트or 사용자입력으로된소스코드를입력받는다.
+2) 소스코드로부터부품(Token)들을생산한다.
+3) 생산된부품(Token)들을가공하여실행할수있는Expr / Stmt 로만든다.
+var a = 3;
+Token화
+가공
+St
+m
+t
+Ex
+pr
+Ex
+pr
+St
+m
+t
+Ex
+pr
+
+----- page 31 -----
+•
+Expr는여러개의Expr과Token을조합하여만들어진다.
+•
+Stmt는여러개의Expr, Stmt, Token을조합하여만들어진다.
+•
+Expr 내부에Stmt를Child로갖는것은허용하지않는다.
+St
+mt
+St
+mt
+Ex
+pr
+Ex
+pr
+St
+mt
+잘못구성된문법Tree 예시
+제대로구성된문법Tree 예시
+St
+mt
+Ex
+pr
+Ex
+pr
+Ex
+pr
+St
+mt
+Ex
+pr
+St
+mt
+St
+mt
+St
+mt
+Ex
+pr
+Ex
+pr
+Ex
+pr
+
+----- page 32 -----
+먼저Expr 을이해한다. (이후에Stmt 를이해해볼예정)
+제대로구성된문법Tree 예시
+Exp
+r
+Exp
+r
+Exp
+r
+Exp
+r
+Exp
+r
+Exp
+r
+Exp
+r
+
+----- page 33 -----
+Child가없는단일구조
+Exp
+r
+Literal Expr(123)
+123
+
+----- page 34 -----
+Variable Expression = 변수의이름(식별자)을나타내는노드
+Exp
+r
+Variable Expr(a)
+a
+
+----- page 35 -----
+Child가없는단일구조
+Exp
+r
+Boolean 
+LiteralExpr(true)
+true
+Literal 하나로통합도가능,
+또는
+Boolean Literal, String Literal 등으로
+분리가능
+
+----- page 36 -----
+Unary Operator : 값을1개만사용하는연산자
+종류: !, +, -
+-a
+!a
+UnaryExpr(-)
+UnaryExpr(!)
+VariableExpr(a)
+VariableExpr(a)
+Exp
+r
+Exp
+r
+
+----- page 37 -----
+Assign Expression : 변수에값을대입하는노드
+a=10
+Token [IDENTIFIER, “a”]
+LiteralExpr(10)
+AssignExpr(=)
+Exp
+r
+Exp
+r
+a=b
+Token [IDENTIFIER, “a”]
+VariableExpr(b)
+AssignExpr(=)
+Token
+
+----- page 38 -----
+Binary Expression : 값을2개사용하는연산자
+종류: + * >
+a+b
+a*b
+BinaryExpr(+)
+a>b
+BinaryExpr(*)
+BinaryExpr(>)
+VariableExpr(a)
+VariableExpr(b)
+VariableExpr(a)
+VariableExpr(b)
+VariableExpr(a)
+VariableExpr(b)
+Exp
+r
+Exp
+r
+Exp
+r
+
+----- page 39 -----
+Assign Expression : 변수에값을대입하는노드
+x = a + b
+AssignExpr(=)
+Exp
+r
+Token [IDENTIFIER, “x”]
+Exp
+r
+Exp
+r
+Exp
+r
+VariableExpr(b)
+VariableExpr(a)
+BinaryExpr(+)
+Token
+
+----- page 40 -----
+우선순위에맞추어, 트리가구성된다.
+a + b * 
+3
+Exp
+r
+BinaryExpr(+)
+Exp
+r
+VariableExpr(a)
+Exp
+r
+Exp
+r
+Exp
+r
+LiteralExpr(3)
+VariableExpr(b)
+BinaryExpr(*)
+
+----- page 41 -----
+우선순위에맞추어, 트리가구성된다.
+(a + b) * 3
+Exp
+r
+Exp
+r
+VariableExpr(b)
+VariableExpr(a)
+BinaryExpr(+)
+LiteralExpr(3)
+BinaryExpr(*)
+GroupingExpr (괄호)
+Exp
+r
+Exp
+r
+Exp
+r
+Exp
+r
+
+----- page 42 -----
+Expression 의특징은실행시평가(evaluate)가가능하다라는것이다.
+값생성
+•
+Literal Expr : 리터럴값을생성
+•
+Variable Expr : 변수참조
+연산
+•
+Binary Expr : 이항연산식( +, -, *, /, < , > 등)
+•
+Unary Expr : 단항연산식(-, !)
+•
+Logical Expr : 논리연산식(and, or)
+•
+Grouping Expr : 괄호묶는연산식(  (  )  )
+대입
+•
+Assign Expr : 변수대입
+
+----- page 43 -----
+Expr Type
+예시
+Literal
+3, “hi”, true
+Variable
+a (변수)
+Assign
+a = 3
+Binary
+1 + 2, a > 0, 2 * 3
+Unary
+- x, !isExist
+Grouping
+( 1 + 2 )
+Logical
+a and b
+
+----- page 44 -----
+
+
+----- page 45 -----
+Token 생산과Expr / Stmt 조립
+1) Assembler Unit 은텍스트or 사용자입력으로된소스코드를입력받는다.
+2) 소스코드로부터부품(Token)들을생산한다.
+3) 생산된부품(Token)들을가공하여실행할수있는Expr / Stmt 로만든다.
+var a = 3;
+Token화
+가공
+St
+m
+t
+Ex
+pr
+Ex
+pr
+St
+m
+t
+Ex
+pr
+
+----- page 46 -----
+•
+Expr는여러개의Expr과Token을조합하여만들어진다.
+•
+Stmt는여러개의Expr, Stmt, Token을조합하여만들어진다.
+•
+Expr 내부에Stmt를Child로갖는것은허용하지않는다.
+•
+트리의루트(최상위)는항상Stmt이다.
+•
+Token 은노드가아니라각노드의필드로보관된다.
+St
+mt
+St
+mt
+Ex
+pr
+Ex
+pr
+St
+mt
+잘못구성된문법Tree 예시
+제대로구성된문법Tree 예시
+St
+mt
+Ex
+pr
+Ex
+pr
+Ex
+pr
+St
+mt
+Ex
+pr
+St
+mt
+St
+mt
+St
+mt
+Ex
+pr
+Ex
+pr
+Ex
+pr
+
+----- page 47 -----
+Expr은값을계산하는것
+Statement는행동을수행하는것이다.
+x = 3
+x = 3;
+Expression
+계산수행
+Statement
+실행가능한한문장
+
+----- page 48 -----
+IfStmt
+조건에따라실행을분기하는Statement
+if (x > 0)
+y = 1;
+If Stmt
+├── condition:  Binary Expr(>)
+│               ├── left:  Variable Expr
+│               │          └── name: Token [IDENTIFIER, "x"]
+│               └── right: Literal Expr(0.0)
+│
+├── thenBranch: Expression Stmt
+└── Assign Expr
+├── name:  Token [IDENTIFIER, "y"]
+└── value: Literal Expr(1.0)
+* Expression Stmt : Expr 을감싸는Stmt
+(Wrapper)
+
+----- page 49 -----
+IfStmt
+조건에따라실행을분기하는Statement
+if (x > 0)
+y = 1;
+else
+y = 2;
+If Stmt
+├── condition:  Binary Expr(>)
+│               ├── left:  Variable Expr
+│               │          └── name: Token [IDENTIFIER, "x"]
+│               └── right: Literal Expr(0.0)
+│
+├── thenBranch: Expression Stmt
+│               └── Assign Expr
+│                   ├── name:  Token [IDENTIFIER, "y"]
+│                   └── value: Literal Expr(1.0)
+│
+└── elseBranch: Expression Stmt
+└── Assign Expr
+├── name:  Token [IDENTIFIER, "y"]
+└── value: Literal Expr(2.0)
+* Expression Stmt : Expr 을감싸는Stmt
+(Wrapper)
+
+----- page 50 -----
+BlockStmt
+Statement 여러개를묶는Statement
+{
+x = 1;
+y = 2;
+}
+Block Stmt
+├── Expression Stmt
+│   
+└── Assign Expr
+│       
+├── name:  Token [IDENTIFIER, "x"]
+│       
+└── value: Literal Expr(1.0)
+│
+└── Expression Stmt
+└── Assign Expr
+├── name:  Token [IDENTIFIER, "y"]
+└── value: Literal Expr(2.0)
+* Expression Stmt : Expr 을감싸는Stmt
+(Wrapper)
+
+----- page 51 -----
+변수선언(var 개념)
+var x = 10;
+VarDeclareStmt
+├── name : Token [IDENTIFIER, “x”]
+└── initializer : LiteralExpr(10)
+
+----- page 52 -----
+Stmt Type
+예시
+Expression
+a + 1;  (Expr을Stmt으로, Warpper) 
+Print
+print a; 
+VarDeclare
+var a = 3; 
+Block
+{ …. }
+If
+if (a > 0) { …} 
+else { … }
+For
+for(var i = 0; i < 3; i = i + 1){ … }
+
+----- page 53 -----
+
+
+----- page 54 -----
+Token 생산과Expr / Stmt 조립
+1) Assembler Unit 은텍스트or 사용자입력으로된소스코드를입력받는다.
+2) 소스코드로부터부품(Token)들을생산한다.
+3) 생산된부품(Token)들을가공하여실행할수있는Expr / Stmt 로만든다.
+var a = 3;
+Token화
+가공
+St
+m
+t
+Ex
+pr
+Ex
+pr
+St
+m
+t
+Ex
+pr
+
+----- page 55 -----
+문법트리는특정코드의문법규칙들이그대로적용된트리이다.
+예를들어, if Stmt 의문법규칙을살펴보면아래와같다.
+•
+규칙: if Stmt “if” “(“ expression “)” statement (“else” statement )?
+if 문은if ( expression ) statement 로구성되어있고옵션으로else statement 가올수있다.
+1) if Stmt 의토큰들은위규칙에정의된순서대로등장( “if” “(“ expression … 이순서로등장)
+2) “if”, “(“, “)” : 반드시해당문자열이해당자리에위치다른토큰으로대체불가
+3) expression ,statement : expression 과statement 는또다른규칙이적용되는자리
+(3)과같은자리에는다른규칙들로확장되기때문에
+문법트리는자연스럽게재귀구조의트리가된다.
+단, 실행에불필요한토큰(=, ; 등) 은노드로만들지않는다.
+? 는옵션이라는의미
+
+----- page 56 -----
+문법규칙에맞게Parser 가동작해야한다.
+조립과정
+토큰들하나씩소비노드구성트리구조로조립
+토큰소비
+
+----- page 57 -----
+Var Declare Stmt 노드생성준비
+•
+var 토큰을소비하여Var Declare Stmt 을생성준비한다.
+•
+노드에는변수이름(name), 초기화식(initializer) 필드가존재
+•
+변수이름이나초기화식이아직미결정이므로생성만준비
+Var 
+Decl
+Stmt
+name :
+initializer:
+
+----- page 58 -----
+Identifier 토큰소비
+•
+변수이름에해당하는Identifier 토큰을소비하여name 필드를채움
+name : Token(IDENTIFIER, “a”)
+initializer: 
+Var 
+Decl
+Stmt
+
+----- page 59 -----
+Equal 토큰소비
+•
+Equal 토큰은트리에넣지는않는다. 
+name : Token(IDENTIFIER, “a”)
+initializer: 
+Var 
+Decl
+Stmt
+
+----- page 60 -----
+왼쪽피연산자3 조립
+•
+3을Literal Expr (3) 으로생성한다.
+•
+오른쪽피연산자가없을수도있으나, 이것은operator 가결정되어야알수있는부분이므로
+우선left 에넣는다.
+만약operator 없으면단독표현식으로끝
+name : Token(IDENTIFIER, “a”)
+initializer: 
+left : Literal Expr(3)
+op : ???
+right : ???
+Var 
+Decl
+Stmt
+Ex
+pr
+
+----- page 61 -----
++ 발견이항연산자로인식
+operator 에PLUS Token을입력한다.
+name : Token(IDENTIFIER, “a”)
+initializer: 
+left : Literal Expr(3)
+op : Token(PLUS, “+”)
+right : ???
+Var 
+Decl
+Stmt
+Ex
+pr
+
+----- page 62 -----
+오른쪽피연산자조립
+•
+7 을Literal Expr (7) 으로생성한다.
+name : Token(IDENTIFIER, “a”)
+initializer: 
+left : Literal Expr(3)
+op : Token(PLUS, “+”)
+right : Literal Expr(7)
+Var 
+Decl
+Stmt
+Ex
+pr
+Ex
+pr
+
+----- page 63 -----
+initializer  
+Binary Expr 생성후조립및연결
+Binary Expr 노드를생성하고, Var Declare Stmt의initializer 로입력한다.
+name : Token(IDENTIFIER, “a”)
+Binary
+Expr
++
+Var 
+Decl
+Stmt
+Ex
+pr
+Ex
+pr
+left : Literal Expr(3)
+op : Token(PLUS, “+”)
+right : Literal Expr(7)
+Binary Expr
+
+----- page 64 -----
+SEMICOLON 발견시변수선언문의parsing 을종료하고
+Var Declare Stmt 을최종생성한다.
+Var 
+Decl
+Stmt
+name : Token(IDENTIFIER, “a”)
+initializer  
+left : Literal Expr(3)
+op : Token(PLUS, “+”)
+right : Literal Expr(7)
+Ex
+pr
+Ex
+pr
+Binary
+Expr
++
+
+----- page 65 -----
+멋지게만들어졌다. 이후다른Unit 에트리조립체를전달한다.
+Checker Unit 에서는트리조립체를통해실행전오류를검토하고,
+Executor Unit 에서는트리조립체를실제실행하여결과를얻는다.
+Var 
+Decl
+Stmt
+name : Token(IDENTIFIER, “a”)
+initializer  
+left : Literal Expr(3)
+op : Token(PLUS, “+”)
+right : Literal Expr(7)
+Ex
+pr
+Ex
+pr
+Binary
+Expr
++
+
+----- page 66 -----
+문법검사
+토큰화된부품조립과정에서올바르지못한부품인경우오류를발생시킨다.
+예시: 변수선언문코드에서일부빠진경우
+var a = 3 + ;       + 우항부분빠짐
+오류발생
+Var 
+Decl
+Stmt
+Expr.
+Binary
+Literal
+Expr
+(3)
+????
+
+----- page 67 -----
+원자재(소스코드) 부품(Token) 조립체(Expr/Stmt/Token 문법트리) 
+•
+원자재인소스코드를분석하여, 부품들모음인Token List 를생성한다.
+•
+Token List 를읽어서실행시킬수있는문법트리를완성한다.
+•
+이후, Executor Unit 에서는문법트리를실행할수있게된다. 
+var a = 3;
+토큰문자열
+토큰타입
+var
+VAR_DECL
+a
+IDENTIFIER
+=
+EQUAL
+3
+NUMBER
+;
+SEMICOLON
+Var Decl Stmt.. 
+├── name: Token [IDENTIFIER,"a"]
+└── initializer: Literal Expr
+└── value: 3.0
+토큰리스트
+문법트리
+
+----- page 68 -----
+기본적으로구현해야할Token, Expr, Stmt 에대한안내
+•
+해당내용은참고용으로필요시추가, 축소, 변경가능합니다.
+•
+문법규칙의세부사항은팀에서정합니다.
+•
+따라서문법규칙에적용되는각노드에필요한field 들은팀에서정합니다.
+예) Binary Expr 노드의경우left(Expr) , right(Expr), operator(어떤연산자인지- Token 또는
+enum) 필드가필요합니다.
+예) 변수선언문Var Stmt 노드의경우name(변수이름토큰), initializer (Expr, 없을수있음)
+필드가필요합니다.
+단, 뒷부분에주어지는테스트용스크립트를전부통과할수있어야합니다.
+테스트용스크립트문법을custom 언어에맞도록변경가능
+
+----- page 69 -----
+
+
+----- page 70 -----
+Checker Unit 은소스코드의의미상오류검사를수행한다.
+•
+Assembler Unit 이만든조립체검수를통해소스코드의오류, 경고를검출한다.
+•
+문법적오류는Assembly Unit 에서수행을했고, 여기서는코드간의미상오류검사를한다.
+Checker Unit 에서구현할아래3가지에대해알아본다.
+•
+변수중복선언Error 검출/ 지역변수초기화시자기참조Error 검출
+
+----- page 71 -----
+코드간규칙들이잘지켜졌는지검사
+재귀호출로구현한DFS 알고리즘을사용해각노드들탐색
+검사하는것
+DFS를돌면서각Stmt, Expr 들이의미적으로올바른지검사
+-
+변수중복선언인지(같은블록내중복)
+-
+선언시자기참조
+등코드간의의미적인규칙을어겼는지검사합니다.
+Stm
+t
+Exp
+r
+Exp
+r
+Stm
+t
+Exp
+r
+
+----- page 72 -----
+로컬스코프내에발생할수있는논리적오류를체크한다.
+•
+Checker Unit 은현재스코프에동일한변수선언시오류로처리한다.
+{
+var a = “first”; 
+var a = “second”;  // Error   
+}
+
+----- page 73 -----
+초기화되지않은상태에서접근하는오류를체크한다.
+{
+var a = a + 1;  // Error   
+}
+> [2번째줄] 자신의초기화식에서
+지역변수를읽을수없습니다.
+선언시자기자신을참조
+
+----- page 74 -----
+
+
+----- page 75 -----
+Executor Unit 은트리구조의Stmt 조립체를실행한다.
+•
+조립체의트리구조를재귀적으로평가하며실제로실행한다.
+
+----- page 76 -----
+문법Tree가다만들어졌으니,
+재귀호출으로구현된DFS 알고리즘을사용하여
+각Expr와Stmt를실행합니다.
+Stm
+t
+Exp
+r
+Exp
+r
+Stm
+t
+Exp
+r
+
+----- page 77 -----
+실행예시
+예시: print 3 + 2 ; 
+1. Print Stmt     --> expression 평가시작
+2. Binary (+)      --> left, right 순서로평가
+3. Literal (3)      --> 3 반환
+4. Literal (2)      --> 2 반환
+5. Binary (+)      --> 3 + 2 = 5 반환
+6. Print Stmt     --> stdout 에5 출력
+Print Stmt
+└──expression: Binary(+)
+├──Literal(3)
+└──Literal(2)
+
+----- page 78 -----
+실행예시
+예시: if ( a > 5) { print 3 + 2; }
+1. If Stmt → condition 평가시작
+2. Variable(a) → a의값반환(예: 10)
+3. Literal(5) → 5 반환
+4. Binary(>) → 10 > 5 = true 반환
+5. If Stmt → true이므로thenBranch 진입
+6. Block Stmt → 내부문장실행시작
+7. Print Stmt → expression 평가시작
+8. Literal(3) → 3 반환
+9. Literal(2) → 2 반환
+10. Binary(+) → 3 + 2 = 5 반환
+11. Print Stmt → print(5) 출력완료
+12. Block Stmt → 블록실행완료
+13. If Stmt → 실행완료
+If Stmt
+├──condition: Binary(>)
+│
+├──Variable (a)
+│
+└──Literal(5)
+└──thenBranch: Block Stmt
+└──Print Stmt
+└──expression: Binary(+)
+├──Literal(3)
+└──Literal(2)
+
+----- page 79 -----
+예시: if (a > 0) a = 3 + 7 * 5;
+If Stmt
+├── condition: Binary(>)
+│         ├── Variable(a)
+│         └── Literal(0)
+└── thenBranch: Expression Stmt
+└── Assign Expr [name: a]
+└── value: Binary(+)
+├── Literal(3)
+└── Binary(*)
+├── Literal(7)
+└── Literal(5)
+1. If Stmt→condition 평가시작
+2. Variable(a)→a의값반환(예: 10)
+3. Literal(0)→0 반환
+4. Binary(>)→10 > 0 = true 반환
+5. If Stmt→true이므로thenBranch 진입
+6. Literal(7)→7 반환
+7. Literal(5)→5 반환
+8. Binary(*)→7 * 5 = 35 반환
+9. Literal(3)→3 반환
+10. Binary(+)→3 + 35 = 38 반환
+11. Assign Expr→a = 38 저장
+12. Expression Stmt→실행완료
+13. If Stmt→실행완료
+
+----- page 80 -----
+Tree 구조순회예시
+예시: for (var i = 0; i < 3; i = i + 1) { print "#"; }
+For Stmt
+├──init: Var Stmt [name: i]
+│
+└──Literal(0)
+├──condition: Binary(<)
+│
+├──Variable Expr(i)
+│
+└──Literal(3)
+├──increment: Assign Expr [name: i]
+│
+└──value: Binary(+)
+│
+├──Variable Expr(i)
+│
+└──Literal(1)
+└──body: Block Stmt
+└──Print Stmt
+└──Literal("#")
+초기화
+1. For Stmt→초기화실행
+2. Var Stmt→i = 0 선언및저장
+1회차(i = 0)
+3. For Stmt→condition 평가
+4. Variable Expr(i)→0 반환
+5. Literal(3)→3 반환
+6. Binary(<)→0 < 3 = true 반환
+7. For Stmt→true이므로body 진입
+8. Block Stmt→블록실행시작
+9. Literal("#")→"#" 반환
+10. Print Stmt→print("#") 출력
+11. Block Stmt→실행완료
+12. For Stmt→increment 실행
+13. Variable Expr(i)→0 반환
+14. Literal(1)→1 반환
+15. Binary(+)→0 + 1 = 1 반환
+16. Assign Expr→i = 1 저장
+3~16 동일하게반복(i = 1 → print "#" → i = 2)
+3~16 동일하게반복(i = 2 → print "#" → i = 3)
+종료조건(i = 3)
+17. For Stmt→condition 평가
+18. Variable Expr(i)→3 반환
+19. Literal(3)→3 반환
+20. Binary(<)→3 < 3 = false 반환
+21. For Stmt→false이므로루프종료
+
+----- page 81 -----
+예시: for (var i = 0; i < 2; i = i + 1) { if(a > 3) a = a - 1; }
+For Stmt
+├──init: Var Stmt [name: i]
+│
+└──Literal(0)
+├──condition: Binary(<)
+│
+├──Variable Expr(i)
+│
+└──Literal(2)
+├──increment: Assign Expr [name: i]
+│
+└──value: Binary(+)
+│
+├──Variable Expr(i)
+│
+└──Literal(1)
+└──body: Block Stmt
+└──If Stmt
+├──condition: Binary(>)
+│
+├──Variable Expr(a)
+│
+└──Literal(3)
+└──thenBranch: Expression Stmt
+└──Assign Expr [name: a]
+└──value: Binary(-)
+├──Variable Expr(a)
+└──Literal(1)
+초기화
+1. For Stmt→초기화실행
+2. Var Stmt→i = 0 선언및저장
+1회차(i = 0, a = 5)
+3. For Stmt→condition 평가
+4. Variable Expr(i)→0 반환
+5. Literal(2)→2 반환
+6. Binary(<)→0 < 2 = true 반환
+7. For Stmt→true이므로body 진입
+8. Block Stmt→블록실행시작
+9. If Stmt→condition 평가
+10. Variable Expr(a)→5 반환
+11. Literal(3)→3 반환
+12. Binary(>)→5 > 3 = true 반환
+13. If Stmt→true이므로thenBranch 진입
+14. Variable Expr(a)→5 반환
+15. Literal(1)→1 반환
+16. Binary(-)→5 - 1 = 4 반환
+17. Assign Expr→a = 4 저장
+18. Expression Stmt→실행완료
+19. If Stmt→실행완료
+20. Block Stmt→실행완료
+21. For Stmt→increment 실행
+22. Variable Expr(i)→0 반환
+23. Literal(1)→1 반환
+24. Binary(+)→0 + 1 = 1 반환
+25. Assign Expr→i = 1 저장
+3~25 동일하게반복(i = 1, a = 4 → a = 3 → i = 2)
+종료조건(i = 2)
+26. For Stmt→condition 평가
+27. Variable Expr(i)→2 반환
+28. Literal(2)→2 반환
+29. Binary(<)→2 < 2 = false 반환
+30. For Stmt→false이므로루프종료
+
+----- page 82 -----
+실행중변수의이름과값을저장하고참조하는데이터저장소필요
+•
+Executor Unit 은실행하는동안변수저장소를운용한다.
+•
+Global 저장소와Local 저장소로나뉜다.
+•
+Global 저장소는전역으로사용된다. 
+•
+Local 저장소는{ } 블록으로감싼지역에서사용된다. 
+{
+{
+}
+}
+Local 저장소2 스코프
+Local 저장소1 스코프
+Global 저장소스코프
+
+----- page 83 -----
+블록{ }이생성될때마다새로운로컬변수저장소를생성하고, 블록종료시소멸한다.
+•
+블록{ } 진입: 새로운변수저장소생성
+•
+블록{ } 종료: 현재변수저장소소멸
+var a = 10;      --- global 변수저장소에저장
+{                --- 해당로컬변수저장소새로생성
+var b = 20;  --- 로컬변수저장소에저장
+print a + b; --- a : global에서, b: 로컬변수저장소에서읽기
+}                --- 로컬변수저장소소멸
+var c = 20;      --- global 변수저장소에저장
+
+----- page 84 -----
+변수사용시, 가장인접한저장소부터상위로거슬러올라가며찾는다.
+•
+현재저장소상위저장소상위저장소…. Global 저장소
+var ga = 3;
+-- Global 저장소
+{
+var a = 2; 
+-- 저장소A
+{
+var a = 7;   -- 저장소B
+{
+-- 저장소C
+print a;    
+// 1
+print ga;
+// 2
+}
+print a;         
+// 3
+} 
+}
+1, 2, 3 의코드에서변수저장소찾는과정
+1. 저장소C (없음) 저장소B (찾음!)
+2. 저장소C (없음) 저장소B (없음) 
+저장소A (없음) Global(찾음!)
+3.   저장소B (찾음!)
+
+----- page 85 -----
+Executor Unit 은실행중다음Runtime 오류들을처리한다.
+•
+타입불일치
+•
+정의되지않은변수참조
+•
+0 으로나누기
+
+----- page 86 -----
+Executor Unit 은실행중에타입불일치로연산할수없는경우런타임오류를보고한다.
+•
+피연산자타입오류
+예) true * false :  Boolean 타입에대해* 연산은지원하지않는다.
+예) 3 - “hello”  :  숫자– 문자열은불가능하다.
+•
+이런경우어떤문제상황으로오류가발생한건지명시해서오류를보고한다.
+예) 3 – “hello” 
+> [1 번째줄] 피연산자는반드시숫자여야한다.
+
+----- page 87 -----
+Executor Unit 은실행중에미정의변수를참조시런타임오류를보고한다.
+•
+선언된적이없는변수참조시에러
+•
+예) 선언없이x = 5;
+> [1번째줄] 미정의된변수‘x’
+
+----- page 88 -----
+Executor Unit 은실행중에0으로나누는동작을할경우런타임오류를보고한다.
+•
+나눗셈식에서제수(Divisor) 가0인경우, 런타임오류를발생한다
+•
+예) a = 3 / 0 ; 
+> [1번째줄] 0으로나눈오류
+
+----- page 89 -----
+
+
+----- page 90 -----
+다음링크에서제공되는예시스크립트를통과하도록구현한다.
+단, 스크립트에등장하는기능과동작은유지한채로언어문법은변경가능
+https://gist.github.com/aijeonghwan-
+star/d1535e870aeb6a4a928142d4d57c191e
+
+----- page 91 -----
+팀프로젝트진행
+
+----- page 92 -----
+프로젝트준비
+• 창의력있는팀이름을정해주세요.
+• 팀에서사용할코딩규칙(코드컨벤션, 코딩스탠다드및룰)을설정합니다.
+• 팀장님과팀원분들의역할을분배합니다
+
+----- page 93 -----
+[1~2일차] 요청사항
+Claude Code 사용
+Claude Code 를개발및협업에사용가능합니다.
+빠른코드생성이가능하지만생성된코드의이해없이, 검토없이넘어가면안됩니다.
+TDD 개발필수
+1일차~ 2일차: TDD 개발이포함되어야합니다.
+3일차~ 4일차: TDD 없이개발해도됩니다. Unit Test + 리팩토링만해주세요.
+
+----- page 94 -----
+[3~4일차] 기능추가개발및리팩토링
+3일차에는기능추가를요청을드릴예정입니다.
+▪function 관련기능, 정적배열구현, 실행전최적화등
+추가기능에대한요구가있습니다
+▪기능추가를대비하여, 1 ~ 2일차까지클린한코드를만들어두어야합니다.
+새로운기능추가에대응하기좋은디자인패턴, 설계등이필요합니다.
+
+----- page 95 -----
+[5일차] 발표준비및발표
+• 5일차에는그동안제작했던프로젝트발표준비를합니다.
+오전: PPT 준비/ 오후: 발표및마무리
+팀장님이발표해주시면됩니다. (변경하셔도됩니다.)
+• 발표자료에는리팩토링전후결과와코드리뷰활동캡쳐가포함되어야합니다.
+클린코드를신경쓰지않는코드를먼저만들고, 
+리팩토링을통해점차개선하는방식으로개발을권장합니다.
+리팩토링전후결과캡쳐가가능하도록, 리팩토링과정마다Commit을권장합니다.
+
+----- page 96 -----
+CodeFab Interpreter 프로젝트시작
+• CodeFab Interpreter 프로젝트를시작해주세요
+• 프로젝트진행/ 기능구현질문
+프로젝트코치/ 강사님에게언제든질문주세요.
