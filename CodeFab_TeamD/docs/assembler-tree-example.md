@@ -18,7 +18,7 @@
 ```
 Program
 └─ statements[0]: VarDeclStmt*
-     ├─ name: Token { type: IDENTIFIER, origin: "a" }
+     ├─ name: Token { type: IDENTIFIER, origin: "a", value: monostate }
      └─ initializer: LiteralExpr*
           └─ value: LiteralValue { double = 5.0 }
 ```
@@ -33,7 +33,7 @@ struct Program
 
 struct VarDeclStmt : Stmt
 {
-    Token name;          // { type: IDENTIFIER, origin: "a" }
+    Token name;          // { type: IDENTIFIER, origin: "a", value: monostate }
     Expr* initializer;   // -> LiteralExpr*
 };
 
@@ -46,7 +46,7 @@ struct LiteralExpr : Expr
 ## 4. 요약
 
 - `Program.statements`는 크기 1의 배열이며, 첫 원소는 `Stmt*`이지만 실제 런타임 타입은 `VarDeclStmt*`이다 (`dynamic_cast`로 확인).
-- `VarDeclStmt::name`은 변수 이름 `"a"`를 담은 `IDENTIFIER` 토큰이다.
+- `VarDeclStmt::name`은 변수 이름 `"a"`를 담은 `IDENTIFIER` 토큰이다. `value` 필드는 존재하지만 `IDENTIFIER`는 리터럴 값이 없으므로 `LiteralValue`의 빈 상태인 `std::monostate`가 들어있다 (실제 값이 채워지는 건 `NUMBER`/`STRING`/`TRUE`/`FALSE` 토큰뿐).
 - `VarDeclStmt::initializer`는 `Expr*`이며, 실제 런타임 타입은 `LiteralExpr*`이다.
 - `LiteralExpr::value`는 `LiteralValue`(`std::variant<std::monostate, double, std::string, bool>`)이며, `5`라는 숫자 리터럴이므로 `double` 대안에 `5.0`이 들어있다.
 
