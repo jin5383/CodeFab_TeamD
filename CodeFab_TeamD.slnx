@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="CodeFab_TeamD/CodeFab_TeamD.vcxproj" />
+</Solution>
