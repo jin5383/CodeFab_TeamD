@@ -15,11 +15,51 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <Filter Include="function">
+      <UniqueIdentifier>{6a2c1a2e-1f3d-4a5b-9c6e-8b4f2d1a7c3e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="test">
+      <UniqueIdentifier>{9d3e5f7a-2b4c-4d6e-8f1a-3c5b7d9e0a2f}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="function\Assembler_Tocken_Unit.cpp">
+      <Filter>function</Filter>
+    </ClCompile>
+    <ClCompile Include="function\Assembler_Construct_Unit.cpp">
+      <Filter>function</Filter>
+    </ClCompile>
+    <ClCompile Include="function\Checker_Unit.cpp">
+      <Filter>function</Filter>
+    </ClCompile>
+    <ClCompile Include="function\Executor_Unit.cpp">
+      <Filter>function</Filter>
+    </ClCompile>
+    <ClCompile Include="test\test_Ryu.cpp">
+      <Filter>test</Filter>
+    </ClCompile>
+    <ClCompile Include="test\test_Kwon.cpp">
+      <Filter>test</Filter>
+    </ClCompile>
+    <ClCompile Include="test\test_Lee.cpp">
+      <Filter>test</Filter>
+    </ClCompile>
+    <ClCompile Include="test\test_Hong.cpp">
+      <Filter>test</Filter>
+    </ClCompile>
+    <ClCompile Include="test\test_Park.cpp">
+      <Filter>test</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="function.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

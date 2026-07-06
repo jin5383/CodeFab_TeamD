@@ -140,6 +140,18 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="function\Assembler_Tocken_Unit.cpp" />
+    <ClCompile Include="function\Assembler_Construct_Unit.cpp" />
+    <ClCompile Include="function\Checker_Unit.cpp" />
+    <ClCompile Include="function\Executor_Unit.cpp" />
+    <ClCompile Include="test\test_Ryu.cpp" />
+    <ClCompile Include="test\test_Kwon.cpp" />
+    <ClCompile Include="test\test_Lee.cpp" />
+    <ClCompile Include="test\test_Hong.cpp" />
+    <ClCompile Include="test\test_Park.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="function.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
