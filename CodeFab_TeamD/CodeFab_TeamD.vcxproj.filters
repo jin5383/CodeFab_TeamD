@@ -29,7 +29,7 @@
     <ClCompile Include="main.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="function\Assembler_Tocken_Unit.cpp">
+    <ClCompile Include="function\Assembler_Token_Unit.cpp">
       <Filter>function</Filter>
     </ClCompile>
     <ClCompile Include="function\Assembler_Construct_Unit.cpp">
@@ -59,6 +59,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="function.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="ast.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>

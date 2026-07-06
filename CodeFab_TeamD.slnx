@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="CodeFab_TeamD/CodeFab_TeamD.vcxproj" />
+  <Project Path="CodeFab_TeamD/CodeFab_TeamD.vcxproj" Id="5bf1b529-623d-4a30-9788-812301cc30f5" />
 </Solution>

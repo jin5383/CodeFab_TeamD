@@ -140,7 +140,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="function\Assembler_Tocken_Unit.cpp" />
+    <ClCompile Include="function\Assembler_Token_Unit.cpp" />
     <ClCompile Include="function\Assembler_Construct_Unit.cpp" />
     <ClCompile Include="function\Checker_Unit.cpp" />
     <ClCompile Include="function\Executor_Unit.cpp" />
@@ -152,6 +152,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="function.h" />
+    <ClInclude Include="ast.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
