@@ -42,14 +42,14 @@ TEST(AssemblerOperatorPrecedenceTest, MultiplicationBindsTighterThanAddition)
 {
 	Program program = assemble("1 + 2 * 3;");
 
-	ASSERT_THAT(program.statements, SizeIs(1));
+	EXPECT_THAT(program.statements, SizeIs(1));
 	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
-	ASSERT_THAT(root, NotNull());
+	EXPECT_THAT(root, NotNull());
 	EXPECT_EQ(root->op.type, TokenType::PLUS);
 	EXPECT_DOUBLE_EQ(literalValue(root->left), 1.0);
 
 	auto* rightMul = dynamic_cast<BinaryExpr*>(root->right);
-	ASSERT_THAT(rightMul, NotNull());
+	EXPECT_THAT(rightMul, NotNull());
 	EXPECT_EQ(rightMul->op.type, TokenType::STAR);
 	EXPECT_DOUBLE_EQ(literalValue(rightMul->left), 2.0);
 	EXPECT_DOUBLE_EQ(literalValue(rightMul->right), 3.0);
@@ -60,15 +60,15 @@ TEST(AssemblerOperatorPrecedenceTest, ParenthesesOverridePrecedence)
 {
 	Program program = assemble("(1 + 2) * 3;");
 
-	ASSERT_THAT(program.statements, SizeIs(1));
+	EXPECT_THAT(program.statements, SizeIs(1));
 	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
-	ASSERT_THAT(root, NotNull());
+	EXPECT_THAT(root, NotNull());
 	EXPECT_EQ(root->op.type, TokenType::STAR);
 
 	auto* grouping = dynamic_cast<GroupingExpr*>(root->left);
-	ASSERT_THAT(grouping, NotNull());
+	EXPECT_THAT(grouping, NotNull());
 	auto* inner = dynamic_cast<BinaryExpr*>(grouping->expression);
-	ASSERT_THAT(inner, NotNull());
+	EXPECT_THAT(inner, NotNull());
 	EXPECT_EQ(inner->op.type, TokenType::PLUS);
 	EXPECT_DOUBLE_EQ(literalValue(inner->left), 1.0);
 	EXPECT_DOUBLE_EQ(literalValue(inner->right), 2.0);
@@ -81,14 +81,14 @@ TEST(AssemblerOperatorPrecedenceTest, SubtractionIsLeftAssociative)
 {
 	Program program = assemble("10 - 4 - 3;");
 
-	ASSERT_THAT(program.statements, SizeIs(1));
+	EXPECT_THAT(program.statements, SizeIs(1));
 	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
-	ASSERT_THAT(root, NotNull());
+	EXPECT_THAT(root, NotNull());
 	EXPECT_EQ(root->op.type, TokenType::MINUS);
 	EXPECT_DOUBLE_EQ(literalValue(root->right), 3.0);
 
 	auto* leftSub = dynamic_cast<BinaryExpr*>(root->left);
-	ASSERT_THAT(leftSub, NotNull());
+	EXPECT_THAT(leftSub, NotNull());
 	EXPECT_EQ(leftSub->op.type, TokenType::MINUS);
 	EXPECT_DOUBLE_EQ(literalValue(leftSub->left), 10.0);
 	EXPECT_DOUBLE_EQ(literalValue(leftSub->right), 4.0);
@@ -99,14 +99,14 @@ TEST(AssemblerOperatorPrecedenceTest, DivisionIsLeftAssociative)
 {
 	Program program = assemble("8 / 2 / 2;");
 
-	ASSERT_THAT(program.statements, SizeIs(1));
+	EXPECT_THAT(program.statements, SizeIs(1));
 	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
-	ASSERT_THAT(root, NotNull());
+	EXPECT_THAT(root, NotNull());
 	EXPECT_EQ(root->op.type, TokenType::SLASH);
 	EXPECT_DOUBLE_EQ(literalValue(root->right), 2.0);
 
 	auto* leftDiv = dynamic_cast<BinaryExpr*>(root->left);
-	ASSERT_THAT(leftDiv, NotNull());
+	EXPECT_THAT(leftDiv, NotNull());
 	EXPECT_EQ(leftDiv->op.type, TokenType::SLASH);
 	EXPECT_DOUBLE_EQ(literalValue(leftDiv->left), 8.0);
 	EXPECT_DOUBLE_EQ(literalValue(leftDiv->right), 2.0);
