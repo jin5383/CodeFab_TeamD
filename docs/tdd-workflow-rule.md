@@ -155,8 +155,8 @@ Input: 각 시나리오의 source가 파싱되면 나와야 할 모양대로, `p
 - [x] `for (var j = 0; j < 3; j = j + 1) { print j; }` — 에러 없음
 
 ### 5.2.4 에러 검출 테스트 — Checker Unit 정적 에러
-- [ ] 초기화식에서 자기 자신 참조 → `Can't read local variable in initializer.`
-- [ ] 같은 로컬 스코프 중복 선언 → `Already a variable with this name in this scope.`
+- [x] 초기화식에서 자기 자신 참조 → `Can't read local variable in initializer.`
+- [x] 같은 로컬 스코프 중복 선언 → `Already a variable with this name in this scope.`
 
 ## 5.3 Executor Unit
 
