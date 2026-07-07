@@ -33,7 +33,7 @@ namespace
 		}
 
 		// 현재 토큰이 기대한 종류면 소비하고 반환, 아니면 구문 오류로 던진다
-		Token expectToken(TokenType type, const std::string& message)
+		Token expectAndAdvance(TokenType type, const std::string& message)
 		{
 			if (getCurrentToken().type != type)
 				throw std::runtime_error(message);
@@ -59,7 +59,7 @@ namespace
 		{
 			getTokenAndAdvance(); // var
 			auto* stmt = new VarDeclStmt();
-			stmt->name = getTokenAndAdvance(); // 변수 이름
+			stmt->name = expectAndAdvance(TokenType::IDENTIFIER, "Expect variable name.");
 
 			if (getCurrentToken().type == TokenType::EQUAL)
 			{
@@ -67,7 +67,7 @@ namespace
 				stmt->initializer = parseExpression();
 			}
 
-			expectToken(TokenType::SEMICOLON, "Expect ';' after value.");
+			expectAndAdvance(TokenType::SEMICOLON, "Expect ';' after value.");
 			return stmt;
 		}
 
@@ -76,7 +76,7 @@ namespace
 		{
 			auto* stmt = new ExpressionStmt();
 			stmt->expression = parseExpression();
-			expectToken(TokenType::SEMICOLON, "Expect ';' after value.");
+			expectAndAdvance(TokenType::SEMICOLON, "Expect ';' after value.");
 			return stmt;
 		}
 
@@ -97,7 +97,7 @@ namespace
 			auto* block = new BlockStmt();
 			while (getCurrentToken().type != TokenType::RIGHT_BRACE && getCurrentToken().type != TokenType::END_OF_FILE)
 				block->statements.push_back(parseStatement());
-			getTokenAndAdvance(); // }
+			expectAndAdvance(TokenType::RIGHT_BRACE, "Expect '}' after block.");
 			return block;
 		}
 
@@ -106,7 +106,7 @@ namespace
 		Stmt* parseIfStatement()
 		{
 			getTokenAndAdvance(); // if
-			getTokenAndAdvance(); // (
+			expectAndAdvance(TokenType::LEFT_PAREN, "Expect '(' after 'if'.");
 			auto* stmt = new IfStmt();
 			stmt->condition = parseExpression();
 			getTokenAndAdvance(); // )
@@ -259,7 +259,7 @@ namespace
 				getTokenAndAdvance(); // (
 				auto* grouping = new GroupingExpr();
 				grouping->expression = parseExpression();
-				expectToken(TokenType::RIGHT_PAREN, "Expect ')' after expression.");
+				expectAndAdvance(TokenType::RIGHT_PAREN, "Expect ')' after expression.");
 				return grouping;
 			}
 
