@@ -59,6 +59,9 @@ namespace
 			if (auto* varDecl = dynamic_cast<VarDeclStmt*>(stmt))
 			{
 				const std::string& name = varDecl->name.origin;
+				if (scopes.back().count(name))
+					return false;
+
 				if (varDecl->initializer && exprReferencesName(varDecl->initializer, name) && !isNameDeclared(name))
 					return false;
 
