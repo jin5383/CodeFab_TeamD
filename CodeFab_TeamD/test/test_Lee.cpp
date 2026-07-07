@@ -24,7 +24,7 @@ protected:
 		return program;
 	}
 
-	bool checkPrintOfExpression(Expr* expression)
+	CheckerErrno checkPrintOfExpression(Expr* expression)
 	{
 		return checkAssembly(printProgram(expression));
 	}
@@ -80,7 +80,7 @@ TEST_F(CheckerUnitTest, PrintArithmeticPrecedence_NoError)
 	add->op = Token{ TokenType::PLUS, "+", std::monostate{} };
 	add->right = multiply;
 
-	EXPECT_TRUE(checkPrintOfExpression(add));
+	EXPECT_EQ(CheckerErrno::success, checkPrintOfExpression(add));
 }
 
 // Checker unit: `print (1 + 2) * 3;` 에 해당하는 Program -> 에러 없음 (통과)
@@ -99,7 +99,7 @@ TEST_F(CheckerUnitTest, PrintParenthesesOverridePrecedence_NoError)
 	multiply->op = Token{ TokenType::STAR, "*", std::monostate{} };
 	multiply->right = makeNumberLiteral(3.0);
 
-	EXPECT_TRUE(checkPrintOfExpression(multiply));
+	EXPECT_EQ(CheckerErrno::success, checkPrintOfExpression(multiply));
 }
 
 // Checker unit: 5.2.1~5.2.3 정상동작 시나리오 20개를 {설명, Program 빌더} 배열로 만들어
@@ -402,7 +402,7 @@ TEST_F(CheckerUnitTest, AllNormalScenarios_NoError)
 	for (const auto& scenario : scenarios)
 	{
 		SCOPED_TRACE(scenario.description);
-		EXPECT_TRUE(checkAssembly(scenario.build()));
+		EXPECT_EQ(CheckerErrno::success, checkAssembly(scenario.build()));
 	}
 }
 
@@ -427,7 +427,7 @@ TEST_F(CheckerUnitTest, SelfReferencingInitializer_ReportsError)
 	Program program;
 	program.statements.push_back(block);
 
-	EXPECT_FALSE(checkAssembly(program));
+	EXPECT_EQ(CheckerErrno::selfReferencingInitializer, checkAssembly(program));
 }
 
 // Checker unit: `{ var a = 1; var a = 2; }` 에 해당하는 Program -> 같은 로컬 스코프 중복 선언 에러
@@ -448,5 +448,5 @@ TEST_F(CheckerUnitTest, DuplicateDeclarationInSameScope_ReportsError)
 	Program program;
 	program.statements.push_back(block);
 
-	EXPECT_FALSE(checkAssembly(program));
+	EXPECT_EQ(CheckerErrno::duplicateDeclarationInSameScope, checkAssembly(program));
 }

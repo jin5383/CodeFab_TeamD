@@ -13,8 +13,16 @@ Program constructAssembly(const std::vector<Token>& tokens);
 Program assemble(const std::string& source);
 
 // Checker_Unit.cpp
-// Input: Assembler Unit의 Output인 Program (읽기 전용) / Output: 정적 검사 통과 여부 (에러 없음 = true)
-bool checkAssembly(const Program& program);
+// Checker Unit 정적 검사 결과 코드 (0 = 에러 없음)
+enum class CheckerErrno
+{
+	success = 0,
+	selfReferencingInitializer,
+	duplicateDeclarationInSameScope,
+};
+
+// Input: Assembler Unit의 Output인 Program (읽기 전용) / Output: 정적 검사 결과 errno (success = 에러 없음)
+CheckerErrno checkAssembly(const Program& program);
 
 // Executor_Unit.cpp
 void executeAssembly(const Program& program);

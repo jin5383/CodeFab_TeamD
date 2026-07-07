@@ -99,11 +99,16 @@ Program := Stmt 목록 (최상위 statement의 순서 있는 리스트)
 
 ### 6.2 Checker Unit
 - **Input**: `Program` (Assembler의 Output)
-- **Output**: 정적 검사 에러 목록 (없으면 = 통과)
+- **Output**: 정적 검사 결과 코드. `function.h`에 정의된 `enum class CheckerErrno`
+  (`success = 0`이면 통과, 그 외 값은 어떤 에러인지를 구분하는 코드)로 표현한다.
+  단순 `bool`이 아니라 errno 방식을 쓰는 이유는, 이 절 하단의 에러 케이스처럼 서로
+  다른 에러를 다른 Unit(예: main의 출력 로직)에서 구분해서 다뤄야 하기 때문이다.
 - 계약: `Program`을 읽기만 하고 **변형하지 않는다**. 원본 트리를 그대로 Executor에 넘긴다.
 - 확인된 에러 케이스 (p.821~836):
   - 같은 스코프 내 변수 중복 선언 — `{ var a = "first"; var a = "second"; }` → Error
-  - 초기화식에서 자기 자신을 참조하는 미선언 변수 사용 — `{ var a = a + 1; }` → Error (우변의 `a`가 아직 선언되지 않음)
+    (`CheckerErrno::duplicateDeclarationInSameScope`)
+  - 초기화식에서 자기 자신을 참조하는 미선언 변수 사용 — `{ var a = a + 1; }` → Error
+    (우변의 `a`가 아직 선언되지 않음, `CheckerErrno::selfReferencingInitializer`)
 
 ### 6.3 Executor Unit
 - **Input**: Checker Unit을 통과한 `Program`

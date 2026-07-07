@@ -33,7 +33,7 @@ namespace
 	class Checker
 	{
 	public:
-		bool run(const Program& program)
+		CheckerErrno run(const Program& program)
 		{
 			scopes.assign(1, {});
 			return checkStmts(program.statements);
@@ -42,57 +42,63 @@ namespace
 	private:
 		std::vector<std::set<std::string>> scopes;
 
-		bool checkStmts(const std::vector<Stmt*>& statements)
+		CheckerErrno checkStmts(const std::vector<Stmt*>& statements)
 		{
 			for (Stmt* stmt : statements)
-				if (!checkStmt(stmt))
-					return false;
-			return true;
+			{
+				CheckerErrno result = checkStmt(stmt);
+				if (result != CheckerErrno::success)
+					return result;
+			}
+			return CheckerErrno::success;
 		}
 
-		bool checkStmt(Stmt* stmt)
+		CheckerErrno checkStmt(Stmt* stmt)
 		{
 			if (!stmt)
-				return true;
+				return CheckerErrno::success;
 
-			// var 자신의 초기화식이 같은 이름의 바깥 변수 없이 자기 자신을 참조하면 에러
 			if (auto* varDecl = dynamic_cast<VarDeclStmt*>(stmt))
 			{
 				const std::string& name = varDecl->name.origin;
 				if (scopes.back().count(name))
-					return false;
+					return CheckerErrno::duplicateDeclarationInSameScope;
 
+				// var 자신의 초기화식이 같은 이름의 바깥 변수 없이 자기 자신을 참조하면 에러
 				if (varDecl->initializer && exprReferencesName(varDecl->initializer, name) && !isNameDeclared(name))
-					return false;
+					return CheckerErrno::selfReferencingInitializer;
 
 				scopes.back().insert(name);
-				return true;
+				return CheckerErrno::success;
 			}
 
 			if (auto* block = dynamic_cast<BlockStmt*>(stmt))
 			{
 				scopes.push_back({});
-				bool ok = checkStmts(block->statements);
+				CheckerErrno result = checkStmts(block->statements);
 				scopes.pop_back();
-				return ok;
+				return result;
 			}
 
 			if (auto* ifStmt = dynamic_cast<IfStmt*>(stmt))
 			{
-				if (!checkStmt(ifStmt->thenBranch))
-					return false;
+				CheckerErrno result = checkStmt(ifStmt->thenBranch);
+				if (result != CheckerErrno::success)
+					return result;
 				return checkStmt(ifStmt->elseBranch);
 			}
 
 			if (auto* forStmt = dynamic_cast<ForStmt*>(stmt))
 			{
 				scopes.push_back({});
-				bool ok = checkStmt(forStmt->init) && checkStmt(forStmt->body);
+				CheckerErrno result = checkStmt(forStmt->init);
+				if (result == CheckerErrno::success)
+					result = checkStmt(forStmt->body);
 				scopes.pop_back();
-				return ok;
+				return result;
 			}
 
-			return true;
+			return CheckerErrno::success;
 		}
 
 		bool isNameDeclared(const std::string& name) const
@@ -105,7 +111,7 @@ namespace
 	};
 }
 
-bool checkAssembly(const Program& program)
+CheckerErrno checkAssembly(const Program& program)
 {
 	Checker checker;
 	return checker.run(program);
