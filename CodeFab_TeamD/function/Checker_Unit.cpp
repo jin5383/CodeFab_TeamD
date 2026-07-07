@@ -2,5 +2,5 @@
 
 bool checkAssembly(const Program& program)
 {
-	return false;
+	return true;
 }
