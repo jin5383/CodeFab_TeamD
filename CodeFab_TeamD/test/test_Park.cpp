@@ -21,6 +21,9 @@ namespace
 
 	Expr* topExpression(const Program& program)
 	{
+		if (program.statements.empty())
+			return nullptr;
+
 		auto* stmt = dynamic_cast<ExpressionStmt*>(program.statements[0]);
 		if (stmt == nullptr)
 			return nullptr;
@@ -42,15 +45,15 @@ TEST(AssemblerUnitTest, VarDeclWithNumberLiteral_BuildsProgramTree)
 {
 	Program program = assemble("var a = 5 ;");
 
-	EXPECT_THAT(program.statements, SizeIs(1));
+	ASSERT_THAT(program.statements, SizeIs(1));
 
 	auto* varDecl = dynamic_cast<VarDeclStmt*>(program.statements[0]);
-	EXPECT_THAT(varDecl, NotNull());
+	ASSERT_THAT(varDecl, NotNull());
 	EXPECT_EQ(varDecl->name.type, TokenType::IDENTIFIER);
 	EXPECT_EQ(varDecl->name.origin, "a");
 
 	auto* literal = dynamic_cast<LiteralExpr*>(varDecl->initializer);
-	EXPECT_THAT(literal, NotNull());
+	ASSERT_THAT(literal, NotNull());
 	EXPECT_DOUBLE_EQ(std::get<double>(literal->value), 5.0);
 }
 
@@ -59,14 +62,14 @@ TEST(AssemblerOperatorPrecedenceTest, MultiplicationBindsTighterThanAddition)
 {
 	Program program = assemble("1 + 2 * 3;");
 
-	EXPECT_THAT(program.statements, SizeIs(1));
+	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
-	EXPECT_THAT(root, NotNull());
+	ASSERT_THAT(root, NotNull());
 	EXPECT_EQ(root->op.type, TokenType::PLUS);
 	EXPECT_DOUBLE_EQ(literalValue(root->left), 1.0);
 
 	auto* rightMul = dynamic_cast<BinaryExpr*>(root->right);
-	EXPECT_THAT(rightMul, NotNull());
+	ASSERT_THAT(rightMul, NotNull());
 	EXPECT_EQ(rightMul->op.type, TokenType::STAR);
 	EXPECT_DOUBLE_EQ(literalValue(rightMul->left), 2.0);
 	EXPECT_DOUBLE_EQ(literalValue(rightMul->right), 3.0);
@@ -77,15 +80,15 @@ TEST(AssemblerOperatorPrecedenceTest, ParenthesesOverridePrecedence)
 {
 	Program program = assemble("(1 + 2) * 3;");
 
-	EXPECT_THAT(program.statements, SizeIs(1));
+	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
-	EXPECT_THAT(root, NotNull());
+	ASSERT_THAT(root, NotNull());
 	EXPECT_EQ(root->op.type, TokenType::STAR);
 
 	auto* grouping = dynamic_cast<GroupingExpr*>(root->left);
-	EXPECT_THAT(grouping, NotNull());
+	ASSERT_THAT(grouping, NotNull());
 	auto* inner = dynamic_cast<BinaryExpr*>(grouping->expression);
-	EXPECT_THAT(inner, NotNull());
+	ASSERT_THAT(inner, NotNull());
 	EXPECT_EQ(inner->op.type, TokenType::PLUS);
 	EXPECT_DOUBLE_EQ(literalValue(inner->left), 1.0);
 	EXPECT_DOUBLE_EQ(literalValue(inner->right), 2.0);
@@ -98,14 +101,14 @@ TEST(AssemblerOperatorPrecedenceTest, SubtractionIsLeftAssociative)
 {
 	Program program = assemble("10 - 4 - 3;");
 
-	EXPECT_THAT(program.statements, SizeIs(1));
+	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
-	EXPECT_THAT(root, NotNull());
+	ASSERT_THAT(root, NotNull());
 	EXPECT_EQ(root->op.type, TokenType::MINUS);
 	EXPECT_DOUBLE_EQ(literalValue(root->right), 3.0);
 
 	auto* leftSub = dynamic_cast<BinaryExpr*>(root->left);
-	EXPECT_THAT(leftSub, NotNull());
+	ASSERT_THAT(leftSub, NotNull());
 	EXPECT_EQ(leftSub->op.type, TokenType::MINUS);
 	EXPECT_DOUBLE_EQ(literalValue(leftSub->left), 10.0);
 	EXPECT_DOUBLE_EQ(literalValue(leftSub->right), 4.0);
@@ -116,14 +119,14 @@ TEST(AssemblerOperatorPrecedenceTest, DivisionIsLeftAssociative)
 {
 	Program program = assemble("8 / 2 / 2;");
 
-	EXPECT_THAT(program.statements, SizeIs(1));
+	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
-	EXPECT_THAT(root, NotNull());
+	ASSERT_THAT(root, NotNull());
 	EXPECT_EQ(root->op.type, TokenType::SLASH);
 	EXPECT_DOUBLE_EQ(literalValue(root->right), 2.0);
 
 	auto* leftDiv = dynamic_cast<BinaryExpr*>(root->left);
-	EXPECT_THAT(leftDiv, NotNull());
+	ASSERT_THAT(leftDiv, NotNull());
 	EXPECT_EQ(leftDiv->op.type, TokenType::SLASH);
 	EXPECT_DOUBLE_EQ(literalValue(leftDiv->left), 8.0);
 	EXPECT_DOUBLE_EQ(literalValue(leftDiv->right), 2.0);
@@ -134,13 +137,13 @@ TEST(AssemblerUnitTest, UnaryMinusThenBinaryAddition)
 {
 	Program program = assemble("-3 + 2;");
 
-	EXPECT_THAT(program.statements, SizeIs(1));
+	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
-	EXPECT_THAT(root, NotNull());
+	ASSERT_THAT(root, NotNull());
 	EXPECT_EQ(root->op.type, TokenType::PLUS);
 
 	auto* unary = dynamic_cast<UnaryExpr*>(root->left);
-	EXPECT_THAT(unary, NotNull());
+	ASSERT_THAT(unary, NotNull());
 	EXPECT_EQ(unary->op.type, TokenType::MINUS);
 	EXPECT_DOUBLE_EQ(literalValue(unary->right), 3.0);
 
@@ -152,9 +155,9 @@ TEST(AssemblerUnitTest, LessThanComparison)
 {
 	Program program = assemble("1 < 2;");
 
-	EXPECT_THAT(program.statements, SizeIs(1));
+	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
-	EXPECT_THAT(root, NotNull());
+	ASSERT_THAT(root, NotNull());
 	EXPECT_EQ(root->op.type, TokenType::LESS);
 	EXPECT_DOUBLE_EQ(literalValue(root->left), 1.0);
 	EXPECT_DOUBLE_EQ(literalValue(root->right), 2.0);
@@ -165,9 +168,9 @@ TEST(AssemblerUnitTest, GreaterThanComparison)
 {
 	Program program = assemble("3 > 5;");
 
-	EXPECT_THAT(program.statements, SizeIs(1));
+	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
-	EXPECT_THAT(root, NotNull());
+	ASSERT_THAT(root, NotNull());
 	EXPECT_EQ(root->op.type, TokenType::GREATER);
 	EXPECT_DOUBLE_EQ(literalValue(root->left), 3.0);
 	EXPECT_DOUBLE_EQ(literalValue(root->right), 5.0);
@@ -178,10 +181,12 @@ TEST(AssemblerUnitTest, StringConcatenation)
 {
 	Program program = assemble("\"Hello, \" + \"CodeFab!\";");
 
-	EXPECT_THAT(program.statements, SizeIs(1));
+	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
-	EXPECT_THAT(root, NotNull());
+	ASSERT_THAT(root, NotNull());
 	EXPECT_EQ(root->op.type, TokenType::PLUS);
+	ASSERT_THAT(dynamic_cast<LiteralExpr*>(root->left), NotNull());
+	ASSERT_THAT(dynamic_cast<LiteralExpr*>(root->right), NotNull());
 	EXPECT_EQ(stringValue(root->left), "Hello, ");
 	EXPECT_EQ(stringValue(root->right), "CodeFab!");
 }
@@ -189,20 +194,28 @@ TEST(AssemblerUnitTest, StringConcatenation)
 // 5, 5.0, 3.14 : 정수/소수 숫자 리터럴은 모두 double 값을 갖는 LiteralExpr이어야 한다
 TEST(AssemblerUnitTest, NumericLiteralsAreParsedAsDoubleValues)
 {
-	EXPECT_DOUBLE_EQ(literalValue(topExpression(assemble("5;"))), 5.0);
-	EXPECT_DOUBLE_EQ(literalValue(topExpression(assemble("5.0;"))), 5.0);
-	EXPECT_DOUBLE_EQ(literalValue(topExpression(assemble("3.14;"))), 3.14);
+	auto* five = dynamic_cast<LiteralExpr*>(topExpression(assemble("5;")));
+	ASSERT_THAT(five, NotNull());
+	EXPECT_DOUBLE_EQ(literalValue(five), 5.0);
+
+	auto* fivePointZero = dynamic_cast<LiteralExpr*>(topExpression(assemble("5.0;")));
+	ASSERT_THAT(fivePointZero, NotNull());
+	EXPECT_DOUBLE_EQ(literalValue(fivePointZero), 5.0);
+
+	auto* pi = dynamic_cast<LiteralExpr*>(topExpression(assemble("3.14;")));
+	ASSERT_THAT(pi, NotNull());
+	EXPECT_DOUBLE_EQ(literalValue(pi), 3.14);
 }
 
 // true, false : boolean 리터럴은 bool 값을 갖는 LiteralExpr이어야 한다
 TEST(AssemblerUnitTest, BooleanLiteralsAreParsed)
 {
 	auto* trueLiteral = dynamic_cast<LiteralExpr*>(topExpression(assemble("true;")));
-	EXPECT_THAT(trueLiteral, NotNull());
+	ASSERT_THAT(trueLiteral, NotNull());
 	EXPECT_TRUE(std::get<bool>(trueLiteral->value));
 
 	auto* falseLiteral = dynamic_cast<LiteralExpr*>(topExpression(assemble("false;")));
-	EXPECT_THAT(falseLiteral, NotNull());
+	ASSERT_THAT(falseLiteral, NotNull());
 	EXPECT_FALSE(std::get<bool>(falseLiteral->value));
 }
 
