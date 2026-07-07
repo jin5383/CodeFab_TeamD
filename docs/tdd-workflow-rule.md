@@ -177,19 +177,19 @@ Input: 각 시나리오의 source가 파싱되면 나와야 할 모양대로, `p
 - [x] `print true;` / `print false;` → `true` / `false`
 
 ### 5.3.2 정상동작 테스트 — 2) 변수, 할당, 블록 스코프, shadowing
-- [ ] `var a = 10; var b = 20; print a + b;` → `30`
-- [ ] `a = a + 5; print a;` → `15`
-- [ ] `{ var x = "inner"; print x; } print x;` (바깥은 `"global"`) → `inner` 그 다음 `global`
-- [ ] `{ count = count + 1; } print count;` → `1`
-- [ ] `{ var inner = "B"; { print outer + inner; } }` (`outer = "A"`) → `AB`
+- [x] `var a = 10; var b = 20; print a + b;` → `30`
+- [x] `a = a + 5; print a;` → `15`
+- [x] `{ var x = "inner"; print x; } print x;` (바깥은 `"global"`) → `inner` 그 다음 `global`
+- [x] `{ count = count + 1; } print count;` → `1`
+- [x] `{ var inner = "B"; { print outer + inner; } }` (`outer = "A"`) → `AB`
 
 ### 5.3.3 정상동작 테스트 — 3) 제어 흐름 (if/else, for)
-- [ ] `if (true) print "bbq";` → `bbq`
-- [ ] `if (false) print "no"; else print "kfc";` → `kfc`
-- [ ] `if (true) { if (false) print "kfc"; else print "bbq"; }` else는 가장 가까운 if에 결합 → `bbq`
-- [ ] `for (var j = 0; j < 3; j = j + 1) { print j; }` → `0`, `1`, `2`
+- [x] `if (true) print "bbq";` → `bbq`
+- [x] `if (false) print "no"; else print "kfc";` → `kfc`
+- [x] `if (true) { if (false) print "kfc"; else print "bbq"; }` else는 가장 가까운 if에 결합 → `bbq`
+- [x] `for (var j = 0; j < 3; j = j + 1) { print j; }` → `0`, `1`, `2`
 
 ### 5.3.4 에러 검출 테스트 — Executor 런타임 에러
-- [ ] 미선언 변수 참조 → `Undefined variable 'notDefined'.`
-- [ ] `+` 연산자 숫자/문자열 혼용 → `Operands must be two numbers or two strings.`
-- [ ] 숫자가 아닌 값에 단항 마이너스 → `Operand must be a number.`
+- [x] 미선언 변수 참조 → `Undefined variable 'notDefined'.`
+- [x] `+` 연산자 숫자/문자열 혼용 → `Operands must be two numbers or two strings.`
+- [x] 숫자가 아닌 값에 단항 마이너스 → `Operand must be a number.`
