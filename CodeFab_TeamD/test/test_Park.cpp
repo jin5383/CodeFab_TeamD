@@ -13,10 +13,19 @@ namespace
 		return std::get<double>(literal->value);
 	}
 
+	std::string stringValue(Expr* expr)
+	{
+		auto* literal = dynamic_cast<LiteralExpr*>(expr);
+		return std::get<std::string>(literal->value);
+	}
+
 	Expr* topExpression(const Program& program)
 	{
 		auto* stmt = dynamic_cast<ExpressionStmt*>(program.statements[0]);
-		return stmt ? stmt->expression : nullptr;
+		if (stmt == nullptr)
+			return nullptr;
+
+		return stmt->expression;
 	}
 }
 
@@ -110,4 +119,81 @@ TEST(AssemblerOperatorPrecedenceTest, DivisionIsLeftAssociative)
 	EXPECT_EQ(leftDiv->op.type, TokenType::SLASH);
 	EXPECT_DOUBLE_EQ(literalValue(leftDiv->left), 8.0);
 	EXPECT_DOUBLE_EQ(literalValue(leftDiv->right), 2.0);
+}
+
+// -3 + 2 : 단항 마이너스가 먼저 결합되고, 그 결과가 이항 덧셈의 좌항이 되어야 한다
+TEST(AssemblerUnitTest, UnaryMinusThenBinaryAddition)
+{
+	Program program = assemble("-3 + 2;");
+
+	EXPECT_THAT(program.statements, SizeIs(1));
+	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
+	EXPECT_THAT(root, NotNull());
+	EXPECT_EQ(root->op.type, TokenType::PLUS);
+
+	auto* unary = dynamic_cast<UnaryExpr*>(root->left);
+	EXPECT_THAT(unary, NotNull());
+	EXPECT_EQ(unary->op.type, TokenType::MINUS);
+	EXPECT_DOUBLE_EQ(literalValue(unary->right), 3.0);
+
+	EXPECT_DOUBLE_EQ(literalValue(root->right), 2.0);
+}
+
+// 1 < 2 : 비교 연산자는 BinaryExpr(LESS)로 표현되어야 한다
+TEST(AssemblerUnitTest, LessThanComparison)
+{
+	Program program = assemble("1 < 2;");
+
+	EXPECT_THAT(program.statements, SizeIs(1));
+	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
+	EXPECT_THAT(root, NotNull());
+	EXPECT_EQ(root->op.type, TokenType::LESS);
+	EXPECT_DOUBLE_EQ(literalValue(root->left), 1.0);
+	EXPECT_DOUBLE_EQ(literalValue(root->right), 2.0);
+}
+
+// 3 > 5 : 비교 연산자는 BinaryExpr(GREATER)로 표현되어야 한다
+TEST(AssemblerUnitTest, GreaterThanComparison)
+{
+	Program program = assemble("3 > 5;");
+
+	EXPECT_THAT(program.statements, SizeIs(1));
+	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
+	EXPECT_THAT(root, NotNull());
+	EXPECT_EQ(root->op.type, TokenType::GREATER);
+	EXPECT_DOUBLE_EQ(literalValue(root->left), 3.0);
+	EXPECT_DOUBLE_EQ(literalValue(root->right), 5.0);
+}
+
+// "Hello, " + "CodeFab!" : 문자열 리터럴의 + 연산은 BinaryExpr(PLUS)로 표현되어야 한다
+TEST(AssemblerUnitTest, StringConcatenation)
+{
+	Program program = assemble("\"Hello, \" + \"CodeFab!\";");
+
+	EXPECT_THAT(program.statements, SizeIs(1));
+	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
+	EXPECT_THAT(root, NotNull());
+	EXPECT_EQ(root->op.type, TokenType::PLUS);
+	EXPECT_EQ(stringValue(root->left), "Hello, ");
+	EXPECT_EQ(stringValue(root->right), "CodeFab!");
+}
+
+// 5, 5.0, 3.14 : 정수/소수 숫자 리터럴은 모두 double 값을 갖는 LiteralExpr이어야 한다
+TEST(AssemblerUnitTest, NumericLiteralsAreParsedAsDoubleValues)
+{
+	EXPECT_DOUBLE_EQ(literalValue(topExpression(assemble("5;"))), 5.0);
+	EXPECT_DOUBLE_EQ(literalValue(topExpression(assemble("5.0;"))), 5.0);
+	EXPECT_DOUBLE_EQ(literalValue(topExpression(assemble("3.14;"))), 3.14);
+}
+
+// true, false : boolean 리터럴은 bool 값을 갖는 LiteralExpr이어야 한다
+TEST(AssemblerUnitTest, BooleanLiteralsAreParsed)
+{
+	auto* trueLiteral = dynamic_cast<LiteralExpr*>(topExpression(assemble("true;")));
+	EXPECT_THAT(trueLiteral, NotNull());
+	EXPECT_TRUE(std::get<bool>(trueLiteral->value));
+
+	auto* falseLiteral = dynamic_cast<LiteralExpr*>(topExpression(assemble("false;")));
+	EXPECT_THAT(falseLiteral, NotNull());
+	EXPECT_FALSE(std::get<bool>(falseLiteral->value));
 }

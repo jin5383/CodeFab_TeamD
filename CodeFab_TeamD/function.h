@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "ast.h"
 
@@ -17,3 +17,4 @@ bool checkAssembly();
 
 // Executor_Unit.cpp
 void executeAssembly(const Program& program);
+
