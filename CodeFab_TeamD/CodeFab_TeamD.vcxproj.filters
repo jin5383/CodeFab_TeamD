@@ -59,6 +59,9 @@
     <ClCompile Include="test\test_Park.cpp">
       <Filter>test</Filter>
     </ClCompile>
+    <ClCompile Include="test\test_integration.cpp">
+      <Filter>test</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="function.h">

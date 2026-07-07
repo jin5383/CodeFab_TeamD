@@ -150,6 +150,7 @@
     <ClCompile Include="test\test_Lee.cpp" />
     <ClCompile Include="test\test_Hong.cpp" />
     <ClCompile Include="test\test_Park.cpp" />
+    <ClCompile Include="test\test_integration.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="function.h" />
