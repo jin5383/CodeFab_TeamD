@@ -165,8 +165,12 @@ private:
 void PromptShell::run()
 {
     std::string line;
+    out << PROMPT;              // 다음 입력을 받기 전 콘솔에 ">> " 표시
     while (std::getline(in, line))
+    {
         feedLine(line);
+        out << PROMPT;
+    }
 }
 
 void PromptShell::feedLine(const std::string& line)
@@ -192,6 +196,27 @@ void PromptShell::dispatch()
   거치지 않고도 `PromptShell` 인스턴스에 줄을 하나씩 직접 먹여 검증할 수 있다.
 - `main.cpp`(또는 별도 실행 파일)는 `PromptShell(std::cin, std::cout).run();` 한 줄만 호출하는
   얇은 진입점이 된다.
+
+#### 콘솔 프롬프트 표시
+
+CLI 기반 Prompt Shell(`CodeFab_Requirement.extracted.txt` p.6, line 52~55)이라는 요구사항에
+맞춰, 사용자가 입력을 넣기 전 콘솔에 `>> `를 출력해 "지금 입력을 받을 수 있다"는 것을 보여준다.
+
+- `run()`에서만 프롬프트를 출력한다. `feedLine()` 자체는 프롬프트를 출력하지 않는다 — 3.2절의
+  line-by-line Integration Test는 `feedLine()`을 직접 호출해 stdout을 캡처하므로, 프롬프트가
+  `feedLine()`에 섞여 있으면 캡처된 출력에 `>> `가 끼어들어 기대값과 어긋난다. 즉 "완전한 문장
+  하나를 처리한다"(`feedLine`)와 "콘솔에서 사용자와 상호작용한다"(`run`)는 책임을 분리한다.
+  프롬프트는 실제 콘솔 세션의 관심사이지 파이프라인 실행 결과가 아니다.
+  이때문에 `>> `는 gtest로 직접 검증하지 않는다.
+  실제로 잘 나오는지는 사람이 손으로 `run()`을 실행해 눈으로 확인한다.
+- 프롬프트 문자열은 `>> ` (마지막에 공백 1칸) 리터럴로 고정한다. 줄바꿈은 붙이지 않는다 — 같은
+  줄에서 사용자가 이어서 입력하는 모양이 되어야 한다.
+- 첫 프롬프트는 `run()` 진입 시 1회, 이후에는 `feedLine()`으로 한 줄을 처리하고 나서(완전한
+  문장이 dispatch되어 결과가 이미 출력된 뒤이든, 아직 버퍼링 중이든 상관없이) 다음 줄을 받기
+  전에 매번 출력한다. 버퍼링 중(중괄호/괄호가 아직 안 닫힌 상태)에도 동일하게 `>> `를 띄운다 —
+  "지금 이어서 입력을 받는다"는 사실 자체는 continuation 여부와 무관하게 동일하기 때문에,
+  `... ` 같은 별도 continuation 프롬프트는 도입하지 않는다(YAGNI, 2.2절에서 이미 continuation
+  표시는 "필수는 아니다"로 명시함).
 
 ## 3. 최종 Integration Test 설계
 
