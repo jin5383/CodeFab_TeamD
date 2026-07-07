@@ -126,32 +126,32 @@ Input: 각 시나리오의 source가 파싱되면 나와야 할 모양대로, `p
 ### 5.2.1 정상동작 테스트 — 1) 표현식/연산자/우선순위/진리값
 - [x] `print 1 + 2 * 3;` 산술/우선순위 — 에러 없음 (PrintStmt)
 - [x] `print (1 + 2) * 3;` 괄호 우선순위 — 에러 없음 (PrintStmt)
-- [ ] `print 10 - 4 - 3;` 좌결합 — 에러 없음 (PrintStmt)
-- [ ] `print 8 / 2 / 2;` 좌결합 — 에러 없음 (PrintStmt)
-- [ ] `print -3 + 2;` 단항 마이너스 — 에러 없음 (PrintStmt)
-- [ ] `print 1 < 2;` 비교 연산자 — 에러 없음 (PrintStmt)
-- [ ] `print 3 > 5;` 비교 연산자 — 에러 없음 (PrintStmt)
-- [ ] `print "Hello, " + "CodeFab!";` 문자열 연결 — 에러 없음 (PrintStmt)
-- [ ] `print 5;` 리터럴 — 에러 없음 (PrintStmt)
-- [ ] `print 5.0;` 리터럴 — 에러 없음 (PrintStmt)
-- [ ] `print 3.14;` 리터럴 — 에러 없음 (PrintStmt)
-- [ ] `print true;` 리터럴 — 에러 없음 (PrintStmt)
-- [ ] `print false;` 리터럴 — 에러 없음 (PrintStmt)
+- [x] `print 10 - 4 - 3;` 좌결합 — 에러 없음 (PrintStmt)
+- [x] `print 8 / 2 / 2;` 좌결합 — 에러 없음 (PrintStmt)
+- [x] `print -3 + 2;` 단항 마이너스 — 에러 없음 (PrintStmt)
+- [x] `print 1 < 2;` 비교 연산자 — 에러 없음 (PrintStmt)
+- [x] `print 3 > 5;` 비교 연산자 — 에러 없음 (PrintStmt)
+- [x] `print "Hello, " + "CodeFab!";` 문자열 연결 — 에러 없음 (PrintStmt)
+- [x] `print 5;` 리터럴 — 에러 없음 (PrintStmt)
+- [x] `print 5.0;` 리터럴 — 에러 없음 (PrintStmt)
+- [x] `print 3.14;` 리터럴 — 에러 없음 (PrintStmt)
+- [x] `print true;` 리터럴 — 에러 없음 (PrintStmt)
+- [x] `print false;` 리터럴 — 에러 없음 (PrintStmt)
 
 ### 5.2.2 정상동작 테스트 — 2) 변수, 할당, 블록 스코프, shadowing
-- [ ] `var a = 10; var b = 20; print a + b;` — 에러 없음
-- [ ] `a = a + 5;` 재할당 — 에러 없음 (`print a;`는 5.2.1에서 이미 검증되므로 생략)
-- [ ] `var x = "global"; { var x = "inner"; }` 블록 스코프 & shadowing — 에러 없음
+- [x] `var a = 10; var b = 20; print a + b;` — 에러 없음
+- [x] `a = a + 5;` 재할당 — 에러 없음 (`print a;`는 5.2.1에서 이미 검증되므로 생략)
+- [x] `var x = "global"; { var x = "inner"; }` 블록 스코프 & shadowing — 에러 없음
       (바깥 선언을 포함해야 "다른 스코프의 동일 이름 재선언은 중복 선언이 아님"이 실제로 검증됨)
-- [ ] `{ count = count + 1; }` 바깥 변수 수정 — 에러 없음
-- [ ] `var outer = "A"; { var inner = "B"; { print outer + inner; } }` 중첩 스코프 — 에러 없음
+- [x] `{ count = count + 1; }` 바깥 변수 수정 — 에러 없음
+- [x] `var outer = "A"; { var inner = "B"; { print outer + inner; } }` 중첩 스코프 — 에러 없음
       (바깥 `outer` 선언을 포함해야 실제 시나리오와 동일한 트리가 됨)
 
 ### 5.2.3 정상동작 테스트 — 3) 제어 흐름 (if/else, for)
-- [ ] `if (true) print "bbq";`  → `bbq`
-- [ ] `if (false) print "no"; else print "kfc";` → `kfc`
-- [ ] `if (true) { if (false) print "kfc"; else print "bbq"; }` else의 최근접 if 결합 — 에러 없음
-- [ ] `for (var j = 0; j < 3; j = j + 1) { print j; }` — 에러 없음
+- [x] `if (true) print "bbq";`  → `bbq`
+- [x] `if (false) print "no"; else print "kfc";` → `kfc`
+- [x] `if (true) { if (false) print "kfc"; else print "bbq"; }` else의 최근접 if 결합 — 에러 없음
+- [x] `for (var j = 0; j < 3; j = j + 1) { print j; }` — 에러 없음
 
 ### 5.2.4 에러 검출 테스트 — Checker Unit 정적 에러
 - [ ] 초기화식에서 자기 자신 참조 → `Can't read local variable in initializer.`
