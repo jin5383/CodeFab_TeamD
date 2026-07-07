@@ -26,19 +26,25 @@ namespace
 
 		if (auto* binary = dynamic_cast<BinaryExpr*>(expr))
 		{
-			double left = asNumber(evaluate(binary->left));
-			double right = asNumber(evaluate(binary->right));
+			LiteralValue left = evaluate(binary->left);
+			LiteralValue right = evaluate(binary->right);
 
 			switch (binary->op.type)
 			{
 			case TokenType::PLUS:
-				return left + right;
+				if (std::holds_alternative<std::string>(left) && std::holds_alternative<std::string>(right))
+					return std::get<std::string>(left) + std::get<std::string>(right);
+				return asNumber(left) + asNumber(right);
 			case TokenType::MINUS:
-				return left - right;
+				return asNumber(left) - asNumber(right);
 			case TokenType::STAR:
-				return left * right;
+				return asNumber(left) * asNumber(right);
 			case TokenType::SLASH:
-				return left / right;
+				return asNumber(left) / asNumber(right);
+			case TokenType::LESS:
+				return asNumber(left) < asNumber(right);
+			case TokenType::GREATER:
+				return asNumber(left) > asNumber(right);
 			default:
 				break;
 			}
@@ -49,6 +55,11 @@ namespace
 
 	std::string stringify(const LiteralValue& value)
 	{
+		if (std::holds_alternative<bool>(value))
+			return std::get<bool>(value) ? "true" : "false";
+		if (std::holds_alternative<std::string>(value))
+			return std::get<std::string>(value);
+
 		std::ostringstream out;
 		out << asNumber(value);
 		return out.str();
