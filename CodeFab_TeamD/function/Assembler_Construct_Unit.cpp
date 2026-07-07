@@ -86,7 +86,7 @@ namespace
 			getTokenAndAdvance(); // print
 			auto* stmt = new PrintStmt();
 			stmt->expression = parseExpression();
-			getTokenAndAdvance(); // ;
+			expectAndAdvance(TokenType::SEMICOLON, "Expect ';' after value.");
 			return stmt;
 		}
 
