@@ -259,3 +259,188 @@ TEST_F(ExecutorTest, PrintFalseLiteralOutputsFalse)
 
 	EXPECT_EQ(capturedOutput.str(), "false\n");
 }
+
+// 테스트 스크립트.md 2-1) var a = 10; var b = 20; print a + b; -> stdout "30"
+TEST_F(ExecutorTest, VarDeclarationsAndUsage_OutputsThirty)
+{
+	LiteralExpr ten;
+	ten.value = 10.0;
+
+	LiteralExpr twenty;
+	twenty.value = 20.0;
+
+	VarDeclStmt declareA;
+	declareA.name = Token{ TokenType::IDENTIFIER, "a" };
+	declareA.initializer = &ten;
+
+	VarDeclStmt declareB;
+	declareB.name = Token{ TokenType::IDENTIFIER, "b" };
+	declareB.initializer = &twenty;
+
+	VariableExpr referenceA;
+	referenceA.name = Token{ TokenType::IDENTIFIER, "a" };
+
+	VariableExpr referenceB;
+	referenceB.name = Token{ TokenType::IDENTIFIER, "b" };
+
+	BinaryExpr add = makeBinary(TokenType::PLUS, &referenceA, &referenceB);
+
+	printStmt.expression = &add;
+	program.statements = { &declareA, &declareB, &printStmt };
+
+	executeAssembly(program);
+
+	EXPECT_EQ(capturedOutput.str(), "30\n");
+}
+
+// 테스트 스크립트.md 2-2) a = a + 5; print a; (a는 10으로 선언된 상태) -> stdout "15"
+TEST_F(ExecutorTest, ReassignmentAddsFive_OutputsFifteen)
+{
+	LiteralExpr ten;
+	ten.value = 10.0;
+
+	VarDeclStmt declareA;
+	declareA.name = Token{ TokenType::IDENTIFIER, "a" };
+	declareA.initializer = &ten;
+
+	VariableExpr referenceAForAssign;
+	referenceAForAssign.name = Token{ TokenType::IDENTIFIER, "a" };
+
+	LiteralExpr five;
+	five.value = 5.0;
+
+	BinaryExpr addFive = makeBinary(TokenType::PLUS, &referenceAForAssign, &five);
+
+	AssignExpr reassignA;
+	reassignA.name = Token{ TokenType::IDENTIFIER, "a" };
+	reassignA.value = &addFive;
+
+	ExpressionStmt reassignStmt;
+	reassignStmt.expression = &reassignA;
+
+	VariableExpr referenceAForPrint;
+	referenceAForPrint.name = Token{ TokenType::IDENTIFIER, "a" };
+
+	printStmt.expression = &referenceAForPrint;
+	program.statements = { &declareA, &reassignStmt, &printStmt };
+
+	executeAssembly(program);
+
+	EXPECT_EQ(capturedOutput.str(), "15\n");
+}
+
+// 테스트 스크립트.md 2-3) { var x = "inner"; print x; } print x; (바깥 x는 "global") -> stdout "inner" 그 다음 "global"
+TEST_F(ExecutorTest, BlockScopeShadowing_OutputsInnerThenGlobal)
+{
+	LiteralExpr global;
+	global.value = string("global");
+
+	VarDeclStmt declareGlobalX;
+	declareGlobalX.name = Token{ TokenType::IDENTIFIER, "x" };
+	declareGlobalX.initializer = &global;
+
+	LiteralExpr inner;
+	inner.value = string("inner");
+
+	VarDeclStmt declareInnerX;
+	declareInnerX.name = Token{ TokenType::IDENTIFIER, "x" };
+	declareInnerX.initializer = &inner;
+
+	VariableExpr referenceInnerX;
+	referenceInnerX.name = Token{ TokenType::IDENTIFIER, "x" };
+
+	PrintStmt printInnerX;
+	printInnerX.expression = &referenceInnerX;
+
+	BlockStmt block;
+	block.statements = { &declareInnerX, &printInnerX };
+
+	VariableExpr referenceOuterX;
+	referenceOuterX.name = Token{ TokenType::IDENTIFIER, "x" };
+
+	printStmt.expression = &referenceOuterX;
+	program.statements = { &declareGlobalX, &block, &printStmt };
+
+	executeAssembly(program);
+
+	EXPECT_EQ(capturedOutput.str(), "inner\nglobal\n");
+}
+
+// 테스트 스크립트.md 2-4) { count = count + 1; } print count; (count는 0으로 선언된 상태) -> stdout "1"
+TEST_F(ExecutorTest, BlockModifiesOuterVariable_OutputsOne)
+{
+	LiteralExpr zero;
+	zero.value = 0.0;
+
+	VarDeclStmt declareCount;
+	declareCount.name = Token{ TokenType::IDENTIFIER, "count" };
+	declareCount.initializer = &zero;
+
+	VariableExpr referenceCountForAssign;
+	referenceCountForAssign.name = Token{ TokenType::IDENTIFIER, "count" };
+
+	LiteralExpr one;
+	one.value = 1.0;
+
+	BinaryExpr addOne = makeBinary(TokenType::PLUS, &referenceCountForAssign, &one);
+
+	AssignExpr incrementCount;
+	incrementCount.name = Token{ TokenType::IDENTIFIER, "count" };
+	incrementCount.value = &addOne;
+
+	ExpressionStmt incrementStmt;
+	incrementStmt.expression = &incrementCount;
+
+	BlockStmt block;
+	block.statements = { &incrementStmt };
+
+	VariableExpr referenceCountForPrint;
+	referenceCountForPrint.name = Token{ TokenType::IDENTIFIER, "count" };
+
+	printStmt.expression = &referenceCountForPrint;
+	program.statements = { &declareCount, &block, &printStmt };
+
+	executeAssembly(program);
+
+	EXPECT_EQ(capturedOutput.str(), "1\n");
+}
+
+// 테스트 스크립트.md 2-5) var outer = "A"; { var inner = "B"; { print outer + inner; } } -> stdout "AB"
+TEST_F(ExecutorTest, NestedScopeResolvesOuterAndInner_OutputsAB)
+{
+	LiteralExpr a;
+	a.value = string("A");
+
+	VarDeclStmt declareOuter;
+	declareOuter.name = Token{ TokenType::IDENTIFIER, "outer" };
+	declareOuter.initializer = &a;
+
+	LiteralExpr b;
+	b.value = string("B");
+
+	VarDeclStmt declareInner;
+	declareInner.name = Token{ TokenType::IDENTIFIER, "inner" };
+	declareInner.initializer = &b;
+
+	VariableExpr referenceOuter;
+	referenceOuter.name = Token{ TokenType::IDENTIFIER, "outer" };
+
+	VariableExpr referenceInner;
+	referenceInner.name = Token{ TokenType::IDENTIFIER, "inner" };
+
+	BinaryExpr concatenate = makeBinary(TokenType::PLUS, &referenceOuter, &referenceInner);
+
+	printStmt.expression = &concatenate;
+
+	BlockStmt innermostBlock;
+	innermostBlock.statements = { &printStmt };
+
+	BlockStmt innerBlock;
+	innerBlock.statements = { &declareInner, &innermostBlock };
+
+	program.statements = { &declareOuter, &innerBlock };
+
+	executeAssembly(program);
+
+	EXPECT_EQ(capturedOutput.str(), "AB\n");
+}
