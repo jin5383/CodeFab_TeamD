@@ -1,4 +1,4 @@
-# Assembler 진입점 구조 명세 (현재 구현 기준)
+# Unit 파일 구성 및 진입점 명세 (현재 구현 기준)
 
 > 근거: `docs/unit-io-spec.md` (Expr/Stmt/Program 정의), `docs/program-tree-struct-spec.md` (`Token`/`Expr`/`Stmt`/`Program` 필드 정의 및 예시 트리), `CodeFab_TeamD/function.h` (Assembler/Checker/Executor 진입점)
 > 이 문서는 원래 `AssemblerTest.ParsesSimpleVarDecl` 하나만 통과시키기 위한 최소 구현 계획으로 작성되었으나,
