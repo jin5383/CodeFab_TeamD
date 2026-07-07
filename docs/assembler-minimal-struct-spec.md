@@ -1,109 +1,53 @@
-# Assembler 최소 구현 구조체 명세
+# Assembler 진입점 구조 명세 (현재 구현 기준)
 
-> 근거: `docs/unit-io-spec.md` (Expr/Stmt/Program 정의), `CodeFab_TeamD/assembler_test.cpp` (TDD Red 테스트)
-> 목적: `assembler_test.cpp`의 `AssemblerTest.ParsesSimpleVarDecl`을 컴파일·통과시키는 데 필요한
-> **최소** 타입/파일 구조를 먼저 고정한다. 전체 Expr/Stmt 종류(Section 3~4)는 이후 별도 PR에서 확장한다.
+> 근거: `docs/unit-io-spec.md` (Expr/Stmt/Program 정의), `docs/program-tree-struct-spec.md` (`Token`/`Expr`/`Stmt`/`Program` 필드 정의 및 예시 트리), `CodeFab_TeamD/function.h` (Assembler/Checker/Executor 진입점)
+> 이 문서는 원래 `AssemblerTest.ParsesSimpleVarDecl` 하나만 통과시키기 위한 최소 구현 계획으로 작성되었으나,
+> 이후 `ast.h`에 Expr 7종·Stmt 6종 전체가 구현되면서 최소 범위를 넘어섰다. 자료구조(`Token`/`Expr`/`Stmt`/`Program`)
+> 필드 정의와 `var a = 5;` 동작 예시는 `docs/program-tree-struct-spec.md`가 다루므로 이 문서는 **파일 구성과
+> Assembler/Checker/Executor 진입점 함수**만 다룬다.
 
 ## 1. 파일 구성
 
 | 파일 | 내용 |
 |---|---|
-| `CodeFab_TeamD/expr.h` | `Expr` 베이스, `LiteralExpr` |
-| `CodeFab_TeamD/stmt.h` | `Stmt` 베이스, `VarDeclStmt` |
-| `CodeFab_TeamD/program.h` | `Program` |
-| `CodeFab_TeamD/assembler.h` | `Assembler` 클래스 선언 (위 세 헤더를 포함) |
-| `CodeFab_TeamD/assembler.cpp` | `Assembler::assemble` 구현 |
+| `CodeFab_TeamD/ast.h` | `TokenType`/`Token`/`LiteralValue`, `Expr`과 7종 하위 타입, `Stmt`와 6종 하위 타입, `Program` 전부를 한 헤더에 정의 (필드 정의는 `docs/program-tree-struct-spec.md` 참고) |
+| `CodeFab_TeamD/function.h` | `tokenizeSource`/`constructAssembly`/`assemble`/`checkAssembly`/`executeAssembly` 자유 함수 선언 |
+| `CodeFab_TeamD/function/Assembler_Token_Unit.cpp` | `tokenizeSource` 구현 |
+| `CodeFab_TeamD/function/Assembler_Construct_Unit.cpp` | `constructAssembly` 구현 |
+| `CodeFab_TeamD/function/Checker_Unit.cpp` | `checkAssembly` 구현 (현재 빈 스텁, 항상 `true` 반환) |
+| `CodeFab_TeamD/function/Executor_Unit.cpp` | `executeAssembly` 구현 (현재 빈 스텁) |
 
-`assembler_test.cpp`는 `assembler.h` 하나만 include하므로, `assembler.h`가 `program.h`/`stmt.h`/`expr.h`를 전이적으로 include해야 한다.
+애초 계획했던 `expr.h`/`stmt.h`/`program.h`/`assembler.h`/`assembler.cpp` 분리 구조 대신, 자료구조는 `ast.h` 하나로, 함수는 `function.h` + `function/*.cpp`로 구성되어 있다. `Assembler` 클래스도 두지 않고 자유 함수 `assemble`을 단위 진입점으로 사용한다.
 
-## 2. `expr.h`
-
-```cpp
-#pragma once
-#include <variant>
-#include <string>
-
-struct Expr
-{
-	virtual ~Expr() = default;
-};
-
-// unit-io-spec.md 3절 LiteralExpr: value(number | string | boolean)
-struct LiteralExpr : Expr
-{
-	std::variant<double, std::string, bool> value;
-
-	explicit LiteralExpr(std::variant<double, std::string, bool> value)
-		: value(std::move(value)) {}
-};
-```
-
-- 나머지 Expr 하위 타입(`VariableExpr`, `AssignExpr`, `BinaryExpr` 등)은 이번 최소 구현 범위에 포함하지 않는다.
-
-## 3. `stmt.h`
+## 2. `function.h` — 진입점 함수
 
 ```cpp
 #pragma once
-#include <memory>
-#include <string>
-#include "expr.h"
 
-struct Stmt
-{
-	virtual ~Stmt() = default;
-};
+#include "ast.h"
 
-// unit-io-spec.md 4절 VarDeclStmt: name(Token[IDENTIFIER]), initializer(Expr | none)
-struct VarDeclStmt : Stmt
-{
-	std::string name;
-	std::unique_ptr<Expr> initializer;
+// Assembler_Token_Unit.cpp
+std::vector<Token> tokenizeSource(const std::string& source);
 
-	VarDeclStmt(std::string name, std::unique_ptr<Expr> initializer)
-		: name(std::move(name)), initializer(std::move(initializer)) {}
-};
+// Assembler_Construct_Unit.cpp
+Program constructAssembly(const std::vector<Token>& tokens);
+
+// Assembler unit 진입점: tokenizeSource + constructAssembly를 결합하여
+// 단위 경계에서는 Program 트리만 노출한다.
+Program assemble(const std::string& source);
+
+// Checker_Unit.cpp
+bool checkAssembly();
+
+// Executor_Unit.cpp
+void executeAssembly();
 ```
 
-- `name` 필드는 스펙상 `Token`이지만, 이번 최소 구현에서는 테스트가 요구하는 대로 식별자 문자열만 보관한다. Token 타입 전체 도입은 후속 PR로 미룬다.
-- 나머지 Stmt 하위 타입(`PrintStmt`, `BlockStmt`, `IfStmt`, `ForStmt` 등)은 이번 범위에 포함하지 않는다.
+- `Assembler` 클래스 대신 자유 함수 `assemble`이 단위 진입점 역할을 한다. Token List(`tokenizeSource`의 결과)는 `assemble` 내부에서만 사용되고 Unit 경계 밖으로는 `Program`만 노출된다 (`unit-io-spec.md` 1절 계약 유지).
+- `checkAssembly`/`executeAssembly`는 아직 `Program`을 인자로 받지 않으며, `Checker_Unit.cpp`는 항상 `true`를 반환하고 `Executor_Unit.cpp`는 아무 동작도 하지 않는 빈 스텁이다. 목표 시그니처와 남은 작업은 `docs/program-tree-struct-spec.md` 7절 참고.
 
-## 4. `program.h`
+## 3. 아직 다루지 않는 것
 
-```cpp
-#pragma once
-#include <memory>
-#include <vector>
-#include "stmt.h"
-
-// unit-io-spec.md 5절: Program := Stmt 목록
-struct Program
-{
-	std::vector<std::unique_ptr<Stmt>> statements;
-};
-```
-
-## 5. `assembler.h` / `assembler.cpp`
-
-```cpp
-// assembler.h
-#pragma once
-#include <string>
-#include "program.h"
-
-class Assembler
-{
-public:
-	Program assemble(const std::string& source);
-};
-```
-
-- `assemble`의 최소 동작 범위: `"var <identifier> = <number literal>;"` 형태의 단일 VarDeclStmt 문장 하나를 파싱해 `Program`으로 반환한다.
-- 그 외 입력(다른 Stmt/Expr 종류, 다중 문장, 구문 오류)에 대한 처리는 이번 최소 구현에 포함하지 않으며, `unit-io-spec.md` 6.1절의 실패 Output(오류 위치+메시지) 계약도 후속 PR에서 다룬다.
-- 내부적으로 Token化 단계를 거치더라도 Token List는 `assembler.cpp` 내부에만 존재해야 한다(Unit 경계 노출 금지, `unit-io-spec.md` 1절).
-
-## 6. 이번 범위에서 제외되는 것 (후속 PR)
-
-- `unit-io-spec.md` 3~4절의 나머지 Expr/Stmt 타입 전부
-- Token/TokenType 정의 및 어휘 분석기
-- 구문 오류 Output 계약
-- Checker/Executor Unit과의 연동
+- `unique_ptr` 기반 소유권 모델로의 전환 및 `LiteralValue`를 `std::optional<std::variant<...>>`로 바꾸는 목표 스펙과의 정합 (`docs/program-tree-struct-spec.md` 참고)
+- 구문 오류 Output 계약 (오류 위치+메시지, `unit-io-spec.md` 6.1절)
+- `checkAssembly`/`executeAssembly`를 `Program`을 받는 시그니처로 확장하고 실제 동작 구현
