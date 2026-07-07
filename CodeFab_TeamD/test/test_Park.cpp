@@ -387,6 +387,51 @@ TEST(AssemblerUnitTest, NestedBlockScopesReferenceEnclosingVariables)
 	EXPECT_EQ(right->name.origin, "inner");
 }
 
+// if (true) print "bbq"; : else 없는 if는 elseBranch가 nullptr이어야 한다
+TEST(AssemblerUnitTest, IfWithoutElseBranch)
+{
+	Program program = assemble("if (true) print \"bbq\";");
+
+	ASSERT_THAT(program.statements, SizeIs(1));
+	auto* ifStmt = dynamic_cast<IfStmt*>(statementAt(program.statements, 0));
+	ASSERT_THAT(ifStmt, NotNull());
+
+	auto* condition = dynamic_cast<LiteralExpr*>(ifStmt->condition);
+	ASSERT_THAT(condition, NotNull());
+	EXPECT_TRUE(std::get<bool>(condition->value));
+
+	auto* thenBranch = dynamic_cast<PrintStmt*>(ifStmt->thenBranch);
+	ASSERT_THAT(thenBranch, NotNull());
+	ASSERT_THAT(dynamic_cast<LiteralExpr*>(thenBranch->expression), NotNull());
+	EXPECT_EQ(stringValue(thenBranch->expression), "bbq");
+
+	EXPECT_THAT(ifStmt->elseBranch, IsNull());
+}
+
+// if (false) print "no"; else print "kfc"; : if/else 양쪽 분기가 모두 있어야 한다
+TEST(AssemblerUnitTest, IfElseBranchesBothPresent)
+{
+	Program program = assemble("if (false) print \"no\"; else print \"kfc\";");
+
+	ASSERT_THAT(program.statements, SizeIs(1));
+	auto* ifStmt = dynamic_cast<IfStmt*>(statementAt(program.statements, 0));
+	ASSERT_THAT(ifStmt, NotNull());
+
+	auto* condition = dynamic_cast<LiteralExpr*>(ifStmt->condition);
+	ASSERT_THAT(condition, NotNull());
+	EXPECT_FALSE(std::get<bool>(condition->value));
+
+	auto* thenBranch = dynamic_cast<PrintStmt*>(ifStmt->thenBranch);
+	ASSERT_THAT(thenBranch, NotNull());
+	ASSERT_THAT(dynamic_cast<LiteralExpr*>(thenBranch->expression), NotNull());
+	EXPECT_EQ(stringValue(thenBranch->expression), "no");
+
+	auto* elseBranch = dynamic_cast<PrintStmt*>(ifStmt->elseBranch);
+	ASSERT_THAT(elseBranch, NotNull());
+	ASSERT_THAT(dynamic_cast<LiteralExpr*>(elseBranch->expression), NotNull());
+	EXPECT_EQ(stringValue(elseBranch->expression), "kfc");
+}
+
 // else 는 가장 가까운 if 에 결합: if (true) { if (false) print "kfc"; else print "bbq"; }
 TEST(AssemblerUnitTest, DanglingElseBindsToNearestIf)
 {
