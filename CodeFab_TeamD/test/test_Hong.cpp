@@ -649,3 +649,25 @@ TEST_F(ExecutorTest, UnaryMinusOnNonNumberThrowsRuntimeError)
 	}
 }
 
+// a = 3 / 0; -> 런타임 에러 "Division by zero."
+TEST_F(ExecutorTest, DivisionByZeroThrowsRuntimeError)
+{
+	vector<LiteralExpr> literals(2);
+	literals[0].value = 3.0;
+	literals[1].value = 0.0;
+
+	BinaryExpr divide = makeBinary(TokenType::SLASH, &literals[0], &literals[1]);
+
+	printStmt.expression = &divide;
+	program.statements = { &printStmt };
+
+	try
+	{
+		executeAssembly(program);
+		FAIL() << "Expected a runtime error to be thrown";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Division by zero.");
+	}
+}
