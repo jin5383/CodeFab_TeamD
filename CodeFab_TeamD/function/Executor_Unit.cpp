@@ -1,5 +1,5 @@
 #include "../function.h"
 
-void executeAssembly()
+void executeAssembly(const Program& program)
 {
 }
