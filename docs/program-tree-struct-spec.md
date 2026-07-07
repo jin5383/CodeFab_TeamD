@@ -1,7 +1,7 @@
 # Program(Expr/Stmt 트리) 구조 명세
 
 > 근거: `docs/unit-io-spec.md` (Token/Expr/Stmt/Program 정의, Unit 간 계약),
-> `docs/assembler-minimal-struct-spec.md` (파일 구성 및 Assembler/Checker/Executor 진입점 함수),
+> `docs/unit-layout-spec.md` (파일 구성 및 Assembler/Checker/Executor 진입점 함수),
 > `CodeFab_TeamD/ast.h`, `CodeFab_TeamD/function.h` (실제 구현)
 > 목적: Assembler Unit의 Output이자 Checker/Executor Unit의 Input인 **Program 트리를 구성하는
 > 모든 노드의 필드를 확정**한다. 이 문서는 `CodeFab_TeamD/ast.h`에 구현된 현재 구조를 그대로

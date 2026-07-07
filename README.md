@@ -47,7 +47,7 @@ CodeFab_TeamD/                 # 단일 프로젝트 (애플리케이션 + Googl
     test_Ryu.cpp
 docs/                          # 설계 명세 문서
   unit-io-spec.md                     # Unit 간 Input/Output 계약
-  assembler-minimal-struct-spec.md    # Assembler 최소 구현 구조체 명세
+  unit-layout-spec.md                 # Unit 파일 구성 및 진입점 명세
   program-tree-struct-spec.md         # Program/Expr/Stmt 트리 구조 명세
   tdd-workflow-rule.md                # TDD 진행 규칙 (Red → Green 사이클)
   CodeFab_Requirement.extracted.txt   # 요구사항 PDF 텍스트 추출본
@@ -60,7 +60,7 @@ scripts/                       # 보조 스크립트 (요구사항 PDF 텍스트
 ### docs 문서 설명
 
 - [`unit-io-spec.md`](docs/unit-io-spec.md): Assembler → (Checker / Executor)로 이어지는 전체 파이프라인에서 Unit 사이를 오가는 자료구조와 Input/Output 계약을 정의합니다. 구현(클래스/코드)이 아니라 "무엇이 오가는가"만 다룹니다.
-- [`assembler-minimal-struct-spec.md`](docs/assembler-minimal-struct-spec.md): Assembler/Checker/Executor의 파일 구성(`ast.h`, `function.h`, `function/*.cpp`)과 각 진입점 함수(`tokenizeSource`/`constructAssembly`/`assemble`/`checkAssembly`/`executeAssembly`)를 정의합니다.
+- [`unit-layout-spec.md`](docs/unit-layout-spec.md): Assembler/Checker/Executor의 파일 구성(`ast.h`, `function.h`, `function/*.cpp`)과 각 진입점 함수(`tokenizeSource`/`constructAssembly`/`assemble`/`checkAssembly`/`executeAssembly`)를 정의합니다.
 - [`program-tree-struct-spec.md`](docs/program-tree-struct-spec.md): Assembler의 Output이자 Checker/Executor의 Input인 Program 트리(Token/Expr 7종/Stmt 6종)의 필드와 계층 구조를 `ast.h` 구현 기준으로 확정합니다.
 - [`tdd-workflow-rule.md`](docs/tdd-workflow-rule.md): [`테스트 스크립트.md`](테스트%20스크립트.md)의 시나리오를 gtest 케이스로 옮기며 Red → Green을 반복하는 TDD 진행 절차(사이클 규칙)를 정의합니다.
 - [`CodeFab_Requirement.extracted.txt`](docs/CodeFab_Requirement.extracted.txt): 요구사항 원본 PDF의 텍스트 추출본입니다.
