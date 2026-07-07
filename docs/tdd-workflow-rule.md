@@ -193,3 +193,4 @@ Input: 각 시나리오의 source가 파싱되면 나와야 할 모양대로, `p
 - [x] 미선언 변수 참조 → `Undefined variable 'notDefined'.`
 - [x] `+` 연산자 숫자/문자열 혼용 → `Operands must be two numbers or two strings.`
 - [x] 숫자가 아닌 값에 단항 마이너스 → `Operand must be a number.`
+- [x] `숫자 / 0` 0으로 나누기 → `Division by zero.`
