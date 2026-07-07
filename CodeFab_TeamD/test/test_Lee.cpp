@@ -2,23 +2,30 @@
 #include "../ast.h"
 #include "../function.h"
 
-TEST(LeeTest, Placeholder)
+class CheckerUnitTest : public ::testing::Test
 {
-	EXPECT_TRUE(true);
-}
-
-namespace
-{
+protected:
 	LiteralExpr* makeNumberLiteral(double value)
 	{
 		auto* literal = new LiteralExpr();
 		literal->value = value;
 		return literal;
 	}
-}
+
+	bool checkNoError(Expr* printExpression)
+	{
+		auto* printStmt = new PrintStmt();
+		printStmt->expression = printExpression;
+
+		Program program;
+		program.statements.push_back(printStmt);
+
+		return checkAssembly(program);
+	}
+};
 
 // Checker unit: `print 1 + 2 * 3;` 에 해당하는 Program -> 에러 없음 (통과)
-TEST(CheckerUnitTest, PrintArithmeticPrecedence_NoError)
+TEST_F(CheckerUnitTest, PrintArithmeticPrecedence_NoError)
 {
 	auto* multiply = new BinaryExpr();
 	multiply->left = makeNumberLiteral(2.0);
@@ -30,17 +37,11 @@ TEST(CheckerUnitTest, PrintArithmeticPrecedence_NoError)
 	add->op = Token{ TokenType::PLUS, "+", std::monostate{} };
 	add->right = multiply;
 
-	auto* printStmt = new PrintStmt();
-	printStmt->expression = add;
-
-	Program program;
-	program.statements.push_back(printStmt);
-
-	EXPECT_TRUE(checkAssembly(program));
+	EXPECT_TRUE(checkNoError(add));
 }
 
 // Checker unit: `print (1 + 2) * 3;` 에 해당하는 Program -> 에러 없음 (통과)
-TEST(CheckerUnitTest, PrintParenthesesOverridePrecedence_NoError)
+TEST_F(CheckerUnitTest, PrintParenthesesOverridePrecedence_NoError)
 {
 	auto* add = new BinaryExpr();
 	add->left = makeNumberLiteral(1.0);
@@ -55,11 +56,5 @@ TEST(CheckerUnitTest, PrintParenthesesOverridePrecedence_NoError)
 	multiply->op = Token{ TokenType::STAR, "*", std::monostate{} };
 	multiply->right = makeNumberLiteral(3.0);
 
-	auto* printStmt = new PrintStmt();
-	printStmt->expression = multiply;
-
-	Program program;
-	program.statements.push_back(printStmt);
-
-	EXPECT_TRUE(checkAssembly(program));
+	EXPECT_TRUE(checkNoError(multiply));
 }
