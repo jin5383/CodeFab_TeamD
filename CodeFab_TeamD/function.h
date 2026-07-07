@@ -13,7 +13,8 @@ Program constructAssembly(const std::vector<Token>& tokens);
 Program assemble(const std::string& source);
 
 // Checker_Unit.cpp
-bool checkAssembly();
+// Input: Assembler Unit의 Output인 Program (읽기 전용) / Output: 정적 검사 통과 여부 (에러 없음 = true)
+bool checkAssembly(const Program& program);
 
 // Executor_Unit.cpp
 void executeAssembly(const Program& program);
