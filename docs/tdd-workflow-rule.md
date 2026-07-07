@@ -124,8 +124,8 @@ Input: 각 시나리오의 source가 파싱되면 나와야 할 모양대로, `p
 (통과)를 검증한다.
 
 ### 5.2.1 정상동작 테스트 — 1) 표현식/연산자/우선순위/진리값
-- [ ] `print 1 + 2 * 3;` 산술/우선순위 — 에러 없음 (PrintStmt)
-- [ ] `print (1 + 2) * 3;` 괄호 우선순위 — 에러 없음 (PrintStmt)
+- [x] `print 1 + 2 * 3;` 산술/우선순위 — 에러 없음 (PrintStmt)
+- [x] `print (1 + 2) * 3;` 괄호 우선순위 — 에러 없음 (PrintStmt)
 - [ ] `print 10 - 4 - 3;` 좌결합 — 에러 없음 (PrintStmt)
 - [ ] `print 8 / 2 / 2;` 좌결합 — 에러 없음 (PrintStmt)
 - [ ] `print -3 + 2;` 단항 마이너스 — 에러 없음 (PrintStmt)
