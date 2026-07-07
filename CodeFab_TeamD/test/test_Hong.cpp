@@ -49,6 +49,34 @@ protected:
 		return expr;
 	}
 
+	Token identifier(const string& name)
+	{
+		return Token{ TokenType::IDENTIFIER, name };
+	}
+
+	VarDeclStmt makeVarDecl(const string& name, Expr* initializer)
+	{
+		VarDeclStmt stmt;
+		stmt.name = identifier(name);
+		stmt.initializer = initializer;
+		return stmt;
+	}
+
+	VariableExpr makeVariable(const string& name)
+	{
+		VariableExpr expr;
+		expr.name = identifier(name);
+		return expr;
+	}
+
+	AssignExpr makeAssign(const string& name, Expr* value)
+	{
+		AssignExpr expr;
+		expr.name = identifier(name);
+		expr.value = value;
+		return expr;
+	}
+
 	Program program;
 	PrintStmt printStmt;
 	ostringstream capturedOutput;
@@ -269,19 +297,11 @@ TEST_F(ExecutorTest, VarDeclarationsAndUsage_OutputsThirty)
 	LiteralExpr twenty;
 	twenty.value = 20.0;
 
-	VarDeclStmt declareA;
-	declareA.name = Token{ TokenType::IDENTIFIER, "a" };
-	declareA.initializer = &ten;
+	VarDeclStmt declareA = makeVarDecl("a", &ten);
+	VarDeclStmt declareB = makeVarDecl("b", &twenty);
 
-	VarDeclStmt declareB;
-	declareB.name = Token{ TokenType::IDENTIFIER, "b" };
-	declareB.initializer = &twenty;
-
-	VariableExpr referenceA;
-	referenceA.name = Token{ TokenType::IDENTIFIER, "a" };
-
-	VariableExpr referenceB;
-	referenceB.name = Token{ TokenType::IDENTIFIER, "b" };
+	VariableExpr referenceA = makeVariable("a");
+	VariableExpr referenceB = makeVariable("b");
 
 	BinaryExpr add = makeBinary(TokenType::PLUS, &referenceA, &referenceB);
 
@@ -299,27 +319,20 @@ TEST_F(ExecutorTest, ReassignmentAddsFive_OutputsFifteen)
 	LiteralExpr ten;
 	ten.value = 10.0;
 
-	VarDeclStmt declareA;
-	declareA.name = Token{ TokenType::IDENTIFIER, "a" };
-	declareA.initializer = &ten;
+	VarDeclStmt declareA = makeVarDecl("a", &ten);
 
-	VariableExpr referenceAForAssign;
-	referenceAForAssign.name = Token{ TokenType::IDENTIFIER, "a" };
+	VariableExpr referenceAForAssign = makeVariable("a");
 
 	LiteralExpr five;
 	five.value = 5.0;
 
 	BinaryExpr addFive = makeBinary(TokenType::PLUS, &referenceAForAssign, &five);
-
-	AssignExpr reassignA;
-	reassignA.name = Token{ TokenType::IDENTIFIER, "a" };
-	reassignA.value = &addFive;
+	AssignExpr reassignA = makeAssign("a", &addFive);
 
 	ExpressionStmt reassignStmt;
 	reassignStmt.expression = &reassignA;
 
-	VariableExpr referenceAForPrint;
-	referenceAForPrint.name = Token{ TokenType::IDENTIFIER, "a" };
+	VariableExpr referenceAForPrint = makeVariable("a");
 
 	printStmt.expression = &referenceAForPrint;
 	program.statements = { &declareA, &reassignStmt, &printStmt };
@@ -335,19 +348,13 @@ TEST_F(ExecutorTest, BlockScopeShadowing_OutputsInnerThenGlobal)
 	LiteralExpr global;
 	global.value = string("global");
 
-	VarDeclStmt declareGlobalX;
-	declareGlobalX.name = Token{ TokenType::IDENTIFIER, "x" };
-	declareGlobalX.initializer = &global;
+	VarDeclStmt declareGlobalX = makeVarDecl("x", &global);
 
 	LiteralExpr inner;
 	inner.value = string("inner");
 
-	VarDeclStmt declareInnerX;
-	declareInnerX.name = Token{ TokenType::IDENTIFIER, "x" };
-	declareInnerX.initializer = &inner;
-
-	VariableExpr referenceInnerX;
-	referenceInnerX.name = Token{ TokenType::IDENTIFIER, "x" };
+	VarDeclStmt declareInnerX = makeVarDecl("x", &inner);
+	VariableExpr referenceInnerX = makeVariable("x");
 
 	PrintStmt printInnerX;
 	printInnerX.expression = &referenceInnerX;
@@ -355,8 +362,7 @@ TEST_F(ExecutorTest, BlockScopeShadowing_OutputsInnerThenGlobal)
 	BlockStmt block;
 	block.statements = { &declareInnerX, &printInnerX };
 
-	VariableExpr referenceOuterX;
-	referenceOuterX.name = Token{ TokenType::IDENTIFIER, "x" };
+	VariableExpr referenceOuterX = makeVariable("x");
 
 	printStmt.expression = &referenceOuterX;
 	program.statements = { &declareGlobalX, &block, &printStmt };
@@ -372,21 +378,15 @@ TEST_F(ExecutorTest, BlockModifiesOuterVariable_OutputsOne)
 	LiteralExpr zero;
 	zero.value = 0.0;
 
-	VarDeclStmt declareCount;
-	declareCount.name = Token{ TokenType::IDENTIFIER, "count" };
-	declareCount.initializer = &zero;
+	VarDeclStmt declareCount = makeVarDecl("count", &zero);
 
-	VariableExpr referenceCountForAssign;
-	referenceCountForAssign.name = Token{ TokenType::IDENTIFIER, "count" };
+	VariableExpr referenceCountForAssign = makeVariable("count");
 
 	LiteralExpr one;
 	one.value = 1.0;
 
 	BinaryExpr addOne = makeBinary(TokenType::PLUS, &referenceCountForAssign, &one);
-
-	AssignExpr incrementCount;
-	incrementCount.name = Token{ TokenType::IDENTIFIER, "count" };
-	incrementCount.value = &addOne;
+	AssignExpr incrementCount = makeAssign("count", &addOne);
 
 	ExpressionStmt incrementStmt;
 	incrementStmt.expression = &incrementCount;
@@ -394,8 +394,7 @@ TEST_F(ExecutorTest, BlockModifiesOuterVariable_OutputsOne)
 	BlockStmt block;
 	block.statements = { &incrementStmt };
 
-	VariableExpr referenceCountForPrint;
-	referenceCountForPrint.name = Token{ TokenType::IDENTIFIER, "count" };
+	VariableExpr referenceCountForPrint = makeVariable("count");
 
 	printStmt.expression = &referenceCountForPrint;
 	program.statements = { &declareCount, &block, &printStmt };
@@ -411,22 +410,15 @@ TEST_F(ExecutorTest, NestedScopeResolvesOuterAndInner_OutputsAB)
 	LiteralExpr a;
 	a.value = string("A");
 
-	VarDeclStmt declareOuter;
-	declareOuter.name = Token{ TokenType::IDENTIFIER, "outer" };
-	declareOuter.initializer = &a;
+	VarDeclStmt declareOuter = makeVarDecl("outer", &a);
 
 	LiteralExpr b;
 	b.value = string("B");
 
-	VarDeclStmt declareInner;
-	declareInner.name = Token{ TokenType::IDENTIFIER, "inner" };
-	declareInner.initializer = &b;
+	VarDeclStmt declareInner = makeVarDecl("inner", &b);
 
-	VariableExpr referenceOuter;
-	referenceOuter.name = Token{ TokenType::IDENTIFIER, "outer" };
-
-	VariableExpr referenceInner;
-	referenceInner.name = Token{ TokenType::IDENTIFIER, "inner" };
+	VariableExpr referenceOuter = makeVariable("outer");
+	VariableExpr referenceInner = makeVariable("inner");
 
 	BinaryExpr concatenate = makeBinary(TokenType::PLUS, &referenceOuter, &referenceInner);
 
