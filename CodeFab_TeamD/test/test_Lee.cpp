@@ -12,10 +12,10 @@ protected:
 		return literal;
 	}
 
-	bool checkNoError(Expr* printExpression)
+	bool checkPrintOfExpression(Expr* expression)
 	{
 		auto* printStmt = new PrintStmt();
-		printStmt->expression = printExpression;
+		printStmt->expression = expression;
 
 		Program program;
 		program.statements.push_back(printStmt);
@@ -37,7 +37,7 @@ TEST_F(CheckerUnitTest, PrintArithmeticPrecedence_NoError)
 	add->op = Token{ TokenType::PLUS, "+", std::monostate{} };
 	add->right = multiply;
 
-	EXPECT_TRUE(checkNoError(add));
+	EXPECT_TRUE(checkPrintOfExpression(add));
 }
 
 // Checker unit: `print (1 + 2) * 3;` 에 해당하는 Program -> 에러 없음 (통과)
@@ -56,5 +56,5 @@ TEST_F(CheckerUnitTest, PrintParenthesesOverridePrecedence_NoError)
 	multiply->op = Token{ TokenType::STAR, "*", std::monostate{} };
 	multiply->right = makeNumberLiteral(3.0);
 
-	EXPECT_TRUE(checkNoError(multiply));
+	EXPECT_TRUE(checkPrintOfExpression(multiply));
 }
