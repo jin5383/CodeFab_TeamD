@@ -2,51 +2,40 @@
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
-#include <unordered_map>
+
+void Environment::define(const std::string& name, const LiteralValue& value)
+{
+	values[name] = value;
+}
+
+LiteralValue Environment::get(const Token& name) const
+{
+	auto it = values.find(name.origin);
+	if (it != values.end())
+		return it->second;
+	if (enclosing)
+		return enclosing->get(name);
+	throw std::runtime_error("Undefined variable '" + name.origin + "'.");
+}
+
+void Environment::assign(const Token& name, const LiteralValue& value)
+{
+	auto it = values.find(name.origin);
+	if (it != values.end())
+	{
+		it->second = value;
+		return;
+	}
+	if (enclosing)
+	{
+		enclosing->assign(name, value);
+		return;
+	}
+	throw std::runtime_error("Undefined variable '" + name.origin + "'.");
+}
 
 namespace
 {
-	class Environment
-	{
-	public:
-		explicit Environment(Environment* enclosing = nullptr) : enclosing(enclosing) {}
-
-		void define(const std::string& name, const LiteralValue& value)
-		{
-			values[name] = value;
-		}
-
-		LiteralValue get(const Token& name) const
-		{
-			auto it = values.find(name.origin);
-			if (it != values.end())
-				return it->second;
-			if (enclosing)
-				return enclosing->get(name);
-			throw std::runtime_error("Undefined variable '" + name.origin + "'.");
-		}
-
-		void assign(const Token& name, const LiteralValue& value)
-		{
-			auto it = values.find(name.origin);
-			if (it != values.end())
-			{
-				it->second = value;
-				return;
-			}
-			if (enclosing)
-			{
-				enclosing->assign(name, value);
-				return;
-			}
-			throw std::runtime_error("Undefined variable '" + name.origin + "'.");
-		}
-
-	private:
-		std::unordered_map<std::string, LiteralValue> values;
-		Environment* enclosing;
-	};
-
 	double asNumber(const LiteralValue& value)
 	{
 		if (!std::holds_alternative<double>(value))
@@ -128,11 +117,12 @@ namespace
 		return out.str();
 	}
 
-	void execute(Stmt* stmt, Environment& env)
+	// print의 출력 대상을 out으로 주입받는다 (ExecutorSession이 자신의 out을 그대로 넘김).
+	void execute(Stmt* stmt, Environment& env, std::ostream& out)
 	{
 		if (auto* printStmt = dynamic_cast<PrintStmt*>(stmt))
 		{
-			std::cout << stringify(evaluate(printStmt->expression, env)) << "\n";
+			out << stringify(evaluate(printStmt->expression, env)) << "\n";
 		}
 		else if (auto* exprStmt = dynamic_cast<ExpressionStmt*>(stmt))
 		{
@@ -147,23 +137,23 @@ namespace
 		{
 			Environment blockEnv(&env);
 			for (Stmt* inner : block->statements)
-				execute(inner, blockEnv);
+				execute(inner, blockEnv, out);
 		}
 		else if (auto* ifStmt = dynamic_cast<IfStmt*>(stmt))
 		{
 			if (isTruthy(evaluate(ifStmt->condition, env)))
-				execute(ifStmt->thenBranch, env);
+				execute(ifStmt->thenBranch, env, out);
 			else if (ifStmt->elseBranch)
-				execute(ifStmt->elseBranch, env);
+				execute(ifStmt->elseBranch, env, out);
 		}
 		else if (auto* forStmt = dynamic_cast<ForStmt*>(stmt))
 		{
 			Environment loopEnv(&env);
 			if (forStmt->init)
-				execute(forStmt->init, loopEnv);
+				execute(forStmt->init, loopEnv, out);
 			while (!forStmt->condition || isTruthy(evaluate(forStmt->condition, loopEnv)))
 			{
-				execute(forStmt->body, loopEnv);
+				execute(forStmt->body, loopEnv, out);
 				if (forStmt->increment)
 					evaluate(forStmt->increment, loopEnv);
 			}
@@ -171,9 +161,16 @@ namespace
 	}
 }
 
+ExecutorSession::ExecutorSession(std::ostream& out) : out(out), global() {}
+
+void ExecutorSession::run(const Program& program)
+{
+	for (Stmt* stmt : program.statements)
+		execute(stmt, global, out);
+}
+
 void executeAssembly(const Program& program)
 {
-	Environment global;
-	for (Stmt* stmt : program.statements)
-		execute(stmt, global);
+	ExecutorSession session(std::cout);
+	session.run(program);
 }
