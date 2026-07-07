@@ -27,6 +27,14 @@ namespace
 
 		return stmt->expression;
 	}
+
+	// index가 범위를 벗어나면 크래시 대신 nullptr을 반환한다
+	Stmt* statementAt(const std::vector<Stmt*>& statements, size_t index)
+	{
+		if (index >= statements.size())
+			return nullptr;
+		return statements[index];
+	}
 }
 
 // Assembler unit: input "var a = 5 ;" -> Program { VarDeclStmt { name: a, initializer: LiteralExpr(5) } }
@@ -196,4 +204,240 @@ TEST(AssemblerUnitTest, BooleanLiteralsAreParsed)
 	auto* falseLiteral = dynamic_cast<LiteralExpr*>(topExpression(assemble("false;")));
 	EXPECT_THAT(falseLiteral, NotNull());
 	EXPECT_FALSE(std::get<bool>(falseLiteral->value));
+}
+
+// a = a + 5; : 재할당은 AssignExpr(name=a, value=BinaryExpr(+, VariableExpr(a), LiteralExpr(5)))이어야 한다
+TEST(AssemblerUnitTest, ReassignmentBuildsAssignExprTree)
+{
+	Program program = assemble("a = a + 5;");
+
+	ASSERT_THAT(program.statements, SizeIs(1));
+	auto* exprStmt = dynamic_cast<ExpressionStmt*>(statementAt(program.statements, 0));
+	ASSERT_THAT(exprStmt, NotNull());
+
+	auto* assign = dynamic_cast<AssignExpr*>(exprStmt->expression);
+	ASSERT_THAT(assign, NotNull());
+	EXPECT_EQ(assign->name.origin, "a");
+
+	auto* sum = dynamic_cast<BinaryExpr*>(assign->value);
+	ASSERT_THAT(sum, NotNull());
+	EXPECT_EQ(sum->op.type, TokenType::PLUS);
+
+	auto* left = dynamic_cast<VariableExpr*>(sum->left);
+	ASSERT_THAT(left, NotNull());
+	EXPECT_EQ(left->name.origin, "a");
+	ASSERT_THAT(dynamic_cast<LiteralExpr*>(sum->right), NotNull());
+	EXPECT_DOUBLE_EQ(literalValue(sum->right), 5.0);
+}
+
+// { var x = "inner"; } : 블록 스코프 & shadowing은 BlockStmt{ VarDeclStmt(x, "inner") }이어야 한다
+TEST(AssemblerUnitTest, BlockScopeWithShadowedVarDecl)
+{
+	Program program = assemble("{ var x = \"inner\"; }");
+
+	ASSERT_THAT(program.statements, SizeIs(1));
+	auto* block = dynamic_cast<BlockStmt*>(statementAt(program.statements, 0));
+	ASSERT_THAT(block, NotNull());
+	ASSERT_THAT(block->statements, SizeIs(1));
+
+	auto* decl = dynamic_cast<VarDeclStmt*>(statementAt(block->statements, 0));
+	ASSERT_THAT(decl, NotNull());
+	EXPECT_EQ(decl->name.origin, "x");
+	ASSERT_THAT(dynamic_cast<LiteralExpr*>(decl->initializer), NotNull());
+	EXPECT_EQ(stringValue(decl->initializer), "inner");
+}
+
+// { count = count + 1; } : 바깥 변수 수정은 BlockStmt 안에서 AssignExpr로 표현되어야 한다
+TEST(AssemblerUnitTest, BlockModifiesOuterVariable)
+{
+	Program program = assemble("{ count = count + 1; }");
+
+	ASSERT_THAT(program.statements, SizeIs(1));
+	auto* block = dynamic_cast<BlockStmt*>(statementAt(program.statements, 0));
+	ASSERT_THAT(block, NotNull());
+	ASSERT_THAT(block->statements, SizeIs(1));
+
+	auto* exprStmt = dynamic_cast<ExpressionStmt*>(statementAt(block->statements, 0));
+	ASSERT_THAT(exprStmt, NotNull());
+	auto* assign = dynamic_cast<AssignExpr*>(exprStmt->expression);
+	ASSERT_THAT(assign, NotNull());
+	EXPECT_EQ(assign->name.origin, "count");
+
+	auto* sum = dynamic_cast<BinaryExpr*>(assign->value);
+	ASSERT_THAT(sum, NotNull());
+	EXPECT_EQ(sum->op.type, TokenType::PLUS);
+	ASSERT_THAT(dynamic_cast<LiteralExpr*>(sum->right), NotNull());
+	EXPECT_DOUBLE_EQ(literalValue(sum->right), 1.0);
+}
+
+// for (var j = 0; j < 3; j = j + 1) { print j; } : init/condition/increment/body를 모두 갖춰야 한다
+TEST(AssemblerUnitTest, ForLoopBuildsInitConditionIncrementBodyTree)
+{
+	Program program = assemble("for (var j = 0; j < 3; j = j + 1) { print j; }");
+
+	ASSERT_THAT(program.statements, SizeIs(1));
+	auto* forStmt = dynamic_cast<ForStmt*>(statementAt(program.statements, 0));
+	ASSERT_THAT(forStmt, NotNull());
+
+	auto* init = dynamic_cast<VarDeclStmt*>(forStmt->init);
+	ASSERT_THAT(init, NotNull());
+	EXPECT_EQ(init->name.origin, "j");
+	ASSERT_THAT(dynamic_cast<LiteralExpr*>(init->initializer), NotNull());
+	EXPECT_DOUBLE_EQ(literalValue(init->initializer), 0.0);
+
+	auto* condition = dynamic_cast<BinaryExpr*>(forStmt->condition);
+	ASSERT_THAT(condition, NotNull());
+	EXPECT_EQ(condition->op.type, TokenType::LESS);
+	ASSERT_THAT(dynamic_cast<LiteralExpr*>(condition->right), NotNull());
+	EXPECT_DOUBLE_EQ(literalValue(condition->right), 3.0);
+
+	auto* increment = dynamic_cast<AssignExpr*>(forStmt->increment);
+	ASSERT_THAT(increment, NotNull());
+	EXPECT_EQ(increment->name.origin, "j");
+
+	auto* body = dynamic_cast<BlockStmt*>(forStmt->body);
+	ASSERT_THAT(body, NotNull());
+	ASSERT_THAT(body->statements, SizeIs(1));
+	auto* printStmt = dynamic_cast<PrintStmt*>(statementAt(body->statements, 0));
+	ASSERT_THAT(printStmt, NotNull());
+	auto* variable = dynamic_cast<VariableExpr*>(printStmt->expression);
+	ASSERT_THAT(variable, NotNull());
+	EXPECT_EQ(variable->name.origin, "j");
+}
+
+// var a = 10; var b = 20; print a + b; : 선언과 사용
+TEST(AssemblerUnitTest, VarDeclarationsThenPrintUsesBothVariables)
+{
+	Program program = assemble("var a = 10; var b = 20; print a + b;");
+
+	ASSERT_THAT(program.statements, SizeIs(3));
+
+	auto* declA = dynamic_cast<VarDeclStmt*>(statementAt(program.statements, 0));
+	ASSERT_THAT(declA, NotNull());
+	EXPECT_EQ(declA->name.origin, "a");
+	ASSERT_THAT(dynamic_cast<LiteralExpr*>(declA->initializer), NotNull());
+	EXPECT_DOUBLE_EQ(literalValue(declA->initializer), 10.0);
+
+	auto* declB = dynamic_cast<VarDeclStmt*>(statementAt(program.statements, 1));
+	ASSERT_THAT(declB, NotNull());
+	EXPECT_EQ(declB->name.origin, "b");
+	ASSERT_THAT(dynamic_cast<LiteralExpr*>(declB->initializer), NotNull());
+	EXPECT_DOUBLE_EQ(literalValue(declB->initializer), 20.0);
+
+	auto* printStmt = dynamic_cast<PrintStmt*>(statementAt(program.statements, 2));
+	ASSERT_THAT(printStmt, NotNull());
+	auto* sum = dynamic_cast<BinaryExpr*>(printStmt->expression);
+	ASSERT_THAT(sum, NotNull());
+	EXPECT_EQ(sum->op.type, TokenType::PLUS);
+
+	auto* left = dynamic_cast<VariableExpr*>(sum->left);
+	ASSERT_THAT(left, NotNull());
+	EXPECT_EQ(left->name.origin, "a");
+
+	auto* right = dynamic_cast<VariableExpr*>(sum->right);
+	ASSERT_THAT(right, NotNull());
+	EXPECT_EQ(right->name.origin, "b");
+}
+
+// { var inner = "B"; { print outer + inner; } } : 중첩 스코프는 BlockStmt 안에 BlockStmt를 포함해야 한다
+TEST(AssemblerUnitTest, NestedBlockScopesReferenceEnclosingVariables)
+{
+	Program program = assemble("{ var inner = \"B\"; { print outer + inner; } }");
+
+	ASSERT_THAT(program.statements, SizeIs(1));
+	auto* outerBlock = dynamic_cast<BlockStmt*>(statementAt(program.statements, 0));
+	ASSERT_THAT(outerBlock, NotNull());
+	ASSERT_THAT(outerBlock->statements, SizeIs(2));
+
+	auto* decl = dynamic_cast<VarDeclStmt*>(statementAt(outerBlock->statements, 0));
+	ASSERT_THAT(decl, NotNull());
+	EXPECT_EQ(decl->name.origin, "inner");
+	ASSERT_THAT(dynamic_cast<LiteralExpr*>(decl->initializer), NotNull());
+	EXPECT_EQ(stringValue(decl->initializer), "B");
+
+	auto* innerBlock = dynamic_cast<BlockStmt*>(statementAt(outerBlock->statements, 1));
+	ASSERT_THAT(innerBlock, NotNull());
+	ASSERT_THAT(innerBlock->statements, SizeIs(1));
+
+	auto* printStmt = dynamic_cast<PrintStmt*>(statementAt(innerBlock->statements, 0));
+	ASSERT_THAT(printStmt, NotNull());
+	auto* sum = dynamic_cast<BinaryExpr*>(printStmt->expression);
+	ASSERT_THAT(sum, NotNull());
+
+	auto* left = dynamic_cast<VariableExpr*>(sum->left);
+	ASSERT_THAT(left, NotNull());
+	EXPECT_EQ(left->name.origin, "outer");
+
+	auto* right = dynamic_cast<VariableExpr*>(sum->right);
+	ASSERT_THAT(right, NotNull());
+	EXPECT_EQ(right->name.origin, "inner");
+}
+
+// if (true) print "bbq"; : else 없는 if는 elseBranch가 nullptr이어야 한다
+TEST(AssemblerUnitTest, IfWithoutElseBranch)
+{
+	Program program = assemble("if (true) print \"bbq\";");
+
+	ASSERT_THAT(program.statements, SizeIs(1));
+	auto* ifStmt = dynamic_cast<IfStmt*>(statementAt(program.statements, 0));
+	ASSERT_THAT(ifStmt, NotNull());
+
+	auto* condition = dynamic_cast<LiteralExpr*>(ifStmt->condition);
+	ASSERT_THAT(condition, NotNull());
+	EXPECT_TRUE(std::get<bool>(condition->value));
+
+	auto* thenBranch = dynamic_cast<PrintStmt*>(ifStmt->thenBranch);
+	ASSERT_THAT(thenBranch, NotNull());
+	ASSERT_THAT(dynamic_cast<LiteralExpr*>(thenBranch->expression), NotNull());
+	EXPECT_EQ(stringValue(thenBranch->expression), "bbq");
+
+	EXPECT_THAT(ifStmt->elseBranch, IsNull());
+}
+
+// if (false) print "no"; else print "kfc"; : if/else 양쪽 분기가 모두 있어야 한다
+TEST(AssemblerUnitTest, IfElseBranchesBothPresent)
+{
+	Program program = assemble("if (false) print \"no\"; else print \"kfc\";");
+
+	ASSERT_THAT(program.statements, SizeIs(1));
+	auto* ifStmt = dynamic_cast<IfStmt*>(statementAt(program.statements, 0));
+	ASSERT_THAT(ifStmt, NotNull());
+
+	auto* condition = dynamic_cast<LiteralExpr*>(ifStmt->condition);
+	ASSERT_THAT(condition, NotNull());
+	EXPECT_FALSE(std::get<bool>(condition->value));
+
+	auto* thenBranch = dynamic_cast<PrintStmt*>(ifStmt->thenBranch);
+	ASSERT_THAT(thenBranch, NotNull());
+	ASSERT_THAT(dynamic_cast<LiteralExpr*>(thenBranch->expression), NotNull());
+	EXPECT_EQ(stringValue(thenBranch->expression), "no");
+
+	auto* elseBranch = dynamic_cast<PrintStmt*>(ifStmt->elseBranch);
+	ASSERT_THAT(elseBranch, NotNull());
+	ASSERT_THAT(dynamic_cast<LiteralExpr*>(elseBranch->expression), NotNull());
+	EXPECT_EQ(stringValue(elseBranch->expression), "kfc");
+}
+
+// 중첩 if에서 else는 가장 가까운 if(안쪽)에 결합되어야 한다 (dangling else)
+TEST(AssemblerUnitTest, DanglingElseBindsToNearestIf)
+{
+	Program program = assemble("if (true) if (false) print \"a\"; else print \"b\";");
+
+	ASSERT_THAT(program.statements, SizeIs(1));
+	auto* outerIf = dynamic_cast<IfStmt*>(statementAt(program.statements, 0));
+	ASSERT_THAT(outerIf, NotNull());
+	EXPECT_THAT(outerIf->elseBranch, IsNull());
+
+	auto* innerIf = dynamic_cast<IfStmt*>(outerIf->thenBranch);
+	ASSERT_THAT(innerIf, NotNull());
+
+	auto* thenBranch = dynamic_cast<PrintStmt*>(innerIf->thenBranch);
+	ASSERT_THAT(thenBranch, NotNull());
+	ASSERT_THAT(dynamic_cast<LiteralExpr*>(thenBranch->expression), NotNull());
+	EXPECT_EQ(stringValue(thenBranch->expression), "a");
+
+	auto* elseBranch = dynamic_cast<PrintStmt*>(innerIf->elseBranch);
+	ASSERT_THAT(elseBranch, NotNull());
+	ASSERT_THAT(dynamic_cast<LiteralExpr*>(elseBranch->expression), NotNull());
+	EXPECT_EQ(stringValue(elseBranch->expression), "b");
 }
