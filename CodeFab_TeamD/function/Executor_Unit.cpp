@@ -103,7 +103,12 @@ namespace
 			case TokenType::STAR:
 				return asNumber(left) * asNumber(right);
 			case TokenType::SLASH:
-				return asNumber(left) / asNumber(right);
+			{
+				double divisor = asNumber(right);
+				if (divisor == 0)
+					throw std::runtime_error("Division by zero.");
+				return asNumber(left) / divisor;
+			}
 			case TokenType::LESS:
 				return asNumber(left) < asNumber(right);
 			case TokenType::GREATER:
