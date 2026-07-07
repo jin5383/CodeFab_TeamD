@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "ast.h"
+#include "environment.h"
 
 // Assembler_Token_Unit.cpp
 std::vector<Token> tokenizeSource(const std::string& source);
@@ -26,4 +27,6 @@ CheckerErrno checkAssembly(const Program& program);
 
 // Executor_Unit.cpp
 void executeAssembly(const Program& program);
+// 주어진 environment(컨텍스트)를 유지하며 실행 (DfineShell 등 여러 줄에 걸친 세션용)
+void executeAssembly(const Program& program, Environment& environment);
 
