@@ -29,69 +29,81 @@ namespace
 		return false;
 	}
 
-	bool isNameDeclaredInScopes(const std::vector<std::set<std::string>>& scopes, const std::string& name)
+	// 스코프 스택을 멤버로 들고 다니며 Program을 검사하는 Checker
+	class Checker
 	{
-		for (auto it = scopes.rbegin(); it != scopes.rend(); ++it)
-			if (it->count(name))
+	public:
+		bool run(const Program& program)
+		{
+			scopes.assign(1, {});
+			return checkStmts(program.statements);
+		}
+
+	private:
+		std::vector<std::set<std::string>> scopes;
+
+		bool checkStmts(const std::vector<Stmt*>& statements)
+		{
+			for (Stmt* stmt : statements)
+				if (!checkStmt(stmt))
+					return false;
+			return true;
+		}
+
+		bool checkStmt(Stmt* stmt)
+		{
+			if (!stmt)
 				return true;
-		return false;
-	}
 
-	bool checkStmt(Stmt* stmt, std::vector<std::set<std::string>>& scopes);
+			// var 자신의 초기화식이 같은 이름의 바깥 변수 없이 자기 자신을 참조하면 에러
+			if (auto* varDecl = dynamic_cast<VarDeclStmt*>(stmt))
+			{
+				const std::string& name = varDecl->name.origin;
+				if (varDecl->initializer && exprReferencesName(varDecl->initializer, name) && !isNameDeclared(name))
+					return false;
 
-	bool checkStmts(const std::vector<Stmt*>& statements, std::vector<std::set<std::string>>& scopes)
-	{
-		for (Stmt* stmt : statements)
-			if (!checkStmt(stmt, scopes))
-				return false;
-		return true;
-	}
+				scopes.back().insert(name);
+				return true;
+			}
 
-	bool checkStmt(Stmt* stmt, std::vector<std::set<std::string>>& scopes)
-	{
-		if (!stmt)
+			if (auto* block = dynamic_cast<BlockStmt*>(stmt))
+			{
+				scopes.push_back({});
+				bool ok = checkStmts(block->statements);
+				scopes.pop_back();
+				return ok;
+			}
+
+			if (auto* ifStmt = dynamic_cast<IfStmt*>(stmt))
+			{
+				if (!checkStmt(ifStmt->thenBranch))
+					return false;
+				return checkStmt(ifStmt->elseBranch);
+			}
+
+			if (auto* forStmt = dynamic_cast<ForStmt*>(stmt))
+			{
+				scopes.push_back({});
+				bool ok = checkStmt(forStmt->init) && checkStmt(forStmt->body);
+				scopes.pop_back();
+				return ok;
+			}
+
 			return true;
-
-		// var 자신의 초기화식이 같은 이름의 바깥 변수 없이 자기 자신을 참조하면 에러
-		if (auto* varDecl = dynamic_cast<VarDeclStmt*>(stmt))
-		{
-			const std::string& name = varDecl->name.origin;
-			if (varDecl->initializer && exprReferencesName(varDecl->initializer, name) && !isNameDeclaredInScopes(scopes, name))
-				return false;
-
-			scopes.back().insert(name);
-			return true;
 		}
 
-		if (auto* block = dynamic_cast<BlockStmt*>(stmt))
+		bool isNameDeclared(const std::string& name) const
 		{
-			scopes.push_back({});
-			bool ok = checkStmts(block->statements, scopes);
-			scopes.pop_back();
-			return ok;
+			for (auto it = scopes.rbegin(); it != scopes.rend(); ++it)
+				if (it->count(name))
+					return true;
+			return false;
 		}
-
-		if (auto* ifStmt = dynamic_cast<IfStmt*>(stmt))
-		{
-			if (!checkStmt(ifStmt->thenBranch, scopes))
-				return false;
-			return checkStmt(ifStmt->elseBranch, scopes);
-		}
-
-		if (auto* forStmt = dynamic_cast<ForStmt*>(stmt))
-		{
-			scopes.push_back({});
-			bool ok = checkStmt(forStmt->init, scopes) && checkStmt(forStmt->body, scopes);
-			scopes.pop_back();
-			return ok;
-		}
-
-		return true;
-	}
+	};
 }
 
 bool checkAssembly(const Program& program)
 {
-	std::vector<std::set<std::string>> scopes(1);
-	return checkStmts(program.statements, scopes);
+	Checker checker;
+	return checker.run(program);
 }
