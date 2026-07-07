@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "ast.h"
 
@@ -16,5 +16,5 @@ Program assemble(const std::string& source);
 bool checkAssembly();
 
 // Executor_Unit.cpp
-// Input: Checker Unit을 통과한 Program / Output: 실행에 따른 부수효과(print의 표준출력) 또는 런타임 에러
-void executeAssembly();
+void executeAssembly(const Program& program);
+
