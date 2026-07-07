@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <exception>
 #include <iostream>
 #include <sstream>
 #include "../function.h"
@@ -46,6 +47,34 @@ protected:
 		UnaryExpr expr;
 		expr.op = Token{ opType, operatorOrigin(opType) };
 		expr.right = right;
+		return expr;
+	}
+
+	Token identifier(const string& name)
+	{
+		return Token{ TokenType::IDENTIFIER, name };
+	}
+
+	VarDeclStmt makeVarDecl(const string& name, Expr* initializer)
+	{
+		VarDeclStmt stmt;
+		stmt.name = identifier(name);
+		stmt.initializer = initializer;
+		return stmt;
+	}
+
+	VariableExpr makeVariable(const string& name)
+	{
+		VariableExpr expr;
+		expr.name = identifier(name);
+		return expr;
+	}
+
+	AssignExpr makeAssign(const string& name, Expr* value)
+	{
+		AssignExpr expr;
+		expr.name = identifier(name);
+		expr.value = value;
 		return expr;
 	}
 
@@ -259,3 +288,364 @@ TEST_F(ExecutorTest, PrintFalseLiteralOutputsFalse)
 
 	EXPECT_EQ(capturedOutput.str(), "false\n");
 }
+
+// 테스트 스크립트.md 2-1) var a = 10; var b = 20; print a + b; -> stdout "30"
+TEST_F(ExecutorTest, VarDeclarationsAndUsage_OutputsThirty)
+{
+	vector<LiteralExpr> literals(2);
+	literals[0].value = 10.0;
+	literals[1].value = 20.0;
+
+	VarDeclStmt declareA = makeVarDecl("a", &literals[0]);
+	VarDeclStmt declareB = makeVarDecl("b", &literals[1]);
+
+	VariableExpr referenceA = makeVariable("a");
+	VariableExpr referenceB = makeVariable("b");
+
+	BinaryExpr add = makeBinary(TokenType::PLUS, &referenceA, &referenceB);
+
+	printStmt.expression = &add;
+	program.statements = { &declareA, &declareB, &printStmt };
+
+	executeAssembly(program);
+
+	EXPECT_EQ(capturedOutput.str(), "30\n");
+}
+
+// 테스트 스크립트.md 2-2) a = a + 5; print a; (a는 10으로 선언된 상태) -> stdout "15"
+TEST_F(ExecutorTest, ReassignmentAddsFive_OutputsFifteen)
+{
+	vector<LiteralExpr> literals(2);
+	literals[0].value = 10.0;
+	literals[1].value = 5.0;
+
+	VarDeclStmt declareA = makeVarDecl("a", &literals[0]);
+
+	VariableExpr referenceAForAssign = makeVariable("a");
+
+	BinaryExpr addFive = makeBinary(TokenType::PLUS, &referenceAForAssign, &literals[1]);
+	AssignExpr reassignA = makeAssign("a", &addFive);
+
+	ExpressionStmt reassignStmt;
+	reassignStmt.expression = &reassignA;
+
+	VariableExpr referenceAForPrint = makeVariable("a");
+
+	printStmt.expression = &referenceAForPrint;
+	program.statements = { &declareA, &reassignStmt, &printStmt };
+
+	executeAssembly(program);
+
+	EXPECT_EQ(capturedOutput.str(), "15\n");
+}
+
+// 테스트 스크립트.md 2-3) { var x = "inner"; print x; } print x; (바깥 x는 "global") -> stdout "inner" 그 다음 "global"
+TEST_F(ExecutorTest, BlockScopeShadowing_OutputsInnerThenGlobal)
+{
+	vector<LiteralExpr> literals(2);
+	literals[0].value = string("global");
+	literals[1].value = string("inner");
+
+	VarDeclStmt declareGlobalX = makeVarDecl("x", &literals[0]);
+	VarDeclStmt declareInnerX = makeVarDecl("x", &literals[1]);
+	VariableExpr referenceInnerX = makeVariable("x");
+
+	PrintStmt printInnerX;
+	printInnerX.expression = &referenceInnerX;
+
+	BlockStmt block;
+	block.statements = { &declareInnerX, &printInnerX };
+
+	VariableExpr referenceOuterX = makeVariable("x");
+
+	printStmt.expression = &referenceOuterX;
+	program.statements = { &declareGlobalX, &block, &printStmt };
+
+	executeAssembly(program);
+
+	EXPECT_EQ(capturedOutput.str(), "inner\nglobal\n");
+}
+
+// 테스트 스크립트.md 2-4) { count = count + 1; } print count; (count는 0으로 선언된 상태) -> stdout "1"
+TEST_F(ExecutorTest, BlockModifiesOuterVariable_OutputsOne)
+{
+	vector<LiteralExpr> literals(2);
+	literals[0].value = 0.0;
+	literals[1].value = 1.0;
+
+	VarDeclStmt declareCount = makeVarDecl("count", &literals[0]);
+
+	VariableExpr referenceCountForAssign = makeVariable("count");
+
+	BinaryExpr addOne = makeBinary(TokenType::PLUS, &referenceCountForAssign, &literals[1]);
+	AssignExpr incrementCount = makeAssign("count", &addOne);
+
+	ExpressionStmt incrementStmt;
+	incrementStmt.expression = &incrementCount;
+
+	BlockStmt block;
+	block.statements = { &incrementStmt };
+
+	VariableExpr referenceCountForPrint = makeVariable("count");
+
+	printStmt.expression = &referenceCountForPrint;
+	program.statements = { &declareCount, &block, &printStmt };
+
+	executeAssembly(program);
+
+	EXPECT_EQ(capturedOutput.str(), "1\n");
+}
+
+// 테스트 스크립트.md 2-5) var outer = "A"; { var inner = "B"; { print outer + inner; } } -> stdout "AB"
+TEST_F(ExecutorTest, NestedScopeResolvesOuterAndInner_OutputsAB)
+{
+	vector<LiteralExpr> literals(2);
+	literals[0].value = string("A");
+	literals[1].value = string("B");
+
+	VarDeclStmt declareOuter = makeVarDecl("outer", &literals[0]);
+	VarDeclStmt declareInner = makeVarDecl("inner", &literals[1]);
+
+	VariableExpr referenceOuter = makeVariable("outer");
+	VariableExpr referenceInner = makeVariable("inner");
+
+	BinaryExpr concatenate = makeBinary(TokenType::PLUS, &referenceOuter, &referenceInner);
+
+	printStmt.expression = &concatenate;
+
+	BlockStmt innermostBlock;
+	innermostBlock.statements = { &printStmt };
+
+	BlockStmt innerBlock;
+	innerBlock.statements = { &declareInner, &innermostBlock };
+
+	program.statements = { &declareOuter, &innerBlock };
+
+	executeAssembly(program);
+
+	EXPECT_EQ(capturedOutput.str(), "AB\n");
+}
+
+// 테스트 스크립트.md 3-1) if (true) print "bbq"; -> stdout "bbq"
+TEST_F(ExecutorTest, IfWithTrueConditionExecutesThenBranch)
+{
+	LiteralExpr trueLiteral;
+	trueLiteral.value = true;
+
+	LiteralExpr bbq;
+	bbq.value = string("bbq");
+
+	printStmt.expression = &bbq;
+
+	IfStmt ifStmt;
+	ifStmt.condition = &trueLiteral;
+	ifStmt.thenBranch = &printStmt;
+	ifStmt.elseBranch = nullptr;
+
+	program.statements = { &ifStmt };
+
+	executeAssembly(program);
+
+	EXPECT_EQ(capturedOutput.str(), "bbq\n");
+}
+
+// 테스트 스크립트.md 3-2) if (false) print "no"; else print "kfc"; -> stdout "kfc"
+TEST_F(ExecutorTest, IfWithFalseConditionExecutesElseBranch)
+{
+	LiteralExpr falseLiteral;
+	falseLiteral.value = false;
+
+	LiteralExpr no;
+	no.value = string("no");
+
+	LiteralExpr kfc;
+	kfc.value = string("kfc");
+
+	PrintStmt printNo;
+	printNo.expression = &no;
+
+	PrintStmt printKfc;
+	printKfc.expression = &kfc;
+
+	IfStmt ifStmt;
+	ifStmt.condition = &falseLiteral;
+	ifStmt.thenBranch = &printNo;
+	ifStmt.elseBranch = &printKfc;
+
+	program.statements = { &ifStmt };
+
+	executeAssembly(program);
+
+	EXPECT_EQ(capturedOutput.str(), "kfc\n");
+}
+
+// 테스트 스크립트.md 3-3) if (true) { if (false) print "kfc"; else print "bbq"; } -> stdout "bbq" (else는 가장 가까운 if에 결합)
+TEST_F(ExecutorTest, NestedIfElseBindsToNearestIf)
+{
+	LiteralExpr trueLiteral;
+	trueLiteral.value = true;
+
+	LiteralExpr falseLiteral;
+	falseLiteral.value = false;
+
+	LiteralExpr kfc;
+	kfc.value = string("kfc");
+
+	LiteralExpr bbq;
+	bbq.value = string("bbq");
+
+	PrintStmt printKfc;
+	printKfc.expression = &kfc;
+
+	PrintStmt printBbq;
+	printBbq.expression = &bbq;
+
+	IfStmt innerIf;
+	innerIf.condition = &falseLiteral;
+	innerIf.thenBranch = &printKfc;
+	innerIf.elseBranch = &printBbq;
+
+	BlockStmt block;
+	block.statements = { &innerIf };
+
+	IfStmt outerIf;
+	outerIf.condition = &trueLiteral;
+	outerIf.thenBranch = &block;
+	outerIf.elseBranch = nullptr;
+
+	program.statements = { &outerIf };
+
+	executeAssembly(program);
+
+	EXPECT_EQ(capturedOutput.str(), "bbq\n");
+}
+
+// 테스트 스크립트.md 3-4) for (var j = 0; j < 3; j = j + 1) { print j; } -> stdout "0", "1", "2"
+TEST_F(ExecutorTest, ForLoopPrintsZeroToTwo)
+{
+	LiteralExpr zero;
+	zero.value = 0.0;
+
+	VarDeclStmt initJ;
+	initJ.name = Token{ TokenType::IDENTIFIER, "j" };
+	initJ.initializer = &zero;
+
+	VariableExpr referenceJForCondition;
+	referenceJForCondition.name = Token{ TokenType::IDENTIFIER, "j" };
+
+	LiteralExpr three;
+	three.value = 3.0;
+
+	BinaryExpr condition;
+	condition.left = &referenceJForCondition;
+	condition.op = Token{ TokenType::LESS, "<" };
+	condition.right = &three;
+
+	VariableExpr referenceJForIncrement;
+	referenceJForIncrement.name = Token{ TokenType::IDENTIFIER, "j" };
+
+	LiteralExpr one;
+	one.value = 1.0;
+
+	BinaryExpr incrementExpr;
+	incrementExpr.left = &referenceJForIncrement;
+	incrementExpr.op = Token{ TokenType::PLUS, "+" };
+	incrementExpr.right = &one;
+
+	AssignExpr increment;
+	increment.name = Token{ TokenType::IDENTIFIER, "j" };
+	increment.value = &incrementExpr;
+
+	VariableExpr referenceJForPrint;
+	referenceJForPrint.name = Token{ TokenType::IDENTIFIER, "j" };
+
+	printStmt.expression = &referenceJForPrint;
+
+	BlockStmt body;
+	body.statements = { &printStmt };
+
+	ForStmt forStmt;
+	forStmt.init = &initJ;
+	forStmt.condition = &condition;
+	forStmt.increment = &increment;
+	forStmt.body = &body;
+
+	program.statements = { &forStmt };
+
+	executeAssembly(program);
+
+	EXPECT_EQ(capturedOutput.str(), "0\n1\n2\n");
+}
+
+// 테스트 스크립트.md 4-1) print notDefined; -> 런타임 에러 "Undefined variable 'notDefined'."
+TEST_F(ExecutorTest, ReferencingUndefinedVariableThrowsRuntimeError)
+{
+	VariableExpr reference;
+	reference.name = Token{ TokenType::IDENTIFIER, "notDefined" };
+
+	printStmt.expression = &reference;
+	program.statements = { &printStmt };
+
+	try
+	{
+		executeAssembly(program);
+		FAIL() << "Expected a runtime error to be thrown";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Undefined variable 'notDefined'.");
+	}
+}
+
+// 테스트 스크립트.md 4-2) print 1 + "HI"; -> 런타임 에러 "Operands must be two numbers or two strings."
+TEST_F(ExecutorTest, MixingNumberAndStringWithPlusThrowsRuntimeError)
+{
+	LiteralExpr one;
+	one.value = 1.0;
+
+	LiteralExpr hi;
+	hi.value = string("HI");
+
+	BinaryExpr add;
+	add.left = &one;
+	add.op = Token{ TokenType::PLUS, "+" };
+	add.right = &hi;
+
+	printStmt.expression = &add;
+	program.statements = { &printStmt };
+
+	try
+	{
+		executeAssembly(program);
+		FAIL() << "Expected a runtime error to be thrown";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Operands must be two numbers or two strings.");
+	}
+}
+
+// 테스트 스크립트.md 4-3) print -"FabCoding"; -> 런타임 에러 "Operand must be a number."
+TEST_F(ExecutorTest, UnaryMinusOnNonNumberThrowsRuntimeError)
+{
+	LiteralExpr fabCoding;
+	fabCoding.value = string("FabCoding");
+
+	UnaryExpr negate;
+	negate.op = Token{ TokenType::MINUS, "-" };
+	negate.right = &fabCoding;
+
+	printStmt.expression = &negate;
+	program.statements = { &printStmt };
+
+	try
+	{
+		executeAssembly(program);
+		FAIL() << "Expected a runtime error to be thrown";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Operand must be a number.");
+	}
+}
+
