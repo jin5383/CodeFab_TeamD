@@ -26,6 +26,8 @@ protected:
 		case TokenType::MINUS: return "-";
 		case TokenType::STAR: return "*";
 		case TokenType::SLASH: return "/";
+		case TokenType::LESS: return "<";
+		case TokenType::GREATER: return ">";
 		default: return "";
 		}
 	}
@@ -149,4 +151,111 @@ TEST_F(ExecutorTest, PrintUnaryMinusPlusBinaryAddOutputsMinusOne)
 	executeAssembly(program);
 
 	EXPECT_EQ(capturedOutput.str(), "-1\n");
+}
+
+// 테스트 스크립트.md 1-6) print 1 < 2; -> stdout "true"
+TEST_F(ExecutorTest, PrintLessThanOutputsTrue)
+{
+	vector<LiteralExpr> literals(2);
+	literals[0].value = 1.0;
+	literals[1].value = 2.0;
+
+	BinaryExpr lessThan = makeBinary(TokenType::LESS, &literals[0], &literals[1]);
+
+	printStmt.expression = &lessThan;
+	program.statements = { &printStmt };
+
+	executeAssembly(program);
+
+	EXPECT_EQ(capturedOutput.str(), "true\n");
+}
+
+// 테스트 스크립트.md 1-7) print 3 > 5; -> stdout "false"
+TEST_F(ExecutorTest, PrintGreaterThanOutputsFalse)
+{
+	vector<LiteralExpr> literals(2);
+	literals[0].value = 3.0;
+	literals[1].value = 5.0;
+
+	BinaryExpr greaterThan = makeBinary(TokenType::GREATER, &literals[0], &literals[1]);
+
+	printStmt.expression = &greaterThan;
+	program.statements = { &printStmt };
+
+	executeAssembly(program);
+
+	EXPECT_EQ(capturedOutput.str(), "false\n");
+}
+
+// 테스트 스크립트.md 1-8) print "Hello, " + "CodeFab!"; -> stdout "Hello, CodeFab!"
+TEST_F(ExecutorTest, PrintStringConcatenationOutputsHelloCodeFab)
+{
+	vector<LiteralExpr> literals(2);
+	literals[0].value = string("Hello, ");
+	literals[1].value = string("CodeFab!");
+
+	BinaryExpr concatenate = makeBinary(TokenType::PLUS, &literals[0], &literals[1]);
+
+	printStmt.expression = &concatenate;
+	program.statements = { &printStmt };
+
+	executeAssembly(program);
+
+	EXPECT_EQ(capturedOutput.str(), "Hello, CodeFab!\n");
+}
+
+// 테스트 스크립트.md 1-9-1) print 5; / print 5.0; -> stdout "5" (정수는 .0 없이 출력)
+TEST_F(ExecutorTest, PrintIntegerValuedNumberOutputsWithoutDecimalPoint)
+{
+	LiteralExpr number;
+	number.value = 5.0;
+
+	printStmt.expression = &number;
+	program.statements = { &printStmt };
+
+	executeAssembly(program);
+
+	EXPECT_EQ(capturedOutput.str(), "5\n");
+}
+
+// 테스트 스크립트.md 1-9-2) print 3.14; -> stdout "3.14"
+TEST_F(ExecutorTest, PrintDecimalNumberOutputsWithDecimalPoint)
+{
+	LiteralExpr number;
+	number.value = 3.14;
+
+	printStmt.expression = &number;
+	program.statements = { &printStmt };
+
+	executeAssembly(program);
+
+	EXPECT_EQ(capturedOutput.str(), "3.14\n");
+}
+
+// 테스트 스크립트.md 1-10-1) print true; -> stdout "true"
+TEST_F(ExecutorTest, PrintTrueLiteralOutputsTrue)
+{
+	LiteralExpr trueLiteral;
+	trueLiteral.value = true;
+
+	printStmt.expression = &trueLiteral;
+	program.statements = { &printStmt };
+
+	executeAssembly(program);
+
+	EXPECT_EQ(capturedOutput.str(), "true\n");
+}
+
+// 테스트 스크립트.md 1-10-2) print false; -> stdout "false"
+TEST_F(ExecutorTest, PrintFalseLiteralOutputsFalse)
+{
+	LiteralExpr falseLiteral;
+	falseLiteral.value = false;
+
+	printStmt.expression = &falseLiteral;
+	program.statements = { &printStmt };
+
+	executeAssembly(program);
+
+	EXPECT_EQ(capturedOutput.str(), "false\n");
 }
