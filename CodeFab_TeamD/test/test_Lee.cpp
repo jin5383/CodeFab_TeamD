@@ -38,3 +38,28 @@ TEST(CheckerUnitTest, PrintArithmeticPrecedence_NoError)
 
 	EXPECT_TRUE(checkAssembly(program));
 }
+
+// Checker unit: `print (1 + 2) * 3;` 에 해당하는 Program -> 에러 없음 (통과)
+TEST(CheckerUnitTest, PrintParenthesesOverridePrecedence_NoError)
+{
+	auto* add = new BinaryExpr();
+	add->left = makeNumberLiteral(1.0);
+	add->op = Token{ TokenType::PLUS, "+", std::monostate{} };
+	add->right = makeNumberLiteral(2.0);
+
+	auto* grouping = new GroupingExpr();
+	grouping->expression = add;
+
+	auto* multiply = new BinaryExpr();
+	multiply->left = grouping;
+	multiply->op = Token{ TokenType::STAR, "*", std::monostate{} };
+	multiply->right = makeNumberLiteral(3.0);
+
+	auto* printStmt = new PrintStmt();
+	printStmt->expression = multiply;
+
+	Program program;
+	program.statements.push_back(printStmt);
+
+	EXPECT_TRUE(checkAssembly(program));
+}
