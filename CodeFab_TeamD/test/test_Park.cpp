@@ -1,5 +1,6 @@
 ﻿#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <stdexcept>
 #include "../ast.h"
 #include "../function.h"
 
@@ -386,6 +387,51 @@ TEST(AssemblerUnitTest, NestedBlockScopesReferenceEnclosingVariables)
 	EXPECT_EQ(right->name.origin, "inner");
 }
 
+// if (true) print "bbq"; : else 없는 if는 elseBranch가 nullptr이어야 한다
+TEST(AssemblerUnitTest, IfWithoutElseBranch)
+{
+	Program program = assemble("if (true) print \"bbq\";");
+
+	ASSERT_THAT(program.statements, SizeIs(1));
+	auto* ifStmt = dynamic_cast<IfStmt*>(statementAt(program.statements, 0));
+	ASSERT_THAT(ifStmt, NotNull());
+
+	auto* condition = dynamic_cast<LiteralExpr*>(ifStmt->condition);
+	ASSERT_THAT(condition, NotNull());
+	EXPECT_TRUE(std::get<bool>(condition->value));
+
+	auto* thenBranch = dynamic_cast<PrintStmt*>(ifStmt->thenBranch);
+	ASSERT_THAT(thenBranch, NotNull());
+	ASSERT_THAT(dynamic_cast<LiteralExpr*>(thenBranch->expression), NotNull());
+	EXPECT_EQ(stringValue(thenBranch->expression), "bbq");
+
+	EXPECT_THAT(ifStmt->elseBranch, IsNull());
+}
+
+// if (false) print "no"; else print "kfc"; : if/else 양쪽 분기가 모두 있어야 한다
+TEST(AssemblerUnitTest, IfElseBranchesBothPresent)
+{
+	Program program = assemble("if (false) print \"no\"; else print \"kfc\";");
+
+	ASSERT_THAT(program.statements, SizeIs(1));
+	auto* ifStmt = dynamic_cast<IfStmt*>(statementAt(program.statements, 0));
+	ASSERT_THAT(ifStmt, NotNull());
+
+	auto* condition = dynamic_cast<LiteralExpr*>(ifStmt->condition);
+	ASSERT_THAT(condition, NotNull());
+	EXPECT_FALSE(std::get<bool>(condition->value));
+
+	auto* thenBranch = dynamic_cast<PrintStmt*>(ifStmt->thenBranch);
+	ASSERT_THAT(thenBranch, NotNull());
+	ASSERT_THAT(dynamic_cast<LiteralExpr*>(thenBranch->expression), NotNull());
+	EXPECT_EQ(stringValue(thenBranch->expression), "no");
+
+	auto* elseBranch = dynamic_cast<PrintStmt*>(ifStmt->elseBranch);
+	ASSERT_THAT(elseBranch, NotNull());
+	ASSERT_THAT(dynamic_cast<LiteralExpr*>(elseBranch->expression), NotNull());
+	EXPECT_EQ(stringValue(elseBranch->expression), "kfc");
+}
+
 // else 는 가장 가까운 if 에 결합: if (true) { if (false) print "kfc"; else print "bbq"; }
 TEST(AssemblerUnitTest, DanglingElseBindsToNearestIf)
 {
@@ -412,4 +458,74 @@ TEST(AssemblerUnitTest, DanglingElseBindsToNearestIf)
 	ASSERT_THAT(elseBranch, NotNull());
 	ASSERT_THAT(dynamic_cast<LiteralExpr*>(elseBranch->expression), NotNull());
 	EXPECT_EQ(stringValue(elseBranch->expression), "bbq");
+}
+
+// 세미콜론 누락: "var a = 3" -> "Expect ';' after value."
+TEST(AssemblerSyntaxErrorTest, MissingSemicolonAfterValueReportsError)
+{
+	try
+	{
+		assemble("var a = 3");
+		FAIL() << "구문 오류 예외가 발생해야 한다.";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Expect ';' after value.");
+	}
+}
+
+// 닫는 괄호 누락: "(1 + 2" -> "Expect ')' after expression."
+TEST(AssemblerSyntaxErrorTest, MissingClosingParenReportsError)
+{
+	try
+	{
+		assemble("(1 + 2");
+		FAIL() << "구문 오류 예외가 발생해야 한다.";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Expect ')' after expression.");
+	}
+}
+
+// 잘못된 할당 대상: "3 = 5;" -> "Invalid assignment target."
+TEST(AssemblerSyntaxErrorTest, InvalidAssignmentTargetReportsError)
+{
+	try
+	{
+		assemble("3 = 5;");
+		FAIL() << "구문 오류 예외가 발생해야 한다.";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Invalid assignment target.");
+	}
+}
+
+// 잘못된 할당 대상(이항식에 대입): "var a = 1; var b = 2; a + b = 3;" -> "Invalid assignment target." 류의 메시지
+TEST(AssemblerSyntaxErrorTest, InvalidAssignmentTargetOnBinaryExprReportsError)
+{
+	try
+	{
+		assemble("var a = 1; var b = 2; a + b = 3;");
+		FAIL() << "구문 오류 예외가 발생해야 한다.";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_THAT(e.what(), HasSubstr("Invalid assignment target"));
+	}
+}
+
+// 표현식 자리에 엉뚱한 토큰: ";" -> "Expect expression."
+TEST(AssemblerSyntaxErrorTest, UnexpectedTokenInExpressionPositionReportsError)
+{
+	try
+	{
+		assemble(";");
+		FAIL() << "구문 오류 예외가 발생해야 한다.";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Expect expression.");
+	}
 }
