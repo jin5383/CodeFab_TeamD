@@ -31,12 +31,18 @@ namespace
 			return token;
 		}
 
-		// VAR로 시작하면 변수 선언, 아니면 표현식 문장
+		// 토큰 종류에 따라 var 선언/print/블록/if/for/표현식 문장으로 분기
 		Stmt* parseStatement()
 		{
-			if (getCurrentToken().type == TokenType::VAR)
-				return parseVarDeclStatement();
-			return parseExpressionStatement();
+			switch (getCurrentToken().type)
+			{
+			case TokenType::VAR: return parseVarDeclStatement();
+			case TokenType::PRINT: return parsePrintStatement();
+			case TokenType::LEFT_BRACE: return parseBlockStatement();
+			case TokenType::IF: return parseIfStatement();
+			case TokenType::FOR: return parseForStatement();
+			default: return parseExpressionStatement();
+			}
 		}
 
 		// "var 이름 (= 초깃값)? ;" 을 읽어 VarDeclStmt를 만든다
@@ -65,7 +71,97 @@ namespace
 			return stmt;
 		}
 
-		Expr* parseExpression() { return parseComparisonExpr(); }
+		// "print 식 ;" 을 읽어 PrintStmt를 만든다
+		Stmt* parsePrintStatement()
+		{
+			getTokenAndAdvance(); // print
+			auto* stmt = new PrintStmt();
+			stmt->expression = parseExpression();
+			getTokenAndAdvance(); // ;
+			return stmt;
+		}
+
+		// "{ 문장* }" 을 읽어 BlockStmt를 만든다
+		Stmt* parseBlockStatement()
+		{
+			getTokenAndAdvance(); // {
+			auto* block = new BlockStmt();
+			while (getCurrentToken().type != TokenType::RIGHT_BRACE && getCurrentToken().type != TokenType::END_OF_FILE)
+				block->statements.push_back(parseStatement());
+			getTokenAndAdvance(); // }
+			return block;
+		}
+
+		// "if ( 조건 ) 문장 (else 문장)?" 을 읽어 IfStmt를 만든다.
+		// else는 항상 가장 최근에 열린(재귀 호출 중인) if에 결합되므로 dangling else가 자연히 해결된다.
+		Stmt* parseIfStatement()
+		{
+			getTokenAndAdvance(); // if
+			getTokenAndAdvance(); // (
+			auto* stmt = new IfStmt();
+			stmt->condition = parseExpression();
+			getTokenAndAdvance(); // )
+			stmt->thenBranch = parseStatement();
+
+			if (getCurrentToken().type == TokenType::ELSE)
+			{
+				getTokenAndAdvance(); // else
+				stmt->elseBranch = parseStatement();
+			}
+
+			return stmt;
+		}
+
+		// "for ( 초기화? ; 조건? ; 증감? ) 문장" 을 읽어 ForStmt를 만든다
+		Stmt* parseForStatement()
+		{
+			getTokenAndAdvance(); // for
+			getTokenAndAdvance(); // (
+
+			auto* stmt = new ForStmt();
+
+			if (getCurrentToken().type == TokenType::SEMICOLON)
+				getTokenAndAdvance(); // 초기화 없음: ;
+			else if (getCurrentToken().type == TokenType::VAR)
+				stmt->init = parseVarDeclStatement(); // 내부에서 ; 까지 소비
+			else
+				stmt->init = parseExpressionStatement(); // 내부에서 ; 까지 소비
+
+			if (getCurrentToken().type != TokenType::SEMICOLON)
+				stmt->condition = parseExpression();
+			getTokenAndAdvance(); // ;
+
+			if (getCurrentToken().type != TokenType::RIGHT_PAREN)
+				stmt->increment = parseExpression();
+			getTokenAndAdvance(); // )
+
+			stmt->body = parseStatement();
+			return stmt;
+		}
+
+		Expr* parseExpression() { return parseAssignmentExpr(); }
+
+		// "이름 = 식" 을 읽어 AssignExpr를 만든다. 우결합이므로 재귀로 처리
+		Expr* parseAssignmentExpr()
+		{
+			Expr* expr = parseComparisonExpr();
+
+			if (getCurrentToken().type == TokenType::EQUAL)
+			{
+				getTokenAndAdvance(); // =
+				Expr* value = parseAssignmentExpr();
+
+				if (auto* variable = dynamic_cast<VariableExpr*>(expr))
+				{
+					auto* assign = new AssignExpr();
+					assign->name = variable->name;
+					assign->value = value;
+					return assign;
+				}
+			}
+
+			return expr;
+		}
 
 		// <, > 를 좌결합으로 묶는다. 산술(+ - * /)보다 우선순위가 낮다
 		Expr* parseComparisonExpr()
@@ -145,7 +241,7 @@ namespace
 			return parsePrimary();
 		}
 
-		// 괄호면 GroupingExpr, 아니면 리터럴(숫자/문자열/불리언)
+		// 괄호면 GroupingExpr, 식별자면 VariableExpr, 아니면 리터럴(숫자/문자열/불리언)
 		Expr* parsePrimary()
 		{
 			if (getCurrentToken().type == TokenType::LEFT_PAREN)
@@ -157,9 +253,16 @@ namespace
 				return grouping;
 			}
 
-			Token literalToken = getTokenAndAdvance();
+			Token token = getTokenAndAdvance();
+			if (token.type == TokenType::IDENTIFIER)
+			{
+				auto* variable = new VariableExpr();
+				variable->name = token;
+				return variable;
+			}
+
 			auto* literal = new LiteralExpr();
-			literal->value = literalToken.value;
+			literal->value = token.value;
 			return literal;
 		}
 	};

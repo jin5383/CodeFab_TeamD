@@ -5,10 +5,6 @@
 
 using namespace testing;
 
-TEST(KwonTest, Placeholder)
-{
-	EXPECT_TRUE(true);
-}
 
 // Assembler_Token_Unit: "1;" -> [NUMBER(1), SEMICOLON, END_OF_FILE]
 TEST(AssemblerTokenUnitTest, TokenizeSource_ProducesExpectedTokenSequence)
@@ -92,4 +88,32 @@ TEST(AssemblerConstructUnitTest, ConstructAssembly_BuildsBinaryExprFromTokens)
 	EXPECT_EQ(binary->op.type, TokenType::PLUS);
 	EXPECT_DOUBLE_EQ(std::get<double>(dynamic_cast<LiteralExpr*>(binary->left)->value), 1.0);
 	EXPECT_DOUBLE_EQ(std::get<double>(dynamic_cast<LiteralExpr*>(binary->right)->value), 2.0);
+}
+
+// Assembler_Token_Unit: "{}" -> [LEFT_BRACE, RIGHT_BRACE, END_OF_FILE]
+TEST(AssemblerTokenUnitTest, TokenizeSource_ProducesBraceTokens)
+{
+	std::vector<Token> tokens = tokenizeSource("{}");
+
+	ASSERT_THAT(tokens, SizeIs(3));
+	EXPECT_EQ(tokens[0].type, TokenType::LEFT_BRACE);
+	EXPECT_EQ(tokens[1].type, TokenType::RIGHT_BRACE);
+	EXPECT_EQ(tokens[2].type, TokenType::END_OF_FILE);
+}
+
+// Assembler_Construct_Unit: 토큰 목록 [IDENTIFIER(a), SEMICOLON, END_OF_FILE]
+// -> Program { ExpressionStmt { VariableExpr(a) } }
+TEST(AssemblerConstructUnitTest, ConstructAssembly_BuildsVariableExprFromTokens)
+{
+	std::vector<Token> tokens = tokenizeSource("a;");
+
+	Program program = constructAssembly(tokens);
+
+	ASSERT_THAT(program.statements, SizeIs(1));
+	auto* exprStmt = dynamic_cast<ExpressionStmt*>(program.statements[0]);
+	ASSERT_THAT(exprStmt, NotNull());
+
+	auto* variable = dynamic_cast<VariableExpr*>(exprStmt->expression);
+	ASSERT_THAT(variable, NotNull());
+	EXPECT_EQ(variable->name.origin, "a");
 }
