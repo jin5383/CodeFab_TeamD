@@ -1,4 +1,5 @@
 ﻿#include "../function.h"
+#include <stdexcept>
 
 namespace
 {
@@ -31,6 +32,14 @@ namespace
 			return token;
 		}
 
+		// 현재 토큰이 기대한 종류면 소비하고 반환, 아니면 구문 오류로 던진다
+		Token expectAndAdvance(TokenType type, const std::string& message)
+		{
+			if (getCurrentToken().type != type)
+				throw std::runtime_error(message);
+			return getTokenAndAdvance();
+		}
+
 		// 토큰 종류에 따라 var 선언/print/블록/if/for/표현식 문장으로 분기
 		Stmt* parseStatement()
 		{
@@ -50,7 +59,7 @@ namespace
 		{
 			getTokenAndAdvance(); // var
 			auto* stmt = new VarDeclStmt();
-			stmt->name = getTokenAndAdvance(); // 변수 이름
+			stmt->name = expectAndAdvance(TokenType::IDENTIFIER, "Expect variable name.");
 
 			if (getCurrentToken().type == TokenType::EQUAL)
 			{
@@ -58,7 +67,7 @@ namespace
 				stmt->initializer = parseExpression();
 			}
 
-			getTokenAndAdvance(); // ;
+			expectAndAdvance(TokenType::SEMICOLON, "Expect ';' after value.");
 			return stmt;
 		}
 
@@ -67,7 +76,7 @@ namespace
 		{
 			auto* stmt = new ExpressionStmt();
 			stmt->expression = parseExpression();
-			getTokenAndAdvance(); // ;
+			expectAndAdvance(TokenType::SEMICOLON, "Expect ';' after value.");
 			return stmt;
 		}
 
@@ -88,7 +97,7 @@ namespace
 			auto* block = new BlockStmt();
 			while (getCurrentToken().type != TokenType::RIGHT_BRACE && getCurrentToken().type != TokenType::END_OF_FILE)
 				block->statements.push_back(parseStatement());
-			getTokenAndAdvance(); // }
+			expectAndAdvance(TokenType::RIGHT_BRACE, "Expect '}' after block.");
 			return block;
 		}
 
@@ -97,7 +106,7 @@ namespace
 		Stmt* parseIfStatement()
 		{
 			getTokenAndAdvance(); // if
-			getTokenAndAdvance(); // (
+			expectAndAdvance(TokenType::LEFT_PAREN, "Expect '(' after 'if'.");
 			auto* stmt = new IfStmt();
 			stmt->condition = parseExpression();
 			getTokenAndAdvance(); // )
@@ -151,13 +160,14 @@ namespace
 				getTokenAndAdvance(); // =
 				Expr* value = parseAssignmentExpr();
 
-				if (auto* variable = dynamic_cast<VariableExpr*>(expr))
-				{
-					auto* assign = new AssignExpr();
-					assign->name = variable->name;
-					assign->value = value;
-					return assign;
-				}
+				auto* variable = dynamic_cast<VariableExpr*>(expr);
+				if (variable == nullptr)
+					throw std::runtime_error("Invalid assignment target.");
+
+				auto* assign = new AssignExpr();
+				assign->name = variable->name;
+				assign->value = value;
+				return assign;
 			}
 
 			return expr;
@@ -241,7 +251,7 @@ namespace
 			return parsePrimary();
 		}
 
-		// 괄호면 GroupingExpr, 식별자면 VariableExpr, 아니면 리터럴(숫자/문자열/불리언)
+		// 괄호면 GroupingExpr, 식별자면 VariableExpr, 리터럴이면 LiteralExpr, 그 외에는 구문 오류
 		Expr* parsePrimary()
 		{
 			if (getCurrentToken().type == TokenType::LEFT_PAREN)
@@ -249,21 +259,31 @@ namespace
 				getTokenAndAdvance(); // (
 				auto* grouping = new GroupingExpr();
 				grouping->expression = parseExpression();
-				getTokenAndAdvance(); // )
+				expectAndAdvance(TokenType::RIGHT_PAREN, "Expect ')' after expression.");
 				return grouping;
 			}
 
-			Token token = getTokenAndAdvance();
-			if (token.type == TokenType::IDENTIFIER)
+			if (getCurrentToken().type == TokenType::IDENTIFIER)
 			{
 				auto* variable = new VariableExpr();
-				variable->name = token;
+				variable->name = getTokenAndAdvance();
 				return variable;
 			}
 
-			auto* literal = new LiteralExpr();
-			literal->value = token.value;
-			return literal;
+			switch (getCurrentToken().type)
+			{
+			case TokenType::NUMBER:
+			case TokenType::STRING:
+			case TokenType::TRUE:
+			case TokenType::FALSE:
+			{
+				auto* literal = new LiteralExpr();
+				literal->value = getTokenAndAdvance().value;
+				return literal;
+			}
+			default:
+				throw std::runtime_error("Expect expression.");
+			}
 		}
 	};
 }

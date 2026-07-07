@@ -1,5 +1,6 @@
 ﻿#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <stdexcept>
 #include "../ast.h"
 #include "../function.h"
 
@@ -116,4 +117,49 @@ TEST(AssemblerConstructUnitTest, ConstructAssembly_BuildsVariableExprFromTokens)
 	auto* variable = dynamic_cast<VariableExpr*>(exprStmt->expression);
 	ASSERT_THAT(variable, NotNull());
 	EXPECT_EQ(variable->name.origin, "a");
+}
+
+// var 뒤에 변수 이름 없이 바로 "=" 이 오는 경우: "var = 5;" -> "Expect variable name."
+// parseVarDeclStatement가 변수 이름 토큰을 체크 없이 소비하고 있어 아직 실패
+TEST(AssemblerSyntaxErrorTestSub, MissingVariableNameAfterVarReportsError)
+{
+	try
+	{
+		assemble("var = 5;");
+		FAIL() << "구문 오류 예외가 발생";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Expect variable name.");
+	}
+}
+
+// if 뒤에 "(" 없이 조건이 오는 경우: "if true) print 1;" -> "Expect '(' after 'if'."
+// parseIfStatement가 "(" 를 체크 없이 소비하고 있어 아직 실패
+TEST(AssemblerSyntaxErrorTestSub, MissingOpenParenAfterIfReportsError)
+{
+	try
+	{
+		assemble("if true) print 1;");
+		FAIL() << "구문 오류 예외가 발생";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Expect '(' after 'if'.");
+	}
+}
+
+// 블록을 닫는 "}" 없이 소스가 끝나는 경우: "{ var x = 1;" -> "Expect '}' after block."
+// parseBlockStatement가 닫는 "}" 를 체크 없이 소비하고 있어 아직 실패
+TEST(AssemblerSyntaxErrorTestSub, MissingClosingBraceReportsError)
+{
+	try
+	{
+		assemble("{ var x = 1;");
+		FAIL() << "구문 오류 예외가 발생";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Expect '}' after block.");
+	}
 }
