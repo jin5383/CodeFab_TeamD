@@ -405,3 +405,27 @@ TEST_F(CheckerUnitTest, AllNormalScenarios_NoError)
 		EXPECT_TRUE(checkAssembly(scenario.build()));
 	}
 }
+
+// Checker unit: `{ var a = a + 1; }` 에 해당하는 Program -> 자기 자신 참조 초기화 에러
+TEST_F(CheckerUnitTest, SelfReferencingInitializer_ReportsError)
+{
+	auto* variableReference = new VariableExpr();
+	variableReference->name = identifierToken("a");
+
+	auto* initializer = new BinaryExpr();
+	initializer->left = variableReference;
+	initializer->op = Token{ TokenType::PLUS, "+", std::monostate{} };
+	initializer->right = makeNumberLiteral(1.0);
+
+	auto* varDecl = new VarDeclStmt();
+	varDecl->name = identifierToken("a");
+	varDecl->initializer = initializer;
+
+	auto* block = new BlockStmt();
+	block->statements.push_back(varDecl);
+
+	Program program;
+	program.statements.push_back(block);
+
+	EXPECT_FALSE(checkAssembly(program));
+}
