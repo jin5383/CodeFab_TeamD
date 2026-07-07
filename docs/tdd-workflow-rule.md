@@ -170,11 +170,11 @@ Input: 각 시나리오의 source가 파싱되면 나와야 할 모양대로, `p
 - [x] `print 10 - 4 - 3;` → `3`
 - [x] `print 8 / 2 / 2;` → `2`
 - [x] `print -3 + 2;` → `-1`
-- [ ] `print 1 < 2;` → `true`
-- [ ] `print 3 > 5;` → `false`
-- [ ] `print "Hello, " + "CodeFab!";` → `Hello, CodeFab!`
-- [ ] `print 5;` / `print 5.0;` / `print 3.14;` → `5` / `5` / `3.14`
-- [ ] `print true;` / `print false;` → `true` / `false`
+- [x] `print 1 < 2;` → `true`
+- [x] `print 3 > 5;` → `false`
+- [x] `print "Hello, " + "CodeFab!";` → `Hello, CodeFab!`
+- [x] `print 5;` / `print 5.0;` / `print 3.14;` → `5` / `5` / `3.14`
+- [x] `print true;` / `print false;` → `true` / `false`
 
 ### 5.3.2 정상동작 테스트 — 2) 변수, 할당, 블록 스코프, shadowing
 - [ ] `var a = 10; var b = 20; print a + b;` → `30`
