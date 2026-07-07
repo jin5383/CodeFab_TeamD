@@ -1,5 +1,6 @@
 ﻿#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <stdexcept>
 #include "../ast.h"
 #include "../function.h"
 
@@ -412,4 +413,74 @@ TEST(AssemblerUnitTest, DanglingElseBindsToNearestIf)
 	ASSERT_THAT(elseBranch, NotNull());
 	ASSERT_THAT(dynamic_cast<LiteralExpr*>(elseBranch->expression), NotNull());
 	EXPECT_EQ(stringValue(elseBranch->expression), "bbq");
+}
+
+// 세미콜론 누락: "var a = 3" -> "Expect ';' after value."
+TEST(AssemblerSyntaxErrorTest, MissingSemicolonAfterValueReportsError)
+{
+	try
+	{
+		assemble("var a = 3");
+		FAIL() << "구문 오류 예외가 발생해야 한다.";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Expect ';' after value.");
+	}
+}
+
+// 닫는 괄호 누락: "(1 + 2" -> "Expect ')' after expression."
+TEST(AssemblerSyntaxErrorTest, MissingClosingParenReportsError)
+{
+	try
+	{
+		assemble("(1 + 2");
+		FAIL() << "구문 오류 예외가 발생해야 한다.";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Expect ')' after expression.");
+	}
+}
+
+// 잘못된 할당 대상: "3 = 5;" -> "Invalid assignment target."
+TEST(AssemblerSyntaxErrorTest, InvalidAssignmentTargetReportsError)
+{
+	try
+	{
+		assemble("3 = 5;");
+		FAIL() << "구문 오류 예외가 발생해야 한다.";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Invalid assignment target.");
+	}
+}
+
+// 잘못된 할당 대상(이항식에 대입): "var a = 1; var b = 2; a + b = 3;" -> "Invalid assignment target." 류의 메시지
+TEST(AssemblerSyntaxErrorTest, InvalidAssignmentTargetOnBinaryExprReportsError)
+{
+	try
+	{
+		assemble("var a = 1; var b = 2; a + b = 3;");
+		FAIL() << "구문 오류 예외가 발생해야 한다.";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_THAT(e.what(), HasSubstr("Invalid assignment target"));
+	}
+}
+
+// 표현식 자리에 엉뚱한 토큰: ";" -> "Expect expression."
+TEST(AssemblerSyntaxErrorTest, UnexpectedTokenInExpressionPositionReportsError)
+{
+	try
+	{
+		assemble(";");
+		FAIL() << "구문 오류 예외가 발생해야 한다.";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Expect expression.");
+	}
 }
