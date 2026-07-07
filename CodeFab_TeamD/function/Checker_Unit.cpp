@@ -1,6 +1,6 @@
 #include "../function.h"
 
-bool checkAssembly()
+bool checkAssembly(const Program& program)
 {
-	return true;
+	return false;
 }
