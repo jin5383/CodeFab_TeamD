@@ -16,4 +16,4 @@ Program assemble(const std::string& source);
 bool checkAssembly();
 
 // Executor_Unit.cpp
-void executeAssembly();
+void executeAssembly(const Program& program);
