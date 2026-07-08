@@ -53,6 +53,9 @@
     <ClCompile Include="resolver.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="constant_folding.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
     <ClCompile Include="test\test_Ryu.cpp">
       <Filter>test</Filter>
     </ClCompile>
@@ -98,6 +101,9 @@
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="resolver.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="constant_folding.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>

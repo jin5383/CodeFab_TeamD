@@ -434,3 +434,107 @@ TEST_F(ExecutorMockEnvironmentTest, UnresolvedVariableCallsGetNotGetAt)
 
 	EXPECT_EQ(writer.output, "2\n");
 }
+
+#include "../constant_folding.h"
+
+class ConstantFoldingUnitTest : public ::testing::Test
+{
+protected:
+	LiteralExpr* makeNumberLiteral(double value)
+	{
+		auto* literal = new LiteralExpr();
+		literal->value = value;
+		return literal;
+	}
+
+	Token opToken(TokenType type, const std::string& origin)
+	{
+		return Token{ type, origin, std::monostate{} };
+	}
+
+	BinaryExpr* makeBinary(TokenType opType, const std::string& origin, Expr* left, Expr* right)
+	{
+		auto* binary = new BinaryExpr();
+		binary->left = left;
+		binary->op = opToken(opType, origin);
+		binary->right = right;
+		return binary;
+	}
+
+	VariableExpr* makeVariable(const std::string& name)
+	{
+		auto* variable = new VariableExpr();
+		variable->name = Token{ TokenType::IDENTIFIER, name, std::monostate{} };
+		return variable;
+	}
+
+	ExpressionStmt* makeExprStmt(Expr* expression)
+	{
+		auto* stmt = new ExpressionStmt();
+		stmt->expression = expression;
+		return stmt;
+	}
+};
+
+// 리터럴로만 이루어진 연산 체인(1 + 2 * 3)은 실행 전에 미리 계산돼, 실행 시점에 BinaryExpr를
+// 평가할 필요 없이(이항 연산 디스패치 0회) 단일 LiteralExpr(7)만 남아야 한다.
+TEST_F(ConstantFoldingUnitTest, FoldsPureLiteralArithmeticChainIntoSingleLiteral)
+{
+	auto* multiply = makeBinary(TokenType::STAR, "*", makeNumberLiteral(2), makeNumberLiteral(3));
+	auto* add = makeBinary(TokenType::PLUS, "+", makeNumberLiteral(1), multiply);
+	auto* stmt = makeExprStmt(add);
+
+	Program program;
+	program.statements.push_back(stmt);
+	ConstantFolder().fold(program);
+
+	auto* folded = dynamic_cast<LiteralExpr*>(stmt->expression);
+	ASSERT_THAT(folded, NotNull());
+	EXPECT_DOUBLE_EQ(std::get<double>(folded->value), 7.0);
+}
+
+// 비교 연산자(<, >)도 리터럴끼리면 폴딩 대상이다.
+TEST_F(ConstantFoldingUnitTest, FoldsComparisonOfPureLiterals)
+{
+	auto* comparison = makeBinary(TokenType::LESS, "<", makeNumberLiteral(3), makeNumberLiteral(5));
+	auto* stmt = makeExprStmt(comparison);
+
+	Program program;
+	program.statements.push_back(stmt);
+	ConstantFolder().fold(program);
+
+	auto* folded = dynamic_cast<LiteralExpr*>(stmt->expression);
+	ASSERT_THAT(folded, NotNull());
+	EXPECT_TRUE(std::get<bool>(folded->value));
+}
+
+// 변수가 하나라도 섞여 있으면(a + 2) 값을 알 수 없으므로 폴딩하지 않고 원래 BinaryExpr
+// 구조(좌변 VariableExpr, 우변 LiteralExpr)를 그대로 유지해야 한다.
+TEST_F(ConstantFoldingUnitTest, DoesNotFoldExpressionContainingVariable)
+{
+	auto* addWithVariable = makeBinary(TokenType::PLUS, "+", makeVariable("a"), makeNumberLiteral(2));
+	auto* stmt = makeExprStmt(addWithVariable);
+
+	Program program;
+	program.statements.push_back(stmt);
+	ConstantFolder().fold(program);
+
+	auto* stillBinary = dynamic_cast<BinaryExpr*>(stmt->expression);
+	ASSERT_THAT(stillBinary, NotNull());
+	EXPECT_THAT(dynamic_cast<VariableExpr*>(stillBinary->left), NotNull());
+	EXPECT_THAT(dynamic_cast<LiteralExpr*>(stillBinary->right), NotNull());
+}
+
+// 0으로 나누기는 폴딩 시점에 미리 계산하지 않고, 실행 시점(Executor)의 런타임 에러로
+// 그대로 남겨둔다 - 원래 BinaryExpr 구조가 유지되는지로 확인한다.
+TEST_F(ConstantFoldingUnitTest, DoesNotFoldDivisionByZero)
+{
+	auto* divideByZero = makeBinary(TokenType::SLASH, "/", makeNumberLiteral(3), makeNumberLiteral(0));
+	auto* stmt = makeExprStmt(divideByZero);
+
+	Program program;
+	program.statements.push_back(stmt);
+	ConstantFolder().fold(program);
+
+	EXPECT_THAT(dynamic_cast<BinaryExpr*>(stmt->expression), NotNull());
+}

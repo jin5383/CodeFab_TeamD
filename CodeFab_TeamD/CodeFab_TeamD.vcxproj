@@ -148,6 +148,7 @@
     <ClCompile Include="io.cpp" />
     <ClCompile Include="import.cpp" />
     <ClCompile Include="resolver.cpp" />
+    <ClCompile Include="constant_folding.cpp" />
     <ClCompile Include="test\test_Ryu.cpp" />
     <ClCompile Include="test\test_Kwon.cpp" />
     <ClCompile Include="test\test_Lee.cpp" />
@@ -165,6 +166,7 @@
     <ClInclude Include="dfine_shell.h" />
     <ClInclude Include="import.h" />
     <ClInclude Include="resolver.h" />
+    <ClInclude Include="constant_folding.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
