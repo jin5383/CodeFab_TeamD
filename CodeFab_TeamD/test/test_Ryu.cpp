@@ -1,7 +1,9 @@
-﻿#include <gtest/gtest.h>
-#include "../ast.h"
+#include <gtest/gtest.h>
+#include "../import.h"
 
-TEST(RyuTest, Placeholder)
+TEST(ImportUnitTest, ParseImportStatementText_ValidSyntax_ExtractsPathAndAlias)
 {
-	EXPECT_TRUE(true);
+	ImportStatementText stmt = parseImportStatementText("import \"sum.txt\" alias sum;");
+	EXPECT_EQ(stmt.path, "sum.txt");
+	EXPECT_EQ(stmt.alias, "sum");
 }
