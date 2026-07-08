@@ -586,3 +586,59 @@ TEST_F(CheckerUnitTest, DuplicateParameterName_ReportsError)
 
 	EXPECT_EQ(CheckerErrno::duplicateParameterName, Checker().check(program));
 }
+
+// Checker unit: "Func foo(a, b, c) { return a; } foo(1, 2);" 처럼 정적으로 콜리가 함수
+// 선언임을 알 수 있는 호출부의 인자 개수가 다르면 argumentCountMismatch 에러
+TEST_F(CheckerUnitTest, CallArgumentCountMismatch_ReportsError)
+{
+	auto* returnStmt = new ReturnStmt();
+	returnStmt->value = makeVariable("a");
+
+	auto* funcDecl = new FunctionDeclStmt();
+	funcDecl->name = identifierToken("foo");
+	funcDecl->params.push_back(identifierToken("a"));
+	funcDecl->params.push_back(identifierToken("b"));
+	funcDecl->params.push_back(identifierToken("c"));
+	funcDecl->body.push_back(returnStmt);
+
+	auto* call = new CallExpr();
+	call->callee = makeVariable("foo");
+	call->arguments.push_back(makeNumberLiteral(1.0));
+	call->arguments.push_back(makeNumberLiteral(2.0));
+
+	auto* callStmt = new ExpressionStmt();
+	callStmt->expression = call;
+
+	Program program;
+	program.statements.push_back(funcDecl);
+	program.statements.push_back(callStmt);
+
+	EXPECT_EQ(CheckerErrno::argumentCountMismatch, Checker().check(program));
+}
+
+// Checker unit: 인자 개수가 일치하면 에러 없음 (회귀 방지)
+TEST_F(CheckerUnitTest, CallArgumentCountMatches_NoError)
+{
+	auto* returnStmt = new ReturnStmt();
+	returnStmt->value = makeVariable("a");
+
+	auto* funcDecl = new FunctionDeclStmt();
+	funcDecl->name = identifierToken("foo");
+	funcDecl->params.push_back(identifierToken("a"));
+	funcDecl->params.push_back(identifierToken("b"));
+	funcDecl->body.push_back(returnStmt);
+
+	auto* call = new CallExpr();
+	call->callee = makeVariable("foo");
+	call->arguments.push_back(makeNumberLiteral(1.0));
+	call->arguments.push_back(makeNumberLiteral(2.0));
+
+	auto* callStmt = new ExpressionStmt();
+	callStmt->expression = call;
+
+	Program program;
+	program.statements.push_back(funcDecl);
+	program.statements.push_back(callStmt);
+
+	EXPECT_EQ(CheckerErrno::success, Checker().check(program));
+}
