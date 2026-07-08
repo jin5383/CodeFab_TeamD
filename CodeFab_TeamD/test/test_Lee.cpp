@@ -567,3 +567,22 @@ TEST_F(CheckerUnitTest, ReturnInsideFunction_NoError)
 
 	EXPECT_EQ(CheckerErrno::success, Checker().check(program));
 }
+
+// Checker unit: "Func foo(a, a) { return a; }" 처럼 파라미터 이름이 중복되면
+// duplicateParameterName 에러
+TEST_F(CheckerUnitTest, DuplicateParameterName_ReportsError)
+{
+	auto* returnStmt = new ReturnStmt();
+	returnStmt->value = makeVariable("a");
+
+	auto* funcDecl = new FunctionDeclStmt();
+	funcDecl->name = identifierToken("foo");
+	funcDecl->params.push_back(identifierToken("a"));
+	funcDecl->params.push_back(identifierToken("a"));
+	funcDecl->body.push_back(returnStmt);
+
+	Program program;
+	program.statements.push_back(funcDecl);
+
+	EXPECT_EQ(CheckerErrno::duplicateParameterName, Checker().check(program));
+}
