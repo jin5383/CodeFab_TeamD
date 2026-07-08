@@ -1,7 +1,5 @@
 #include "import.h"
-#include "assembler.h"
-#include "checker.h"
-#include "executor.h"
+#include "interpreter.h"
 #include "io.h"
 
 #include <fstream>
@@ -10,7 +8,7 @@
 namespace
 {
 	// import로 로딩되는 파일은 선언만 담아야 하므로 정상적으로는 아무 것도 출력하지 않지만,
-	// Executor 생성자가 IOutputWriter&를 요구하므로 아무 동작도 하지 않는 구현을 준다.
+	// Interpreter(Facade) 생성자가 IOutputWriter&를 요구하므로 아무 동작도 하지 않는 구현을 준다.
 	class NullOutputWriter : public IOutputWriter
 	{
 	public:
@@ -110,18 +108,11 @@ Environment& ImportScope::importFile(const std::string& path, const std::string&
 
 	std::string source = readImportFileOrThrow(path);
 
-	Assembler assembler;
-	Program program = assembler.assemble(source);
-
-	Checker checker;
-	if (checker.check(program) != CheckerErrno::success)
-		throw ImportError("Imported file '" + path + "' failed static checks.");
-
 	auto [it, inserted] = bindings.emplace(alias, Binding{ path, Environment{} });
 
+	// Interpreter(Facade)가 이미 assemble -> check -> execute 조합을 알고 있으므로 그대로 재사용한다.
 	NullOutputWriter output;
-	Executor executor(output);
-	executor.execute(program, it->second.environment);
+	Interpreter(output).run(source, it->second.environment);
 
 	return it->second.environment;
 }
