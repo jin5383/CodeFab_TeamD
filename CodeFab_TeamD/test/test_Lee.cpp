@@ -727,3 +727,21 @@ TEST_F(LeeExecutorTest, RecursiveFactorialComputesOneTwenty)
 
 	EXPECT_EQ(writer.output, "120\n");
 }
+
+// Executor unit: 함수가 아닌 값을 호출("var x = "hello"; x();")하면 명확한 런타임 에러가
+// 나야 한다(3.1.1 확정: Checker가 아닌 Executor 런타임 에러로 처리, docs/phase0-review-checklist.md).
+TEST_F(LeeExecutorTest, CallingNonFunctionValueThrowsRuntimeError)
+{
+	Program program = Assembler().assemble("var x = \"hello\"; x();");
+
+	Environment env;
+	try
+	{
+		executor.execute(program, env);
+		FAIL() << "Expected a runtime error to be thrown";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Can only call functions.");
+	}
+}
