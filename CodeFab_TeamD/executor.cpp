@@ -293,7 +293,10 @@ void Executor::executeStmt(Stmt* stmt, IEnvironment& environment) const
 	}
 	else if (auto* funcDecl = dynamic_cast<FunctionDeclStmt*>(stmt))
 	{
-		// TODO(Lee): 함수 선언 실행 - Phase 1에서 구현
+		// funcDecl은 AST 소유(Program이 들고 있는 원본 포인터)라 shared_ptr이 대신 delete하지
+		// 않도록 no-op deleter로 감싼다(LiteralValue variant가 shared_ptr<FunctionDeclStmt>를
+		// 요구하므로 형태만 맞춘 비소유 래핑).
+		environment.define(funcDecl->name.origin, std::shared_ptr<FunctionDeclStmt>(funcDecl, [](FunctionDeclStmt*) {}));
 	}
 	else if (auto* returnStmt = dynamic_cast<ReturnStmt*>(stmt))
 	{
