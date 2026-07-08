@@ -77,6 +77,31 @@ scripts/                       # 보조 스크립트 (요구사항 PDF 텍스트
 2. NuGet 패키지 복원(`packages/gmock.1.11.0`)이 되어 있는지 확인합니다.
 3. Debug 구성으로 빌드 후 실행하면 `main.cpp`가 등록된 모든 Google Test를 실행합니다.
 
+## Custom Language 사용 방법
+
+### 함수(Function)
+
+```
+Func add(a, b) {
+  return a + b;
+}
+print add(3, 7);   // 10
+
+Func greet() {
+  return;          // 값 없는 반환
+}
+
+Func fact(n) {
+  if (n < 2) return 1;
+  return n * fact(n - 1);
+}
+print fact(5);      // 120
+```
+
+- 함수 밖에서 `return`을 사용하거나 파라미터 이름이 중복되면(`Func foo(a, a)`) 정적 에러입니다.
+- 호출부 인자 개수가 정적으로 알 수 있는 함수 선언과 다르면(`Func foo(a,b,c){} foo(1,2);`) 정적 에러입니다.
+- 함수가 아닌 값을 호출하면(`var x = 1; x();`) 런타임 에러 `"Can only call functions."`가 발생합니다.
+
 ## 개발 규칙
 
 자세한 내용은 [`CLAUDE.md`](CLAUDE.md) 참고.
