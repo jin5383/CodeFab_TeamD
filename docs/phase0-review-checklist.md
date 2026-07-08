@@ -83,14 +83,14 @@ Phase 1에서 각자 자기 값 타입 관련 로직을 짤 때, variant에 새 
 
 ## Kwon — 실행 전 최적화 검토 대상: `VariableExpr::distance`, `AssignExpr::distance`, `Environment::getAt/assignAt`
 
-- [ ] `distance`를 `int`(기본값 `-1`)로 `VariableExpr`/`AssignExpr`에 직접 필드로 추가한 방식에 동의하는지
+- [X] `distance`를 `int`(기본값 `-1`)로 `VariableExpr`/`AssignExpr`에 직접 필드로 추가한 방식에 동의하는지
       확인했다(별도 캐시 맵을 쓰는 대안도 가능하나 Crafting Interpreters 관용 패턴을 따름).
-- [ ] `Environment::getAt(int distance, const Token&)`/`assignAt(...)`가 `ancestor(distance)`로 부모 체인을
+- [X] `Environment::getAt(int distance, const Token&)`/`assignAt(...)`가 `ancestor(distance)`로 부모 체인을
       단순 순회하는 구현이 Resolver 설계와 맞는지 확인했다(현재는 `values.at()`이라 distance가 틀리면
       `std::out_of_range`를 던짐 — 별도 에러 처리가 필요하면 알려달라).
 
 **[선택] `Checker_Unit.cpp`에 Resolver 로직을 통합할지, 별도 파일로 분리할지 (3.4절에서 이미 Kwon 결정 사항으로 남겨둔 항목)**
-- [ ] A. `Resolver_Unit.cpp`로 분리 (명세 권장안) *(권장)*
+- [X] A. `Resolver_Unit.cpp`로 분리 (명세 권장안) *(권장)*
 - [ ] B. `Checker_Unit.cpp`에 통합
 - [ ] 기타: ___________________________
 
