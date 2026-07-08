@@ -16,6 +16,8 @@ namespace
 	const std::string KEYWORD_ELSE = "else";
 	const std::string KEYWORD_FOR = "for";
 	const std::string KEYWORD_PRINT = "print";
+	const std::string KEYWORD_IMPORT = "import";
+	const std::string KEYWORD_ALIAS = "alias";
 
 	Token makeSimpleToken(TokenType type, const std::string& origin)
 	{
@@ -32,6 +34,8 @@ namespace
 		if (origin == KEYWORD_ELSE) return makeSimpleToken(TokenType::ELSE, origin);
 		if (origin == KEYWORD_FOR) return makeSimpleToken(TokenType::FOR, origin);
 		if (origin == KEYWORD_PRINT) return makeSimpleToken(TokenType::PRINT, origin);
+		if (origin == KEYWORD_IMPORT) return makeSimpleToken(TokenType::IMPORT, origin);
+		if (origin == KEYWORD_ALIAS) return makeSimpleToken(TokenType::ALIAS, origin);
 		return std::nullopt;
 	}
 
@@ -52,6 +56,7 @@ namespace
 		case '>': return makeSimpleToken(TokenType::GREATER, ">");
 		case '{': return makeSimpleToken(TokenType::LEFT_BRACE, "{");
 		case '}': return makeSimpleToken(TokenType::RIGHT_BRACE, "}");
+		case '.': return makeSimpleToken(TokenType::DOT, ".");
 		default: return std::nullopt;
 		}
 	}
@@ -107,7 +112,7 @@ namespace
 			case TokenType::FUNC: throw std::runtime_error("Func statement not yet implemented (Phase 1: Lee)."); // TODO(Lee)
 			case TokenType::RETURN: throw std::runtime_error("Return statement not yet implemented (Phase 1: Lee)."); // TODO(Lee)
 			case TokenType::CLASS: throw std::runtime_error("Class statement not yet implemented (Park)."); // TODO(Park)
-			case TokenType::IMPORT: throw std::runtime_error("Import statement not yet implemented (Ryu)."); // TODO(Ryu)
+			case TokenType::IMPORT: return parseImportStatement();
 			default: return parseExpressionStatement();
 			}
 		}
@@ -203,6 +208,18 @@ namespace
 			getTokenAndAdvance(); // )
 
 			stmt->body = parseStatement();
+			return stmt;
+		}
+
+		// "import "path" alias 이름 ;" 을 읽어 ImportStmt를 만든다
+		Stmt* parseImportStatement()
+		{
+			getTokenAndAdvance(); // import
+			auto* stmt = new ImportStmt();
+			stmt->path = expectAndAdvance(TokenType::STRING, "Expect import path string.");
+			expectAndAdvance(TokenType::ALIAS, "Expect 'alias' after import path.");
+			stmt->alias = expectAndAdvance(TokenType::IDENTIFIER, "Expect alias name.");
+			expectAndAdvance(TokenType::SEMICOLON, "Expect ';' after import statement.");
 			return stmt;
 		}
 
@@ -306,7 +323,27 @@ namespace
 				return unary;
 			}
 
-			return parsePrimary();
+			return parseMemberAccessExpr();
+		}
+
+		// "식 (.이름)*" 을 읽어 GetExpr 체인을 만든다 (Ryu: alias.member / Park: r.field 공용).
+		// 단항 마이너스보다 먼저 결합된다(가장 우선순위가 높음): -a.b 는 -(a.b) 로 해석된다.
+		Expr* parseMemberAccessExpr()
+		{
+			Expr* expr = parsePrimary();
+
+			while (getCurrentToken().type == TokenType::DOT)
+			{
+				getTokenAndAdvance(); // .
+				Token name = expectAndAdvance(TokenType::IDENTIFIER, "Expect property name after '.'.");
+
+				auto* get = new GetExpr();
+				get->object = expr;
+				get->name = name;
+				expr = get;
+			}
+
+			return expr;
 		}
 
 		// 괄호면 GroupingExpr, 식별자면 VariableExpr, 리터럴이면 LiteralExpr, 그 외에는 구문 오류

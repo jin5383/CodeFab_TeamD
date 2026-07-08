@@ -50,7 +50,7 @@ void DfineShell::runLine(const std::string& line, std::ostream& out)
 	try
 	{
 		StreamOutputWriter output(out);
-		Interpreter(output).run(line, environment);
+		Interpreter(output).run(line, environment, imports);
 	}
 	catch (const std::exception& e)
 	{

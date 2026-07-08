@@ -19,20 +19,20 @@ bool Executor::isTruthy(const LiteralValue& value) const
 
 // Interpreter 패턴: 각 if는 "이 노드가 무슨 문법 규칙인가"를 판별해 그 규칙에 맞는
 // 해석 방법을 적용한다. 재귀 호출(evaluate(binary->left, ...) 등)이 트리를 파고든다.
-LiteralValue Executor::evaluate(Expr* expr, Environment& environment) const
+LiteralValue Executor::evaluate(Expr* expr, Environment& environment, ImportScope& imports) const
 {
 	if (auto* literal = dynamic_cast<LiteralExpr*>(expr))
 		return literal->value;
 
 	if (auto* grouping = dynamic_cast<GroupingExpr*>(expr))
-		return evaluate(grouping->expression, environment);
+		return evaluate(grouping->expression, environment, imports);
 
 	if (auto* variable = dynamic_cast<VariableExpr*>(expr))
 		return environment.get(variable->name);
 
 	if (auto* assign = dynamic_cast<AssignExpr*>(expr))
 	{
-		LiteralValue value = evaluate(assign->value, environment);
+		LiteralValue value = evaluate(assign->value, environment, imports);
 		environment.assign(assign->name, value);
 		return value;
 	}
@@ -40,7 +40,7 @@ LiteralValue Executor::evaluate(Expr* expr, Environment& environment) const
 	if (auto* unary = dynamic_cast<UnaryExpr*>(expr))
 	{
 		if (unary->op.type == TokenType::MINUS)
-			return -asNumber(evaluate(unary->right, environment));
+			return -asNumber(evaluate(unary->right, environment, imports));
 	}
 
 	if (auto* call = dynamic_cast<CallExpr*>(expr))
@@ -51,8 +51,15 @@ LiteralValue Executor::evaluate(Expr* expr, Environment& environment) const
 
 	if (auto* get = dynamic_cast<GetExpr*>(expr))
 	{
-		// TODO(Park): 필드/메서드 읽기
-		return LiteralValue{};
+		// Ryu: alias.member — object가 import된 alias를 가리키는 VariableExpr이면 그 모듈의
+		// 전역 변수를 읽는다. Park: 인스턴스 필드/메서드 읽기는 이 자리에 분기를 추가하면 된다.
+		if (auto* variable = dynamic_cast<VariableExpr*>(get->object))
+		{
+			if (Environment* module = imports.findModule(variable->name.origin))
+				return module->get(get->name);
+		}
+		// TODO(Park): 인스턴스 필드/메서드 읽기
+		throw std::runtime_error("'" + get->name.origin + "' is not a member of an imported module.");
 	}
 
 	if (auto* set = dynamic_cast<SetExpr*>(expr))
@@ -99,8 +106,8 @@ LiteralValue Executor::evaluate(Expr* expr, Environment& environment) const
 
 	if (auto* binary = dynamic_cast<BinaryExpr*>(expr))
 	{
-		LiteralValue left = evaluate(binary->left, environment);
-		LiteralValue right = evaluate(binary->right, environment);
+		LiteralValue left = evaluate(binary->left, environment, imports);
+		LiteralValue right = evaluate(binary->right, environment, imports);
 
 		switch (binary->op.type)
 		{
@@ -145,19 +152,19 @@ std::string Executor::stringify(const LiteralValue& value) const
 	return out.str();
 }
 
-void Executor::executeStmt(Stmt* stmt, Environment& environment) const
+void Executor::executeStmt(Stmt* stmt, Environment& environment, ImportScope& imports) const
 {
 	if (auto* printStmt = dynamic_cast<PrintStmt*>(stmt))
 	{
-		output.write(stringify(evaluate(printStmt->expression, environment)) + "\n");
+		output.write(stringify(evaluate(printStmt->expression, environment, imports)) + "\n");
 	}
 	else if (auto* exprStmt = dynamic_cast<ExpressionStmt*>(stmt))
 	{
-		evaluate(exprStmt->expression, environment);
+		evaluate(exprStmt->expression, environment, imports);
 	}
 	else if (auto* varDecl = dynamic_cast<VarDeclStmt*>(stmt))
 	{
-		LiteralValue value = varDecl->initializer ? evaluate(varDecl->initializer, environment) : LiteralValue{};
+		LiteralValue value = varDecl->initializer ? evaluate(varDecl->initializer, environment, imports) : LiteralValue{};
 		environment.define(varDecl->name.origin, value);
 	}
 	else if (auto* block = dynamic_cast<BlockStmt*>(stmt))
@@ -165,27 +172,30 @@ void Executor::executeStmt(Stmt* stmt, Environment& environment) const
 		// 블록 진입 시 바깥 environment를 enclosing으로 갖는 새 스코프를 만든다.
 		// 블록이 끝나면(이 else-if를 벗어나면) blockEnv가 소멸하며 스코프도 사라진다 —
 		// 렉시컬 스코프(unit-io-spec.md 6.3절)가 C++ 스택 프레임 수명에 그대로 얹힌다.
+		// import 컨텍스트(ImportScope)도 동일한 방식으로 블록마다 새 자식 스코프를 연다.
 		Environment blockEnv(&environment);
+		ImportScope blockImports(&imports);
 		for (Stmt* inner : block->statements)
-			executeStmt(inner, blockEnv);
+			executeStmt(inner, blockEnv, blockImports);
 	}
 	else if (auto* ifStmt = dynamic_cast<IfStmt*>(stmt))
 	{
-		if (isTruthy(evaluate(ifStmt->condition, environment)))
-			executeStmt(ifStmt->thenBranch, environment);
+		if (isTruthy(evaluate(ifStmt->condition, environment, imports)))
+			executeStmt(ifStmt->thenBranch, environment, imports);
 		else if (ifStmt->elseBranch)
-			executeStmt(ifStmt->elseBranch, environment);
+			executeStmt(ifStmt->elseBranch, environment, imports);
 	}
 	else if (auto* forStmt = dynamic_cast<ForStmt*>(stmt))
 	{
 		Environment loopEnv(&environment);
+		ImportScope loopImports(&imports);
 		if (forStmt->init)
-			executeStmt(forStmt->init, loopEnv);
-		while (!forStmt->condition || isTruthy(evaluate(forStmt->condition, loopEnv)))
+			executeStmt(forStmt->init, loopEnv, loopImports);
+		while (!forStmt->condition || isTruthy(evaluate(forStmt->condition, loopEnv, loopImports)))
 		{
-			executeStmt(forStmt->body, loopEnv);
+			executeStmt(forStmt->body, loopEnv, loopImports);
 			if (forStmt->increment)
-				evaluate(forStmt->increment, loopEnv);
+				evaluate(forStmt->increment, loopEnv, loopImports);
 		}
 	}
 	else if (auto* funcDecl = dynamic_cast<FunctionDeclStmt*>(stmt))
@@ -202,18 +212,25 @@ void Executor::executeStmt(Stmt* stmt, Environment& environment) const
 	}
 	else if (auto* importStmt = dynamic_cast<ImportStmt*>(stmt))
 	{
-		// TODO(Ryu): import 실행
+		// Checker가 반복문 본문 안의 import는 이미 정적으로 걸러내므로 여기서는 그냥 로딩한다.
+		imports.importFile(importStmt->path.origin, importStmt->alias.origin);
+	}
+}
+
+void Executor::execute(const Program& program, Environment& environment, ImportScope& imports, const StmtExecutedCallback& onStmtExecuted) const
+{
+	for (Stmt* stmt : program.statements)
+	{
+		executeStmt(stmt, environment, imports);
+		if (onStmtExecuted)
+			onStmtExecuted(*stmt, environment);
 	}
 }
 
 void Executor::execute(const Program& program, Environment& environment, const StmtExecutedCallback& onStmtExecuted) const
 {
-	for (Stmt* stmt : program.statements)
-	{
-		executeStmt(stmt, environment);
-		if (onStmtExecuted)
-			onStmtExecuted(*stmt, environment);
-	}
+	ImportScope imports;
+	execute(program, environment, imports, onStmtExecuted);
 }
 
 void Executor::execute(const Program& program) const

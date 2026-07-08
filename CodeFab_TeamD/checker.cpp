@@ -34,18 +34,18 @@ bool Checker::isNameDeclared(const std::string& name, const ScopeStack& scopes) 
 	return false;
 }
 
-CheckerErrno Checker::checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes) const
+CheckerErrno Checker::checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes, int loopDepth) const
 {
 	for (Stmt* stmt : statements)
 	{
-		CheckerErrno result = checkStmt(stmt, scopes);
+		CheckerErrno result = checkStmt(stmt, scopes, loopDepth);
 		if (result != CheckerErrno::success)
 			return result;
 	}
 	return CheckerErrno::success;
 }
 
-CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes) const
+CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, int loopDepth) const
 {
 	if (!stmt)
 		return CheckerErrno::success;
@@ -67,25 +67,25 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes) const
 	if (auto* block = dynamic_cast<BlockStmt*>(stmt))
 	{
 		scopes.push_back({});
-		CheckerErrno result = checkStmts(block->statements, scopes);
+		CheckerErrno result = checkStmts(block->statements, scopes, loopDepth);
 		scopes.pop_back();
 		return result;
 	}
 
 	if (auto* ifStmt = dynamic_cast<IfStmt*>(stmt))
 	{
-		CheckerErrno result = checkStmt(ifStmt->thenBranch, scopes);
+		CheckerErrno result = checkStmt(ifStmt->thenBranch, scopes, loopDepth);
 		if (result != CheckerErrno::success)
 			return result;
-		return checkStmt(ifStmt->elseBranch, scopes);
+		return checkStmt(ifStmt->elseBranch, scopes, loopDepth);
 	}
 
 	if (auto* forStmt = dynamic_cast<ForStmt*>(stmt))
 	{
 		scopes.push_back({});
-		CheckerErrno result = checkStmt(forStmt->init, scopes);
+		CheckerErrno result = checkStmt(forStmt->init, scopes, loopDepth);
 		if (result == CheckerErrno::success)
-			result = checkStmt(forStmt->body, scopes);
+			result = checkStmt(forStmt->body, scopes, loopDepth + 1);
 		scopes.pop_back();
 		return result;
 	}
@@ -108,10 +108,11 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes) const
 		return CheckerErrno::success;
 	}
 
-	if (auto* importStmt = dynamic_cast<ImportStmt*>(stmt))
+	if (dynamic_cast<ImportStmt*>(stmt))
 	{
-		// TODO(Ryu): import 정적 검사(반복문 내부 금지, 순환/재import 등)
-		return CheckerErrno::success;
+		// 반복문 내부 import 금지(정적으로 트리 모양만으로 판단 가능). 중복/순환/별칭 충돌은
+		// 파일 내용을 읽어야 판단할 수 있으므로 여기가 아니라 실행 시점에 검사한다(import.cpp 참고).
+		return loopDepth > 0 ? CheckerErrno::importInsideLoop : CheckerErrno::success;
 	}
 
 	return CheckerErrno::success;
@@ -120,5 +121,5 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes) const
 CheckerErrno Checker::check(const Program& program) const
 {
 	ScopeStack scopes(1);
-	return checkStmts(program.statements, scopes);
+	return checkStmts(program.statements, scopes, 0);
 }

@@ -16,6 +16,7 @@
 #include "checker.h"
 #include "environment.h"
 #include "executor.h"
+#include "import.h"
 #include "io.h"
 
 class Interpreter
@@ -24,7 +25,12 @@ public:
 	// IOutputWriter는 Executor에게 그대로 전달된다(io.h의 Strategy 패턴 참고).
 	explicit Interpreter(IOutputWriter& output) : executor(output) {}
 
-	// 주어진 environment(컨텍스트)를 유지하며 실행 (DfineShell 등 여러 줄에 걸친 세션용)
+	// environment뿐 아니라 import 바인딩(alias -> 모듈)도 여러 줄에 걸쳐 유지해야 하는
+	// 세션용(DfineShell 등).
+	void run(const std::string& source, Environment& environment, ImportScope& imports) const;
+
+	// 주어진 environment(컨텍스트)를 유지하며 실행 (DfineShell 등 여러 줄에 걸친 세션용).
+	// import 컨텍스트는 이 호출 동안만 유효한 임시 스코프를 쓴다.
 	void run(const std::string& source, Environment& environment) const;
 
 	// 매번 새 global Environment로 한 번만 실행하는 호출자를 위한 진입점.

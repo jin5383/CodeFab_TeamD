@@ -15,6 +15,7 @@
 #include <string>
 #include "ast.h"
 #include "environment.h"
+#include "import.h"
 #include "io.h"
 
 // Ryu: 디버그 모드에서 한 Stmt 실행마다 호출되는 콜백. 기본값(nullptr)이면 기존과 동일하게 콜백 없이 실행.
@@ -27,9 +28,13 @@ public:
 	// 타입(콘솔/스트림/테스트용 등)을 전혀 모른 채 write()만 호출한다.
 	explicit Executor(IOutputWriter& output) : output(output) {}
 
-	// 주어진 environment(컨텍스트)를 그대로 사용해 실행한다. DfineShell처럼 여러 줄에 걸쳐
-	// 변수 컨텍스트를 유지해야 하는 호출자를 위한 진입점.
+	// import 컨텍스트(ImportScope)까지 함께 유지해야 하는 호출자(DfineShell 등)를 위한 진입점.
 	// onStmtExecuted: Ryu의 디버그 모드 stepping 훅(기본값 nullptr이면 기존과 동일하게 동작).
+	void execute(const Program& program, Environment& environment, ImportScope& imports, const StmtExecutedCallback& onStmtExecuted = nullptr) const;
+
+	// 주어진 environment(컨텍스트)를 그대로 사용해 실행한다. DfineShell처럼 여러 줄에 걸쳐
+	// 변수 컨텍스트를 유지해야 하는 호출자를 위한 진입점. import 컨텍스트는 이 호출 동안만
+	// 유효한 임시 스코프를 쓴다.
 	void execute(const Program& program, Environment& environment, const StmtExecutedCallback& onStmtExecuted = nullptr) const;
 
 	// 매번 새 global Environment로 한 번만 실행하는 호출자를 위한 진입점.
@@ -44,14 +49,14 @@ private:
 
 	// Interpreter 패턴의 핵심 재귀 함수. Expr 트리를 자식 -> 부모 순(post-order)으로
 	// 내려가며 실제 값을 계산한다. Expr 서브타입이 하나 늘어나면 이 함수에 분기가 하나 는다.
-	LiteralValue evaluate(Expr* expr, Environment& environment) const;
+	LiteralValue evaluate(Expr* expr, Environment& environment, ImportScope& imports) const;
 
 	// 평가된 LiteralValue를 print가 출력할 문자열로 바꾼다(숫자는 5.0 -> "5" 처럼 포맷).
 	std::string stringify(const LiteralValue& value) const;
 
 	// evaluate()의 Stmt 버전. 값을 만들지 않고 부수효과(출력, 변수 정의/대입, 제어 흐름)를
-	// 일으킨다. BlockStmt/ForStmt에서 재귀 호출 시 새 Environment를 만들어 스코프를 연다.
-	void executeStmt(Stmt* stmt, Environment& environment) const;
+	// 일으킨다. BlockStmt/ForStmt에서 재귀 호출 시 새 Environment/ImportScope를 만들어 스코프를 연다.
+	void executeStmt(Stmt* stmt, Environment& environment, ImportScope& imports) const;
 
 	// Strategy 패턴으로 주입된 출력 대상 (io.h 참고).
 	IOutputWriter& output;

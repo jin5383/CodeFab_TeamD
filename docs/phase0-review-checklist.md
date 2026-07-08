@@ -98,22 +98,30 @@ Phase 1에서 각자 자기 값 타입 관련 로직을 짤 때, variant에 새 
 
 ## Ryu — Import & 공장제어쉘 검토 대상: `ImportStmt`, `Token::line`, `StmtExecutedCallback`, `TokenType::IMPORT/ALIAS`
 
-- [ ] `Token::line`을 `int`(기본값 `0`)로 추가한 것을 확인했다 — 토크나이저가 아직 이 값을 채우지 않으므로
+- [x] `Token::line`을 `int`(기본값 `0`)로 추가한 것을 확인했다 — 토크나이저가 아직 이 값을 채우지 않으므로
       실제로 줄 번호를 세는 로직은 본인 PR에서 추가해야 한다.
-- [ ] `executeAssembly(program, environment, onStmtExecuted = nullptr)` 시그니처와, `execute()` 루프에서
+      (Import 라운드에서는 파일 모드/줄 번호 보고를 다루지 않으므로 실제 카운팅 로직은 이번 PR에
+      포함하지 않았다 — 구조만 확인.)
+- [x] `executeAssembly(program, environment, onStmtExecuted = nullptr)` 시그니처와, `execute()` 루프에서
       매 top-level Stmt 실행 후 콜백을 호출하도록 이미 연결해둔 부분을 확인했다. 콜백 시그니처가
       `std::function<void(const Stmt&, Environment&)>`로 충분한지 확인했다(현재 최상위 Program.statements
       단위로만 호출됨 — 함수 호출 내부까지는 3.6.1절대로 Function 병합 후 결정).
+      (실제 코드에서는 `Executor::execute(program, environment, onStmtExecuted)`이며, 이번 PR에서
+      `ImportScope`를 끼워 넣기 위해 오버로드를 추가했지만 콜백 자체의 시그니처/호출 지점은 그대로 유지했다.)
 
 **[선택] 3.5.1 — import 대상 파일에서 "선언 외 구문" 처리**
-- [ ] A. 에러로 처리
+- [x] A. 에러로 처리
 - [ ] B. 무시(ignore)하고 넘어감
 - [ ] 기타: ___________________________
 
 **[선택] 3.5.1 — 같은 스코프 내 alias 이름 충돌**
-- [ ] A. 에러로 확정 (Phase 0의 `aliasNameConflict`는 이 방향 전제) *(권장)*
+- [x] A. 에러로 확정 (Phase 0의 `aliasNameConflict`는 이 방향 전제) *(권장)*
 - [ ] B. 나중에 import한 것이 덮어씀(에러 아님) → `aliasNameConflict` 에러 자체를 제거해야 함
 - [ ] 기타: ___________________________
+      (구현 메모: 순환/중복/별칭 충돌은 파일 내용을 실제로 읽어야 판단 가능하므로 `CheckerErrno`가
+      아니라 실행 시점 `ImportScope`에서 `ImportError`로 던진다. `importInsideLoop`만 트리 모양으로
+      정적 판단이 가능해 `Checker`에서 처리했다. `aliasNameConflict`/`duplicateImportInScope`/
+      `circularImportDetected` enum 값 자체는 아직 미사용 상태로 남겨두었다.)
 
 **[선택] `StmtExecutedCallback`이 호출되는 범위**
 - [ ] A. 지금처럼 최상위 `Program.statements` 단위로만 호출 (Phase 0 기본 구현) *(권장, 명세 3.6절 완화 방법과 일치)*

@@ -146,6 +146,7 @@
     <ClCompile Include="executor.cpp" />
     <ClCompile Include="interpreter.cpp" />
     <ClCompile Include="io.cpp" />
+    <ClCompile Include="import.cpp" />
     <ClCompile Include="test\test_Ryu.cpp" />
     <ClCompile Include="test\test_Kwon.cpp" />
     <ClCompile Include="test\test_Lee.cpp" />
@@ -161,6 +162,7 @@
     <ClInclude Include="io.h" />
     <ClInclude Include="environment.h" />
     <ClInclude Include="dfine_shell.h" />
+    <ClInclude Include="import.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

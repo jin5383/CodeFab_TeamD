@@ -46,8 +46,9 @@ public:
 private:
 	using ScopeStack = std::vector<std::set<std::string>>;
 
-	CheckerErrno checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes) const;
-	CheckerErrno checkStmt(Stmt* stmt, ScopeStack& scopes) const;
+	// loopDepth: Ryu가 "반복문 본문 안의 import" 정적 검사에 사용 (0이면 반복문 밖).
+	CheckerErrno checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes, int loopDepth = 0) const;
+	CheckerErrno checkStmt(Stmt* stmt, ScopeStack& scopes, int loopDepth = 0) const;
 	bool isNameDeclared(const std::string& name, const ScopeStack& scopes) const;
 	bool exprReferencesName(Expr* expr, const std::string& name) const;
 };
