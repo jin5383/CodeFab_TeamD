@@ -22,6 +22,7 @@ namespace
 	const std::string KEYWORD_RETURN = "return";
 	const std::string KEYWORD_CLASS = "Class";
 	const std::string KEYWORD_THIS = "This";
+	const std::string KEYWORD_ARRAY = "Array";
 
 	Token makeSimpleToken(TokenType type, const std::string& origin)
 	{
@@ -44,6 +45,7 @@ namespace
 		if (origin == KEYWORD_FUNC) return makeSimpleToken(TokenType::FUNC, origin);
 		if (origin == KEYWORD_RETURN) return makeSimpleToken(TokenType::RETURN, origin);
 		if (origin == KEYWORD_THIS)  return makeSimpleToken(TokenType::THIS,  origin);
+		if (origin == KEYWORD_ARRAY) return makeSimpleToken(TokenType::ARRAY, origin);
 		return std::nullopt;
 	}
 
@@ -204,11 +206,16 @@ namespace
 			if (getCurrentToken().type == TokenType::EQUAL)
 			{
 				getTokenAndAdvance(); // =
-				stmt->initializer = parseExpression();
+				stmt->initializer = isArrayDeclaration() ? parseArrayExpr() : parseExpression();
 			}
 
 			expectAndAdvance(TokenType::SEMICOLON, "Expect ';' after value.");
 			return stmt;
+		}
+
+		bool isArrayDeclaration() const
+		{
+			return getCurrentToken().type == TokenType::ARRAY;
 		}
 
 		// "식 ;" 을 ExpressionStmt로 감싸게 구현
@@ -518,6 +525,28 @@ namespace
 			default:
 				throw std::runtime_error("Expect expression.");
 			}
+		}
+
+		// Array 만 허용한다.
+		Expr* parseArrayExpr()
+		{
+			getTokenAndAdvance(); // Array
+			expectAndAdvance(TokenType::LEFT_PAREN, "Expect '(' after 'Array'.");
+
+			Token token = getTokenAndAdvance();
+
+			if (token.type != TokenType::NUMBER ||
+				token.origin.find(DECIMAL_POINT) != std::string::npos)
+				throw std::runtime_error("Array size must be an integer literal.");
+
+			auto* size = new LiteralExpr();
+			size->value = token.value;
+
+			expectAndAdvance(TokenType::RIGHT_PAREN, "Expect ')' after array size.");
+
+			auto* arrayExpr = new ArrayExpr();
+			arrayExpr->size = size;
+			return arrayExpr;
 		}
 	};
 }

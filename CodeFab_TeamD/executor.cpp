@@ -196,8 +196,13 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 
 	if (auto* arrayExpr = dynamic_cast<ArrayExpr*>(expr))
 	{
-		// TODO(Hong): Array(n) 생성
-		return LiteralValue{};
+		double sizeValue = asNumber(evaluate(arrayExpr->size, environment));
+		if (sizeValue < 0 || sizeValue != static_cast<long long>(sizeValue))
+			throw std::runtime_error("Array size must be a non-negative integer.");
+
+		auto array = std::make_shared<ArrayValue>();
+		array->items.assign(static_cast<size_t>(sizeValue), LiteralValue{});
+		return array;
 	}
 
 	if (auto* binary = dynamic_cast<BinaryExpr*>(expr))
