@@ -93,6 +93,14 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, int loopDepth, b
 	if (auto* funcDecl = dynamic_cast<FunctionDeclStmt*>(stmt))
 	{
 		scopes.push_back({});
+		for (const Token& param : funcDecl->params)
+		{
+			if (!scopes.back().insert(param.origin).second)
+			{
+				scopes.pop_back();
+				return CheckerErrno::duplicateParameterName;
+			}
+		}
 		CheckerErrno result = checkStmts(funcDecl->body, scopes, 0, true);
 		scopes.pop_back();
 		return result;
