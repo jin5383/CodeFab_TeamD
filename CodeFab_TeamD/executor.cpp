@@ -17,6 +17,8 @@ bool Executor::isTruthy(const LiteralValue& value) const
 	return !std::holds_alternative<std::monostate>(value);
 }
 
+// Interpreter 패턴: 각 if는 "이 노드가 무슨 문법 규칙인가"를 판별해 그 규칙에 맞는
+// 해석 방법을 적용한다. 재귀 호출(evaluate(binary->left, ...) 등)이 트리를 파고든다.
 LiteralValue Executor::evaluate(Expr* expr, Environment& environment) const
 {
 	if (auto* literal = dynamic_cast<LiteralExpr*>(expr))
@@ -106,6 +108,9 @@ void Executor::executeStmt(Stmt* stmt, Environment& environment) const
 	}
 	else if (auto* block = dynamic_cast<BlockStmt*>(stmt))
 	{
+		// 블록 진입 시 바깥 environment를 enclosing으로 갖는 새 스코프를 만든다.
+		// 블록이 끝나면(이 else-if를 벗어나면) blockEnv가 소멸하며 스코프도 사라진다 —
+		// 렉시컬 스코프(unit-io-spec.md 6.3절)가 C++ 스택 프레임 수명에 그대로 얹힌다.
 		Environment blockEnv(&environment);
 		for (Stmt* inner : block->statements)
 			executeStmt(inner, blockEnv);

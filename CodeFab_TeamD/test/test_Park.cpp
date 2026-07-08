@@ -2,7 +2,7 @@
 #include <gmock/gmock.h>
 #include <stdexcept>
 #include "../ast.h"
-#include "../function.h"
+#include "../assembler.h"
 
 using namespace testing;
 
@@ -44,7 +44,7 @@ namespace
 // Assembler unit: input "var a = 5 ;" -> Program { VarDeclStmt { name: a, initializer: LiteralExpr(5) } }
 TEST(AssemblerUnitTest, VarDeclWithNumberLiteral_BuildsProgramTree)
 {
-	Program program = assemble("var a = 5 ;");
+	Program program = Assembler().assemble("var a = 5 ;");
 
 	ASSERT_THAT(program.statements, SizeIs(1));
 
@@ -61,7 +61,7 @@ TEST(AssemblerUnitTest, VarDeclWithNumberLiteral_BuildsProgramTree)
 // 1 + 2 * 3 : 곱셈이 덧셈보다 먼저 결합되어야 한다 (+ 가 루트, * 가 오른쪽 서브트리)
 TEST(AssemblerOperatorPrecedenceTest, MultiplicationBindsTighterThanAddition)
 {
-	Program program = assemble("1 + 2 * 3;");
+	Program program = Assembler().assemble("1 + 2 * 3;");
 
 	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
@@ -79,7 +79,7 @@ TEST(AssemblerOperatorPrecedenceTest, MultiplicationBindsTighterThanAddition)
 // (1 + 2) * 3 : 괄호가 우선순위를 재정의하여 GroupingExpr이 왼쪽에 와야 한다
 TEST(AssemblerOperatorPrecedenceTest, ParenthesesOverridePrecedence)
 {
-	Program program = assemble("(1 + 2) * 3;");
+	Program program = Assembler().assemble("(1 + 2) * 3;");
 
 	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
@@ -100,7 +100,7 @@ TEST(AssemblerOperatorPrecedenceTest, ParenthesesOverridePrecedence)
 // 10 - 4 - 3 : 좌결합이므로 ((10 - 4) - 3) 형태의 트리가 되어야 한다
 TEST(AssemblerOperatorPrecedenceTest, SubtractionIsLeftAssociative)
 {
-	Program program = assemble("10 - 4 - 3;");
+	Program program = Assembler().assemble("10 - 4 - 3;");
 
 	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
@@ -118,7 +118,7 @@ TEST(AssemblerOperatorPrecedenceTest, SubtractionIsLeftAssociative)
 // 8 / 2 / 2 : 좌결합이므로 ((8 / 2) / 2) 형태의 트리가 되어야 한다
 TEST(AssemblerOperatorPrecedenceTest, DivisionIsLeftAssociative)
 {
-	Program program = assemble("8 / 2 / 2;");
+	Program program = Assembler().assemble("8 / 2 / 2;");
 
 	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
@@ -136,7 +136,7 @@ TEST(AssemblerOperatorPrecedenceTest, DivisionIsLeftAssociative)
 // -3 + 2 : 단항 마이너스가 먼저 결합되고, 그 결과가 이항 덧셈의 좌항이 되어야 한다
 TEST(AssemblerUnitTest, UnaryMinusThenBinaryAddition)
 {
-	Program program = assemble("-3 + 2;");
+	Program program = Assembler().assemble("-3 + 2;");
 
 	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
@@ -154,7 +154,7 @@ TEST(AssemblerUnitTest, UnaryMinusThenBinaryAddition)
 // 1 < 2 : 비교 연산자는 BinaryExpr(LESS)로 표현되어야 한다
 TEST(AssemblerUnitTest, LessThanComparison)
 {
-	Program program = assemble("1 < 2;");
+	Program program = Assembler().assemble("1 < 2;");
 
 	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
@@ -167,7 +167,7 @@ TEST(AssemblerUnitTest, LessThanComparison)
 // 3 > 5 : 비교 연산자는 BinaryExpr(GREATER)로 표현되어야 한다
 TEST(AssemblerUnitTest, GreaterThanComparison)
 {
-	Program program = assemble("3 > 5;");
+	Program program = Assembler().assemble("3 > 5;");
 
 	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
@@ -180,7 +180,7 @@ TEST(AssemblerUnitTest, GreaterThanComparison)
 // "Hello, " + "CodeFab!" : 문자열 리터럴의 + 연산은 BinaryExpr(PLUS)로 표현되어야 한다
 TEST(AssemblerUnitTest, StringConcatenation)
 {
-	Program program = assemble("\"Hello, \" + \"CodeFab!\";");
+	Program program = Assembler().assemble("\"Hello, \" + \"CodeFab!\";");
 
 	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* root = dynamic_cast<BinaryExpr*>(topExpression(program));
@@ -195,15 +195,15 @@ TEST(AssemblerUnitTest, StringConcatenation)
 // 5, 5.0, 3.14 : 정수/소수 숫자 리터럴은 모두 double 값을 갖는 LiteralExpr이어야 한다
 TEST(AssemblerUnitTest, NumericLiteralsAreParsedAsDoubleValues)
 {
-	auto* five = dynamic_cast<LiteralExpr*>(topExpression(assemble("5;")));
+	auto* five = dynamic_cast<LiteralExpr*>(topExpression(Assembler().assemble("5;")));
 	ASSERT_THAT(five, NotNull());
 	EXPECT_DOUBLE_EQ(literalValue(five), 5.0);
 
-	auto* fivePointZero = dynamic_cast<LiteralExpr*>(topExpression(assemble("5.0;")));
+	auto* fivePointZero = dynamic_cast<LiteralExpr*>(topExpression(Assembler().assemble("5.0;")));
 	ASSERT_THAT(fivePointZero, NotNull());
 	EXPECT_DOUBLE_EQ(literalValue(fivePointZero), 5.0);
 
-	auto* pi = dynamic_cast<LiteralExpr*>(topExpression(assemble("3.14;")));
+	auto* pi = dynamic_cast<LiteralExpr*>(topExpression(Assembler().assemble("3.14;")));
 	ASSERT_THAT(pi, NotNull());
 	EXPECT_DOUBLE_EQ(literalValue(pi), 3.14);
 }
@@ -211,11 +211,11 @@ TEST(AssemblerUnitTest, NumericLiteralsAreParsedAsDoubleValues)
 // true, false : boolean 리터럴은 bool 값을 갖는 LiteralExpr이어야 한다
 TEST(AssemblerUnitTest, BooleanLiteralsAreParsed)
 {
-	auto* trueLiteral = dynamic_cast<LiteralExpr*>(topExpression(assemble("true;")));
+	auto* trueLiteral = dynamic_cast<LiteralExpr*>(topExpression(Assembler().assemble("true;")));
 	ASSERT_THAT(trueLiteral, NotNull());
 	EXPECT_TRUE(std::get<bool>(trueLiteral->value));
 
-	auto* falseLiteral = dynamic_cast<LiteralExpr*>(topExpression(assemble("false;")));
+	auto* falseLiteral = dynamic_cast<LiteralExpr*>(topExpression(Assembler().assemble("false;")));
 	ASSERT_THAT(falseLiteral, NotNull());
 	EXPECT_FALSE(std::get<bool>(falseLiteral->value));
 }
@@ -223,7 +223,7 @@ TEST(AssemblerUnitTest, BooleanLiteralsAreParsed)
 // a = a + 5; : 재할당은 AssignExpr(name=a, value=BinaryExpr(+, VariableExpr(a), LiteralExpr(5)))이어야 한다
 TEST(AssemblerUnitTest, ReassignmentBuildsAssignExprTree)
 {
-	Program program = assemble("a = a + 5;");
+	Program program = Assembler().assemble("a = a + 5;");
 
 	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* exprStmt = dynamic_cast<ExpressionStmt*>(statementAt(program.statements, 0));
@@ -247,7 +247,7 @@ TEST(AssemblerUnitTest, ReassignmentBuildsAssignExprTree)
 // { var x = "inner"; } : 블록 스코프 & shadowing은 BlockStmt{ VarDeclStmt(x, "inner") }이어야 한다
 TEST(AssemblerUnitTest, BlockScopeWithShadowedVarDecl)
 {
-	Program program = assemble("{ var x = \"inner\"; }");
+	Program program = Assembler().assemble("{ var x = \"inner\"; }");
 
 	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* block = dynamic_cast<BlockStmt*>(statementAt(program.statements, 0));
@@ -264,7 +264,7 @@ TEST(AssemblerUnitTest, BlockScopeWithShadowedVarDecl)
 // { count = count + 1; } : 바깥 변수 수정은 BlockStmt 안에서 AssignExpr로 표현되어야 한다
 TEST(AssemblerUnitTest, BlockModifiesOuterVariable)
 {
-	Program program = assemble("{ count = count + 1; }");
+	Program program = Assembler().assemble("{ count = count + 1; }");
 
 	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* block = dynamic_cast<BlockStmt*>(statementAt(program.statements, 0));
@@ -287,7 +287,7 @@ TEST(AssemblerUnitTest, BlockModifiesOuterVariable)
 // for (var j = 0; j < 3; j = j + 1) { print j; } : init/condition/increment/body를 모두 갖춰야 한다
 TEST(AssemblerUnitTest, ForLoopBuildsInitConditionIncrementBodyTree)
 {
-	Program program = assemble("for (var j = 0; j < 3; j = j + 1) { print j; }");
+	Program program = Assembler().assemble("for (var j = 0; j < 3; j = j + 1) { print j; }");
 
 	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* forStmt = dynamic_cast<ForStmt*>(statementAt(program.statements, 0));
@@ -322,7 +322,7 @@ TEST(AssemblerUnitTest, ForLoopBuildsInitConditionIncrementBodyTree)
 // var a = 10; var b = 20; print a + b; : 선언과 사용
 TEST(AssemblerUnitTest, VarDeclarationsThenPrintUsesBothVariables)
 {
-	Program program = assemble("var a = 10; var b = 20; print a + b;");
+	Program program = Assembler().assemble("var a = 10; var b = 20; print a + b;");
 
 	ASSERT_THAT(program.statements, SizeIs(3));
 
@@ -356,7 +356,7 @@ TEST(AssemblerUnitTest, VarDeclarationsThenPrintUsesBothVariables)
 // { var inner = "B"; { print outer + inner; } } : 중첩 스코프는 BlockStmt 안에 BlockStmt를 포함해야 한다
 TEST(AssemblerUnitTest, NestedBlockScopesReferenceEnclosingVariables)
 {
-	Program program = assemble("{ var inner = \"B\"; { print outer + inner; } }");
+	Program program = Assembler().assemble("{ var inner = \"B\"; { print outer + inner; } }");
 
 	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* outerBlock = dynamic_cast<BlockStmt*>(statementAt(program.statements, 0));
@@ -390,7 +390,7 @@ TEST(AssemblerUnitTest, NestedBlockScopesReferenceEnclosingVariables)
 // if (true) print "bbq"; : else 없는 if는 elseBranch가 nullptr이어야 한다
 TEST(AssemblerUnitTest, IfWithoutElseBranch)
 {
-	Program program = assemble("if (true) print \"bbq\";");
+	Program program = Assembler().assemble("if (true) print \"bbq\";");
 
 	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* ifStmt = dynamic_cast<IfStmt*>(statementAt(program.statements, 0));
@@ -411,7 +411,7 @@ TEST(AssemblerUnitTest, IfWithoutElseBranch)
 // if (false) print "no"; else print "kfc"; : if/else 양쪽 분기가 모두 있어야 한다
 TEST(AssemblerUnitTest, IfElseBranchesBothPresent)
 {
-	Program program = assemble("if (false) print \"no\"; else print \"kfc\";");
+	Program program = Assembler().assemble("if (false) print \"no\"; else print \"kfc\";");
 
 	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* ifStmt = dynamic_cast<IfStmt*>(statementAt(program.statements, 0));
@@ -435,7 +435,7 @@ TEST(AssemblerUnitTest, IfElseBranchesBothPresent)
 // else 는 가장 가까운 if 에 결합: if (true) { if (false) print "kfc"; else print "bbq"; }
 TEST(AssemblerUnitTest, DanglingElseBindsToNearestIf)
 {
-	Program program = assemble("if (true) { if (false) print \"kfc\"; else print \"bbq\"; }");
+	Program program = Assembler().assemble("if (true) { if (false) print \"kfc\"; else print \"bbq\"; }");
 
 	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* outerIf = dynamic_cast<IfStmt*>(statementAt(program.statements, 0));
@@ -465,7 +465,7 @@ TEST(AssemblerSyntaxErrorTest, MissingSemicolonAfterValueReportsError)
 {
 	try
 	{
-		assemble("var a = 3");
+		Assembler().assemble("var a = 3");
 		FAIL() << "구문 오류 예외가 발생해야 한다.";
 	}
 	catch (const std::exception& e)
@@ -479,7 +479,7 @@ TEST(AssemblerSyntaxErrorTest, MissingClosingParenReportsError)
 {
 	try
 	{
-		assemble("(1 + 2");
+		Assembler().assemble("(1 + 2");
 		FAIL() << "구문 오류 예외가 발생해야 한다.";
 	}
 	catch (const std::exception& e)
@@ -493,7 +493,7 @@ TEST(AssemblerSyntaxErrorTest, InvalidAssignmentTargetReportsError)
 {
 	try
 	{
-		assemble("3 = 5;");
+		Assembler().assemble("3 = 5;");
 		FAIL() << "구문 오류 예외가 발생해야 한다.";
 	}
 	catch (const std::exception& e)
@@ -507,7 +507,7 @@ TEST(AssemblerSyntaxErrorTest, InvalidAssignmentTargetOnBinaryExprReportsError)
 {
 	try
 	{
-		assemble("var a = 1; var b = 2; a + b = 3;");
+		Assembler().assemble("var a = 1; var b = 2; a + b = 3;");
 		FAIL() << "구문 오류 예외가 발생해야 한다.";
 	}
 	catch (const std::exception& e)
@@ -521,7 +521,7 @@ TEST(AssemblerSyntaxErrorTest, UnexpectedTokenInExpressionPositionReportsError)
 {
 	try
 	{
-		assemble(";");
+		Assembler().assemble(";");
 		FAIL() << "구문 오류 예외가 발생해야 한다.";
 	}
 	catch (const std::exception& e)

@@ -1,24 +1,26 @@
-#include <gtest/gtest.h>
+﻿#include <gtest/gtest.h>
 #include <exception>
-#include <iostream>
-#include <sstream>
-#include "../function.h"
+#include "../executor.h"
 
 using namespace std;
+
+// [디자인 패턴 사용처] Strategy(io.h)의 테스트용 ConcreteStrategy.
+// 예전에는 std::cout.rdbuf()를 실제 스트림에 갈아끼워 표준 출력을 가로채는 방식(고전적인
+// C++ 트릭이지만 전역 상태를 건드리는 부작용이 있다)을 썼다. 지금은 Executor가 애초에
+// IOutputWriter라는 인터페이스에만 의존하므로, 테스트는 그 인터페이스를 구현하는 가짜
+// 객체(FakeOutputWriter)를 만들어 생성자로 주입하기만 하면 된다 — 전역 상태를 전혀
+// 건드리지 않고, "어떤 문자열로 write()가 호출됐는가"만 보면 검증이 끝난다.
+class FakeOutputWriter : public IOutputWriter
+{
+public:
+	void write(const std::string& text) override { output += text; }
+
+	std::string output;
+};
 
 class ExecutorTest : public ::testing::Test
 {
 protected:
-	void SetUp() override
-	{
-		originalCoutBuffer = cout.rdbuf(capturedOutput.rdbuf());
-	}
-
-	void TearDown() override
-	{
-		cout.rdbuf(originalCoutBuffer);
-	}
-
 	string operatorOrigin(TokenType opType)
 	{
 		switch (opType)
@@ -80,8 +82,11 @@ protected:
 
 	Program program;
 	PrintStmt printStmt;
-	ostringstream capturedOutput;
-	streambuf* originalCoutBuffer = nullptr;
+
+	// Executor는 FakeOutputWriter&를 주입받아 만들어진다(생성자 주입, io.h 참고).
+	// writer가 executor보다 먼저 선언되어 있어야 초기화 순서가 올바르다.
+	FakeOutputWriter writer;
+	Executor executor{ writer };
 };
 
 // 테스트 스크립트.md 1-1) print 1 + 2 * 3; -> stdout "7"
@@ -98,9 +103,9 @@ TEST_F(ExecutorTest, PrintAddThenMultiplyOutputsSeven)
 	printStmt.expression = &add;
 	program.statements = { &printStmt };
 
-	executeAssembly(program);
+	executor.execute(program);
 
-	EXPECT_EQ(capturedOutput.str(), "7\n");
+	EXPECT_EQ(writer.output, "7\n");
 }
 
 // 테스트 스크립트.md 1-2) print (1 + 2) * 3; -> stdout "9"
@@ -121,9 +126,9 @@ TEST_F(ExecutorTest, PrintParenthesesOverridePrecedenceOutputsNine)
 	printStmt.expression = &multiply;
 	program.statements = { &printStmt };
 
-	executeAssembly(program);
+	executor.execute(program);
 
-	EXPECT_EQ(capturedOutput.str(), "9\n");
+	EXPECT_EQ(writer.output, "9\n");
 }
 
 // 테스트 스크립트.md 1-3) print 10 - 4 - 3; -> stdout "3"
@@ -140,9 +145,9 @@ TEST_F(ExecutorTest, PrintSubtractionIsLeftAssociativeOutputsThree)
 	printStmt.expression = &subtract;
 	program.statements = { &printStmt };
 
-	executeAssembly(program);
+	executor.execute(program);
 
-	EXPECT_EQ(capturedOutput.str(), "3\n");
+	EXPECT_EQ(writer.output, "3\n");
 }
 
 // 테스트 스크립트.md 1-4) print 8 / 2 / 2; -> stdout "2"
@@ -159,9 +164,9 @@ TEST_F(ExecutorTest, PrintDivisionIsLeftAssociativeOutputsTwo)
 	printStmt.expression = &divide;
 	program.statements = { &printStmt };
 
-	executeAssembly(program);
+	executor.execute(program);
 
-	EXPECT_EQ(capturedOutput.str(), "2\n");
+	EXPECT_EQ(writer.output, "2\n");
 }
 
 // 테스트 스크립트.md 1-5) print -3 + 2; -> stdout "-1"
@@ -177,9 +182,9 @@ TEST_F(ExecutorTest, PrintUnaryMinusPlusBinaryAddOutputsMinusOne)
 	printStmt.expression = &add;
 	program.statements = { &printStmt };
 
-	executeAssembly(program);
+	executor.execute(program);
 
-	EXPECT_EQ(capturedOutput.str(), "-1\n");
+	EXPECT_EQ(writer.output, "-1\n");
 }
 
 // 테스트 스크립트.md 1-6) print 1 < 2; -> stdout "true"
@@ -194,9 +199,9 @@ TEST_F(ExecutorTest, PrintLessThanOutputsTrue)
 	printStmt.expression = &lessThan;
 	program.statements = { &printStmt };
 
-	executeAssembly(program);
+	executor.execute(program);
 
-	EXPECT_EQ(capturedOutput.str(), "true\n");
+	EXPECT_EQ(writer.output, "true\n");
 }
 
 // 테스트 스크립트.md 1-7) print 3 > 5; -> stdout "false"
@@ -211,9 +216,9 @@ TEST_F(ExecutorTest, PrintGreaterThanOutputsFalse)
 	printStmt.expression = &greaterThan;
 	program.statements = { &printStmt };
 
-	executeAssembly(program);
+	executor.execute(program);
 
-	EXPECT_EQ(capturedOutput.str(), "false\n");
+	EXPECT_EQ(writer.output, "false\n");
 }
 
 // 테스트 스크립트.md 1-8) print "Hello, " + "CodeFab!"; -> stdout "Hello, CodeFab!"
@@ -228,9 +233,9 @@ TEST_F(ExecutorTest, PrintStringConcatenationOutputsHelloCodeFab)
 	printStmt.expression = &concatenate;
 	program.statements = { &printStmt };
 
-	executeAssembly(program);
+	executor.execute(program);
 
-	EXPECT_EQ(capturedOutput.str(), "Hello, CodeFab!\n");
+	EXPECT_EQ(writer.output, "Hello, CodeFab!\n");
 }
 
 // 테스트 스크립트.md 1-9-1) print 5; / print 5.0; -> stdout "5" (정수는 .0 없이 출력)
@@ -242,9 +247,9 @@ TEST_F(ExecutorTest, PrintIntegerValuedNumberOutputsWithoutDecimalPoint)
 	printStmt.expression = &number;
 	program.statements = { &printStmt };
 
-	executeAssembly(program);
+	executor.execute(program);
 
-	EXPECT_EQ(capturedOutput.str(), "5\n");
+	EXPECT_EQ(writer.output, "5\n");
 }
 
 // 테스트 스크립트.md 1-9-2) print 3.14; -> stdout "3.14"
@@ -256,9 +261,9 @@ TEST_F(ExecutorTest, PrintDecimalNumberOutputsWithDecimalPoint)
 	printStmt.expression = &number;
 	program.statements = { &printStmt };
 
-	executeAssembly(program);
+	executor.execute(program);
 
-	EXPECT_EQ(capturedOutput.str(), "3.14\n");
+	EXPECT_EQ(writer.output, "3.14\n");
 }
 
 // 테스트 스크립트.md 1-10-1) print true; -> stdout "true"
@@ -270,9 +275,9 @@ TEST_F(ExecutorTest, PrintTrueLiteralOutputsTrue)
 	printStmt.expression = &trueLiteral;
 	program.statements = { &printStmt };
 
-	executeAssembly(program);
+	executor.execute(program);
 
-	EXPECT_EQ(capturedOutput.str(), "true\n");
+	EXPECT_EQ(writer.output, "true\n");
 }
 
 // 테스트 스크립트.md 1-10-2) print false; -> stdout "false"
@@ -284,9 +289,9 @@ TEST_F(ExecutorTest, PrintFalseLiteralOutputsFalse)
 	printStmt.expression = &falseLiteral;
 	program.statements = { &printStmt };
 
-	executeAssembly(program);
+	executor.execute(program);
 
-	EXPECT_EQ(capturedOutput.str(), "false\n");
+	EXPECT_EQ(writer.output, "false\n");
 }
 
 // 테스트 스크립트.md 2-1) var a = 10; var b = 20; print a + b; -> stdout "30"
@@ -307,9 +312,9 @@ TEST_F(ExecutorTest, VarDeclarationsAndUsage_OutputsThirty)
 	printStmt.expression = &add;
 	program.statements = { &declareA, &declareB, &printStmt };
 
-	executeAssembly(program);
+	executor.execute(program);
 
-	EXPECT_EQ(capturedOutput.str(), "30\n");
+	EXPECT_EQ(writer.output, "30\n");
 }
 
 // 테스트 스크립트.md 2-2) a = a + 5; print a; (a는 10으로 선언된 상태) -> stdout "15"
@@ -334,9 +339,9 @@ TEST_F(ExecutorTest, ReassignmentAddsFive_OutputsFifteen)
 	printStmt.expression = &referenceAForPrint;
 	program.statements = { &declareA, &reassignStmt, &printStmt };
 
-	executeAssembly(program);
+	executor.execute(program);
 
-	EXPECT_EQ(capturedOutput.str(), "15\n");
+	EXPECT_EQ(writer.output, "15\n");
 }
 
 // 테스트 스크립트.md 2-3) { var x = "inner"; print x; } print x; (바깥 x는 "global") -> stdout "inner" 그 다음 "global"
@@ -361,9 +366,9 @@ TEST_F(ExecutorTest, BlockScopeShadowing_OutputsInnerThenGlobal)
 	printStmt.expression = &referenceOuterX;
 	program.statements = { &declareGlobalX, &block, &printStmt };
 
-	executeAssembly(program);
+	executor.execute(program);
 
-	EXPECT_EQ(capturedOutput.str(), "inner\nglobal\n");
+	EXPECT_EQ(writer.output, "inner\nglobal\n");
 }
 
 // 테스트 스크립트.md 2-4) { count = count + 1; } print count; (count는 0으로 선언된 상태) -> stdout "1"
@@ -391,9 +396,9 @@ TEST_F(ExecutorTest, BlockModifiesOuterVariable_OutputsOne)
 	printStmt.expression = &referenceCountForPrint;
 	program.statements = { &declareCount, &block, &printStmt };
 
-	executeAssembly(program);
+	executor.execute(program);
 
-	EXPECT_EQ(capturedOutput.str(), "1\n");
+	EXPECT_EQ(writer.output, "1\n");
 }
 
 // 테스트 스크립트.md 2-5) var outer = "A"; { var inner = "B"; { print outer + inner; } } -> stdout "AB"
@@ -421,9 +426,9 @@ TEST_F(ExecutorTest, NestedScopeResolvesOuterAndInner_OutputsAB)
 
 	program.statements = { &declareOuter, &innerBlock };
 
-	executeAssembly(program);
+	executor.execute(program);
 
-	EXPECT_EQ(capturedOutput.str(), "AB\n");
+	EXPECT_EQ(writer.output, "AB\n");
 }
 
 // 테스트 스크립트.md 3-1) if (true) print "bbq"; -> stdout "bbq"
@@ -444,9 +449,9 @@ TEST_F(ExecutorTest, IfWithTrueConditionExecutesThenBranch)
 
 	program.statements = { &ifStmt };
 
-	executeAssembly(program);
+	executor.execute(program);
 
-	EXPECT_EQ(capturedOutput.str(), "bbq\n");
+	EXPECT_EQ(writer.output, "bbq\n");
 }
 
 // 테스트 스크립트.md 3-2) if (false) print "no"; else print "kfc"; -> stdout "kfc"
@@ -474,9 +479,9 @@ TEST_F(ExecutorTest, IfWithFalseConditionExecutesElseBranch)
 
 	program.statements = { &ifStmt };
 
-	executeAssembly(program);
+	executor.execute(program);
 
-	EXPECT_EQ(capturedOutput.str(), "kfc\n");
+	EXPECT_EQ(writer.output, "kfc\n");
 }
 
 // 테스트 스크립트.md 3-3) if (true) { if (false) print "kfc"; else print "bbq"; } -> stdout "bbq" (else는 가장 가까운 if에 결합)
@@ -515,9 +520,9 @@ TEST_F(ExecutorTest, NestedIfElseBindsToNearestIf)
 
 	program.statements = { &outerIf };
 
-	executeAssembly(program);
+	executor.execute(program);
 
-	EXPECT_EQ(capturedOutput.str(), "bbq\n");
+	EXPECT_EQ(writer.output, "bbq\n");
 }
 
 // 테스트 스크립트.md 3-4) for (var j = 0; j < 3; j = j + 1) { print j; } -> stdout "0", "1", "2"
@@ -572,9 +577,9 @@ TEST_F(ExecutorTest, ForLoopPrintsZeroToTwo)
 
 	program.statements = { &forStmt };
 
-	executeAssembly(program);
+	executor.execute(program);
 
-	EXPECT_EQ(capturedOutput.str(), "0\n1\n2\n");
+	EXPECT_EQ(writer.output, "0\n1\n2\n");
 }
 
 // 테스트 스크립트.md 4-1) print notDefined; -> 런타임 에러 "Undefined variable 'notDefined'."
@@ -588,7 +593,7 @@ TEST_F(ExecutorTest, ReferencingUndefinedVariableThrowsRuntimeError)
 
 	try
 	{
-		executeAssembly(program);
+		executor.execute(program);
 		FAIL() << "Expected a runtime error to be thrown";
 	}
 	catch (const std::exception& e)
@@ -616,7 +621,7 @@ TEST_F(ExecutorTest, MixingNumberAndStringWithPlusThrowsRuntimeError)
 
 	try
 	{
-		executeAssembly(program);
+		executor.execute(program);
 		FAIL() << "Expected a runtime error to be thrown";
 	}
 	catch (const std::exception& e)
@@ -640,7 +645,7 @@ TEST_F(ExecutorTest, UnaryMinusOnNonNumberThrowsRuntimeError)
 
 	try
 	{
-		executeAssembly(program);
+		executor.execute(program);
 		FAIL() << "Expected a runtime error to be thrown";
 	}
 	catch (const std::exception& e)
@@ -663,7 +668,7 @@ TEST_F(ExecutorTest, DivisionByZeroThrowsRuntimeError)
 
 	try
 	{
-		executeAssembly(program);
+		executor.execute(program);
 		FAIL() << "Expected a runtime error to be thrown";
 	}
 	catch (const std::exception& e)
