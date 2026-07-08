@@ -108,3 +108,69 @@ TEST(ImportUnitTest, ImportFile_SameAliasAlreadyImportedInEnclosingScope_Throws)
 
 	filesystem::remove(path);
 }
+
+TEST(ImportUnitTest, ImportFile_SiblingScopesImportingSameFileIndependently_BothSucceed)
+{
+	auto path = writeTempFile("sibling", "var value = 1;");
+	ImportScope parent;
+
+	ImportScope siblingA(&parent);
+	ImportScope siblingB(&parent);
+
+	EXPECT_NO_THROW(siblingA.importFile(path.string(), "m"));
+	EXPECT_NO_THROW(siblingB.importFile(path.string(), "m"));
+
+	filesystem::remove(path);
+}
+
+TEST(ImportUnitTest, ImportFile_ReimportAfterEnclosingBlockScopeEnded_Succeeds)
+{
+	auto path = writeTempFile("reimport", "var value = 1;");
+	ImportScope parent;
+
+	{
+		ImportScope blockScope(&parent);
+		blockScope.importFile(path.string(), "m");
+	} // blockScope 소멸: 해당 바인딩도 함께 사라짐
+
+	ImportScope laterBlockScope(&parent);
+	EXPECT_NO_THROW(laterBlockScope.importFile(path.string(), "m"));
+
+	filesystem::remove(path);
+}
+
+TEST(ImportUnitTest, ImportFile_CircularImport_Throws)
+{
+	auto pathA = makeTempFilePath("cycleA");
+	auto pathB = makeTempFilePath("cycleB");
+
+	{
+		ofstream fileA(pathA);
+		fileA << "import \"" << pathB.string() << "\" alias b;";
+	}
+	{
+		ofstream fileB(pathB);
+		fileB << "import \"" << pathA.string() << "\" alias a;";
+	}
+
+	ImportScope scope;
+	EXPECT_THROW(scope.importFile(pathA.string(), "a"), ImportError);
+
+	filesystem::remove(pathA);
+	filesystem::remove(pathB);
+}
+
+TEST(ImportUnitTest, ImportFile_NestedImportInsideModule_BindsIntoModulesOwnScope)
+{
+	auto innerPath = writeTempFile("inner", "var innerValue = 7;");
+	auto outerPath = writeTempFile("outer_nested",
+		"import \"" + innerPath.string() + "\" alias inner; var outerValue = 3;");
+
+	ImportScope scope;
+	Environment& outerModule = scope.importFile(outerPath.string(), "outer");
+
+	EXPECT_DOUBLE_EQ(get<double>(outerModule.get(Token{ TokenType::IDENTIFIER, "outerValue" })), 3.0);
+
+	filesystem::remove(innerPath);
+	filesystem::remove(outerPath);
+}
