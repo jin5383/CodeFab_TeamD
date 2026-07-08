@@ -713,3 +713,17 @@ TEST_F(LeeExecutorTest, StatementsAfterReturnAreSkipped)
 
 	EXPECT_EQ(writer.output, "");
 }
+
+// Executor unit: 재귀 호출 검증 - fact(5) == 120
+// (docs/scenarios/lee-function-scenarios.md 재귀 시나리오). 새 프로덕션 코드 없이
+// 기능 9~11(함수 선언/호출/return 조기 종료)의 조합만으로 통과해야 하는 확인용 테스트.
+TEST_F(LeeExecutorTest, RecursiveFactorialComputesOneTwenty)
+{
+	Program program = Assembler().assemble(
+		"Func fact(n) { if (n < 2) return 1; return n * fact(n - 1); } print fact(5);");
+
+	Environment env;
+	executor.execute(program, env);
+
+	EXPECT_EQ(writer.output, "120\n");
+}
