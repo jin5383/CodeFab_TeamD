@@ -539,3 +539,31 @@ TEST(AssemblerUnitTest, FunctionCallWithTwoArguments_BuildsCallExprTree)
 	EXPECT_DOUBLE_EQ(std::get<double>(dynamic_cast<LiteralExpr*>(call->arguments[0])->value), 3.0);
 	EXPECT_DOUBLE_EQ(std::get<double>(dynamic_cast<LiteralExpr*>(call->arguments[1])->value), 7.0);
 }
+
+// Checker unit: 최상위(함수 밖)에서 return 사용 -> returnOutsideFunction 에러
+TEST_F(CheckerUnitTest, ReturnOutsideFunction_ReportsError)
+{
+	auto* returnStmt = new ReturnStmt();
+	returnStmt->value = makeNumberLiteral(1.0);
+
+	Program program;
+	program.statements.push_back(returnStmt);
+
+	EXPECT_EQ(CheckerErrno::returnOutsideFunction, Checker().check(program));
+}
+
+// Checker unit: 함수 안에서 return 사용 -> 에러 없음
+TEST_F(CheckerUnitTest, ReturnInsideFunction_NoError)
+{
+	auto* returnStmt = new ReturnStmt();
+	returnStmt->value = makeNumberLiteral(1.0);
+
+	auto* funcDecl = new FunctionDeclStmt();
+	funcDecl->name = identifierToken("f");
+	funcDecl->body.push_back(returnStmt);
+
+	Program program;
+	program.statements.push_back(funcDecl);
+
+	EXPECT_EQ(CheckerErrno::success, Checker().check(program));
+}
