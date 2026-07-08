@@ -3,6 +3,7 @@
 #include <memory>
 #include <sstream>
 #include <stdexcept>
+#include <string>
 #include <vector>
 #include "assembler.h"
 #include "checker.h"
@@ -153,6 +154,16 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 		if (!std::holds_alternative<std::shared_ptr<FunctionDeclStmt>>(calleeValue))
 			throw std::runtime_error("Can only call functions.");
 		auto function = std::get<std::shared_ptr<FunctionDeclStmt>>(calleeValue);
+
+		// Checker의 인자 개수 검사(checkCallArity)는 호출이 ExpressionStmt 최상위일 때만
+		// 작동해 print/var 초기화식/중첩 호출 등은 정적으로 걸러지지 않는다(여러 줄에 걸친
+		// REPL 세션에서 함수 정보가 유지되지 않는 경우도 마찬가지). 파라미터 개수만큼
+		// call->arguments를 인덱싱하므로, 여기서 막지 않으면 인자가 부족할 때 범위 밖
+		// 접근(정의되지 않은 동작 — 실제로 벡터 어설션 크래시로 재현됨)이 된다 — 런타임
+		// 최종 방어선으로 항상 검사한다.
+		if (call->arguments.size() != function->params.size())
+			throw std::runtime_error("Expected " + std::to_string(function->params.size()) +
+				" arguments but got " + std::to_string(call->arguments.size()) + ".");
 
 		// 이 언어는 클로저(중첩 함수의 선언 시점 지역 스코프 캡처)를 지원하지 않으므로
 		// (docs/lee-function-impl-plan.md 0절), 콜 프레임의 enclosing은 전역으로 고정한다.
