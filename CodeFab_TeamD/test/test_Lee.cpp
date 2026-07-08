@@ -463,3 +463,21 @@ TEST(AssemblerTokenUnitTest, TokenizeSource_ProducesFuncAndReturnKeywordTokens)
 	EXPECT_EQ(tokens[0].type, TokenType::FUNC);
 	EXPECT_EQ(tokens[1].type, TokenType::RETURN);
 }
+
+// Assembler_Construct_Unit: "Func greet() { print "hi"; }" -> FunctionDeclStmt{ name: greet,
+// params: [], body: [PrintStmt] } (docs/scenarios/lee-function-scenarios.md 인자 없는 함수 시나리오)
+TEST(AssemblerUnitTest, FunctionDeclWithNoParams_BuildsProgramTree)
+{
+	Program program = Assembler().assemble("Func greet() { print \"hi\"; }");
+
+	ASSERT_EQ(program.statements.size(), 1u);
+
+	auto* funcDecl = dynamic_cast<FunctionDeclStmt*>(program.statements[0]);
+	ASSERT_NE(funcDecl, nullptr);
+	EXPECT_EQ(funcDecl->name.origin, "greet");
+	EXPECT_TRUE(funcDecl->params.empty());
+	ASSERT_EQ(funcDecl->body.size(), 1u);
+
+	auto* printStmt = dynamic_cast<PrintStmt*>(funcDecl->body[0]);
+	EXPECT_NE(printStmt, nullptr);
+}
