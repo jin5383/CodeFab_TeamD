@@ -1,0 +1,40 @@
+﻿#pragma once
+
+// [디자인 패턴] Interpreter (GoF)의 또 다른 클라이언트
+//
+// Checker도 Executor와 마찬가지로 Expr/Stmt 트리(Composite)를 dynamic_cast 타입
+// 스위치로 순회하는 "두 번째 클라이언트"다. 다만 값을 계산(evaluate)하는 대신
+// 스코프 규칙을 검사(check)한다는 점이 다르다 — 같은 트리 구조를 서로 다른 목적으로
+// 재사용할 수 있다는 것이 Composite/Interpreter 조합의 장점 중 하나다.
+//
+// check()는 상태(ScopeStack)를 멤버가 아니라 지역 변수로 만들어 매개변수로 넘기는
+// 방식을 쓴다. 그래서 Checker 인스턴스 자체는 상태가 없고(stateless), 같은 인스턴스를
+// 여러 Program에 대해 반복 호출해도 이전 호출의 잔여 상태가 남지 않는다.
+#include <set>
+#include <string>
+#include <vector>
+#include "ast.h"
+
+// Checker Unit 정적 검사 결과 코드 (0 = 에러 없음)
+enum class CheckerErrno
+{
+	success = 0,
+	selfReferencingInitializer,
+	duplicateDeclarationInSameScope,
+};
+
+// Program(Assembler Unit의 Output)을 읽기 전용으로 검사해 정적 에러를 찾는 Unit.
+// Program은 변형하지 않는다(unit-io-spec.md 6.2절).
+class Checker
+{
+public:
+	CheckerErrno check(const Program& program) const;
+
+private:
+	using ScopeStack = std::vector<std::set<std::string>>;
+
+	CheckerErrno checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes) const;
+	CheckerErrno checkStmt(Stmt* stmt, ScopeStack& scopes) const;
+	bool isNameDeclared(const std::string& name, const ScopeStack& scopes) const;
+	bool exprReferencesName(Expr* expr, const std::string& name) const;
+};

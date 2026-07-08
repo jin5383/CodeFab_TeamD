@@ -2,7 +2,7 @@
 #include <gmock/gmock.h>
 #include <stdexcept>
 #include "../ast.h"
-#include "../function.h"
+#include "../assembler.h"
 
 using namespace testing;
 
@@ -10,7 +10,7 @@ using namespace testing;
 // Assembler_Token_Unit: "1;" -> [NUMBER(1), SEMICOLON, END_OF_FILE]
 TEST(AssemblerTokenUnitTest, TokenizeSource_ProducesExpectedTokenSequence)
 {
-	std::vector<Token> tokens = tokenizeSource("1;");
+	std::vector<Token> tokens = Assembler().tokenize("1;");
 
 	ASSERT_THAT(tokens, SizeIs(3));
 	EXPECT_EQ(tokens[0].type, TokenType::NUMBER);
@@ -23,9 +23,9 @@ TEST(AssemblerTokenUnitTest, TokenizeSource_ProducesExpectedTokenSequence)
 // -> Program { ExpressionStmt { LiteralExpr(1) } }
 TEST(AssemblerConstructUnitTest, ConstructAssembly_BuildsExpressionStmtFromTokens)
 {
-	std::vector<Token> tokens = tokenizeSource("1;");
+	std::vector<Token> tokens = Assembler().tokenize("1;");
 
-	Program program = constructAssembly(tokens);
+	Program program = Assembler().construct(tokens);
 
 	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* exprStmt = dynamic_cast<ExpressionStmt*>(program.statements[0]);
@@ -39,7 +39,7 @@ TEST(AssemblerConstructUnitTest, ConstructAssembly_BuildsExpressionStmtFromToken
 // Assembler unit: 초기화식이 없는 변수 선언 "var a;" -> VarDeclStmt { name: a, initializer: nullptr }
 TEST(AssemblerUnitTest, VarDeclWithoutInitializer_LeavesInitializerNull)
 {
-	Program program = assemble("var a;");
+	Program program = Assembler().assemble("var a;");
 
 	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* varDecl = dynamic_cast<VarDeclStmt*>(program.statements[0]);
@@ -51,7 +51,7 @@ TEST(AssemblerUnitTest, VarDeclWithoutInitializer_LeavesInitializerNull)
 // Assembler_Token_Unit: "true;" -> [TRUE(value=true), SEMICOLON, END_OF_FILE]
 TEST(AssemblerTokenUnitTest, TokenizeSource_ProducesTrueLiteralToken)
 {
-	std::vector<Token> tokens = tokenizeSource("true;");
+	std::vector<Token> tokens = Assembler().tokenize("true;");
 
 	ASSERT_THAT(tokens, SizeIs(3));
 	EXPECT_EQ(tokens[0].type, TokenType::TRUE);
@@ -63,7 +63,7 @@ TEST(AssemblerTokenUnitTest, TokenizeSource_ProducesTrueLiteralToken)
 // Assembler_Token_Unit: "\"hi\";" -> [STRING(value="hi"), SEMICOLON, END_OF_FILE]
 TEST(AssemblerTokenUnitTest, TokenizeSource_ProducesStringLiteralToken)
 {
-	std::vector<Token> tokens = tokenizeSource("\"hi\";");
+	std::vector<Token> tokens = Assembler().tokenize("\"hi\";");
 
 	ASSERT_THAT(tokens, SizeIs(3));
 	EXPECT_EQ(tokens[0].type, TokenType::STRING);
@@ -76,9 +76,9 @@ TEST(AssemblerTokenUnitTest, TokenizeSource_ProducesStringLiteralToken)
 // -> Program { ExpressionStmt { BinaryExpr(+) { left: LiteralExpr(1), right: LiteralExpr(2) } } }
 TEST(AssemblerConstructUnitTest, ConstructAssembly_BuildsBinaryExprFromTokens)
 {
-	std::vector<Token> tokens = tokenizeSource("1 + 2;");
+	std::vector<Token> tokens = Assembler().tokenize("1 + 2;");
 
-	Program program = constructAssembly(tokens);
+	Program program = Assembler().construct(tokens);
 
 	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* exprStmt = dynamic_cast<ExpressionStmt*>(program.statements[0]);
@@ -94,7 +94,7 @@ TEST(AssemblerConstructUnitTest, ConstructAssembly_BuildsBinaryExprFromTokens)
 // Assembler_Token_Unit: "{}" -> [LEFT_BRACE, RIGHT_BRACE, END_OF_FILE]
 TEST(AssemblerTokenUnitTest, TokenizeSource_ProducesBraceTokens)
 {
-	std::vector<Token> tokens = tokenizeSource("{}");
+	std::vector<Token> tokens = Assembler().tokenize("{}");
 
 	ASSERT_THAT(tokens, SizeIs(3));
 	EXPECT_EQ(tokens[0].type, TokenType::LEFT_BRACE);
@@ -106,9 +106,9 @@ TEST(AssemblerTokenUnitTest, TokenizeSource_ProducesBraceTokens)
 // -> Program { ExpressionStmt { VariableExpr(a) } }
 TEST(AssemblerConstructUnitTest, ConstructAssembly_BuildsVariableExprFromTokens)
 {
-	std::vector<Token> tokens = tokenizeSource("a;");
+	std::vector<Token> tokens = Assembler().tokenize("a;");
 
-	Program program = constructAssembly(tokens);
+	Program program = Assembler().construct(tokens);
 
 	ASSERT_THAT(program.statements, SizeIs(1));
 	auto* exprStmt = dynamic_cast<ExpressionStmt*>(program.statements[0]);
@@ -125,7 +125,7 @@ TEST(AssemblerSyntaxErrorTestSub, MissingVariableNameAfterVarReportsError)
 {
 	try
 	{
-		assemble("var = 5;");
+		Assembler().assemble("var = 5;");
 		FAIL() << "구문 오류 예외가 발생";
 	}
 	catch (const std::exception& e)
@@ -140,7 +140,7 @@ TEST(AssemblerSyntaxErrorTestSub, MissingOpenParenAfterIfReportsError)
 {
 	try
 	{
-		assemble("if true) print 1;");
+		Assembler().assemble("if true) print 1;");
 		FAIL() << "구문 오류 예외가 발생";
 	}
 	catch (const std::exception& e)
@@ -155,7 +155,7 @@ TEST(AssemblerSyntaxErrorTestSub, MissingClosingBraceReportsError)
 {
 	try
 	{
-		assemble("{ var x = 1;");
+		Assembler().assemble("{ var x = 1;");
 		FAIL() << "구문 오류 예외가 발생";
 	}
 	catch (const std::exception& e)

@@ -1,5 +1,5 @@
-#include <gtest/gtest.h>
-#include "../function.h"
+﻿#include <gtest/gtest.h>
+#include "../ast.h"
 
 TEST(RyuTest, Placeholder)
 {

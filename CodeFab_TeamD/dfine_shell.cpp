@@ -1,5 +1,5 @@
 ﻿#include "dfine_shell.h"
-#include "function.h"
+#include "io.h"
 #include <cctype>
 
 namespace
@@ -49,9 +49,8 @@ void DfineShell::runLine(const std::string& line, std::ostream& out)
 {
 	try
 	{
-		Program program = assemble(line);
-		if (checkAssembly(program) == CheckerErrno::success)
-			executeAssembly(program, environment);
+		StreamOutputWriter output(out);
+		Interpreter(output).run(line, environment);
 	}
 	catch (const std::exception& e)
 	{

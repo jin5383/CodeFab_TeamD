@@ -1,6 +1,6 @@
-#include <gtest/gtest.h>
+﻿#include <gtest/gtest.h>
 #include "../ast.h"
-#include "../function.h"
+#include "../checker.h"
 #include <functional>
 #include <vector>
 
@@ -26,7 +26,7 @@ protected:
 
 	CheckerErrno checkPrintOfExpression(Expr* expression)
 	{
-		return checkAssembly(printProgram(expression));
+		return Checker().check(printProgram(expression));
 	}
 
 	Token identifierToken(const std::string& name)
@@ -402,7 +402,7 @@ TEST_F(CheckerUnitTest, AllNormalScenarios_NoError)
 	for (const auto& scenario : scenarios)
 	{
 		SCOPED_TRACE(scenario.description);
-		EXPECT_EQ(CheckerErrno::success, checkAssembly(scenario.build()));
+		EXPECT_EQ(CheckerErrno::success, Checker().check(scenario.build()));
 	}
 }
 
@@ -427,7 +427,7 @@ TEST_F(CheckerUnitTest, SelfReferencingInitializer_ReportsError)
 	Program program;
 	program.statements.push_back(block);
 
-	EXPECT_EQ(CheckerErrno::selfReferencingInitializer, checkAssembly(program));
+	EXPECT_EQ(CheckerErrno::selfReferencingInitializer, Checker().check(program));
 }
 
 // Checker unit: `{ var a = 1; var a = 2; }` 에 해당하는 Program -> 같은 로컬 스코프 중복 선언 에러
@@ -448,5 +448,5 @@ TEST_F(CheckerUnitTest, DuplicateDeclarationInSameScope_ReportsError)
 	Program program;
 	program.statements.push_back(block);
 
-	EXPECT_EQ(CheckerErrno::duplicateDeclarationInSameScope, checkAssembly(program));
+	EXPECT_EQ(CheckerErrno::duplicateDeclarationInSameScope, Checker().check(program));
 }
