@@ -1,7 +1,67 @@
 ﻿#include "executor.h"
 
+#include <memory>
 #include <sstream>
 #include <stdexcept>
+#include <vector>
+#include "assembler.h"
+#include "checker.h"
+#include "import.h"
+
+namespace
+{
+	// import로 로딩되는 모듈은 자신의 print 등 부수효과를 메인 프로그램의 출력에 섞지 않는다.
+	class NullOutputWriter : public IOutputWriter
+	{
+	public:
+		void write(const std::string&) override {}
+	};
+
+	// Ryu: import된 모듈의 최상위 선언을 담는 그릇. alias.name(GetExpr)이 이미 Instance만
+	// 대상으로 동작하므로, 모듈을 "필드들의 묶음"인 Instance로 표현하면 별도의 LiteralValue
+	// 변형 없이 그대로 재사용할 수 있다(klass는 클래스가 아니므로 nullptr).
+	class ModuleEnvironment : public IEnvironment
+	{
+	public:
+		explicit ModuleEnvironment(std::shared_ptr<Instance> module) : module(std::move(module)) {}
+
+		void define(const std::string& name, const LiteralValue& value) override
+		{
+			module->fields[name] = value;
+		}
+
+		LiteralValue get(const Token& name) const override
+		{
+			auto it = module->fields.find(name.origin);
+			if (it != module->fields.end())
+				return it->second;
+			throw std::runtime_error("Undefined variable '" + name.origin + "'.");
+		}
+
+		void assign(const Token& name, const LiteralValue& value) override
+		{
+			auto it = module->fields.find(name.origin);
+			if (it == module->fields.end())
+				throw std::runtime_error("Undefined variable '" + name.origin + "'.");
+			it->second = value;
+		}
+
+		LiteralValue getAt(int, const Token& name) const override { return get(name); }
+		void assignAt(int, const Token& name, const LiteralValue& value) override { assign(name, value); }
+
+	private:
+		std::shared_ptr<Instance> module;
+	};
+
+	// 순환 import 감지용: 현재 실행 중인(스택에 쌓인) import 대상 파일 경로.
+	// Checker의 정적 순환 검사(TODO(Ryu))가 아직 없으므로, 최소한 무한 재귀로 인한
+	// 크래시는 막기 위해 Executor 단에서도 스택을 추적한다.
+	std::vector<std::string>& importStack()
+	{
+		static std::vector<std::string> stack;
+		return stack;
+	}
+}
 
 double Executor::asNumber(const LiteralValue& value) const
 {
@@ -231,7 +291,34 @@ void Executor::executeStmt(Stmt* stmt, IEnvironment& environment) const
 	}
 	else if (auto* importStmt = dynamic_cast<ImportStmt*>(stmt))
 	{
-		// TODO(Ryu): import 실행
+		const std::string path = std::get<std::string>(importStmt->path.value);
+
+		for (const std::string& inProgress : importStack())
+			if (inProgress == path)
+				throw std::runtime_error("Circular import detected for '" + path + "'.");
+
+		const std::string source = readImportFileOrThrow(path);
+		Program moduleProgram = Assembler().assemble(source);
+		if (Checker().check(moduleProgram) != CheckerErrno::success)
+			throw std::runtime_error("Import target file has a static error: '" + path + "'.");
+
+		auto module = std::make_shared<Instance>();
+		ModuleEnvironment moduleEnv(module);
+		NullOutputWriter nullOutput;
+
+		importStack().push_back(path);
+		try
+		{
+			Executor(nullOutput).execute(moduleProgram, moduleEnv);
+		}
+		catch (...)
+		{
+			importStack().pop_back();
+			throw;
+		}
+		importStack().pop_back();
+
+		environment.define(importStmt->alias.origin, module);
 	}
 }
 
