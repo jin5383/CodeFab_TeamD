@@ -99,13 +99,48 @@
 (필요하면 두 번 이상의 `run()` 호출로 여러 줄 세션을 흉내내어)를 직접 사용하는 통합 테스트로
 별도 검증해야 한다**:
 
-- [ ] `Interpreter::run()`이 `returnOutsideFunction`/`duplicateParameterName`/
+- [x] `Interpreter::run()`이 `returnOutsideFunction`/`duplicateParameterName`/
       `argumentCountMismatch`를 실제로 예외(에러 메시지)로 노출하는지.
-- [ ] 재귀 호출(`fact(5)` 등)이 `Interpreter::run()`을 통해 처음부터 끝까지(assemble → check →
-      execute) 정상 동작하는지.
-- [ ] `Interpreter::run()`을 **두 번 이상** 같은 `Environment`(그리고 필요한 정적 정보)로 호출했을
+      (`describeCheckerErrno` + `Interpreter::run()` 연결, `LeeInterpreterIntegrationTest`)
+- [x] 재귀 호출(`fact(5)` 등)이 `Interpreter::run()`을 통해 처음부터 끝까지(assemble → check →
+      execute) 정상 동작하는지. (`LeeInterpreterIntegrationTest.RecursiveFactorialWorksThroughInterpreter`)
+- [x] `Interpreter::run()`을 **두 번 이상** 같은 `Environment`(그리고 필요한 정적 정보)로 호출했을
       때 — 즉 "한 줄에서 `Func foo(a,b,c){...}` 선언, 다음 호출에서 `foo(1,2);`" 같은 시나리오 —
-      에서도 인자 개수 불일치가 여전히 검출되는지.
+      에서도 인자 개수 불일치가 여전히 검출되는지. (`Checker::FunctionArities` public화 +
+      `check(program, functionArities)`/`Interpreter::run(source, env, functionArities)` 오버로드
+      + `DfineShell`이 `Environment`처럼 줄 사이에 유지, `DfineShellIntegrationTest`)
+- [x] (계획에 없었지만 검증 중 발견) `CallExpr` 평가가 인자 개수를 확인하지 않고
+      `function->params.size()`만큼 `call->arguments`를 인덱싱해 인자 부족 시 범위 밖 접근
+      (벡터 어설션 크래시로 실제 재현됨)이 나던 문제 → Executor에 런타임 최종 방어선 추가.
 
 이 절의 테스트를 먼저 작성해 Red 상태를 확인한 뒤에, 필요한 계층(`Checker`/`Interpreter`/
-`DfineShell`)을 고쳐 Green으로 만든다.
+`DfineShell`)을 고쳐 Green으로 만들었다(완료).
+
+## 5. 후속 작업 — `checkCallArity`의 정적 검사 범위 확대 (미착수)
+
+**문제**: `additional-requirement-impl-spec.md` 3.1절은 "호출 대상이 함수인지 정적으로 알 수
+없는 경우만" Executor 런타임으로 미루라고 되어 있는데, 지금 `Checker::checkCallArity`는
+`checkStmt`의 `ExpressionStmt` 분기에서만 호출된다 — 즉 `foo(1, 2);`처럼 호출이 **문장 그
+자체**일 때만 정적으로 검사되고, 아래처럼 콜리가 정적으로 함수라고 알 수 있는데도 다른 표현식
+안에 중첩된 경우는 정적 검사를 건너뛴다:
+
+```
+Func foo(a, b, c) { return a; }
+var x = foo(1, 2);   // 정적 검사 안 됨 — Executor 런타임 방어선만 작동
+print foo(1, 2);      // 정적 검사 안 됨 — Executor 런타임 방어선만 작동
+```
+
+**현재 동작(안전하지만 불완전)**: 4절에서 추가한 Executor 런타임 방어선(`executor.cpp`
+`CallExpr` 평가) 덕분에 크래시 없이 `"Expected N arguments but got M."` 런타임 에러는 발생한다.
+다만 스펙이 요구하는 "정적으로 판단 가능한 경우 Checker가 잡는다"는 기준에는 못 미친다.
+
+**해야 할 일**: `checkCallArity`(또는 이를 감싸는 새 `checkExpr` 같은 일반 표현식 검사 함수)를
+`ExpressionStmt` 최상위뿐 아니라 `VarDeclStmt::initializer`, `ReturnStmt::value`,
+`PrintStmt::expression`, `IfStmt`/`ForStmt`의 조건식, `BinaryExpr`/`UnaryExpr`/`GroupingExpr`
+등 표현식이 나타날 수 있는 모든 자리를 재귀적으로 훑도록 확장한다. 기존 `exprReferencesName`가
+비슷한 재귀 구조(일부 Expr 타입만 처리)라 참고할 수 있다.
+
+**테스트 방향**: 위 두 예시(`var x = foo(1,2);`, `print foo(1,2);`)를 `CheckerUnitTest`에
+Red로 추가해 지금은 `CheckerErrno::success`가 나오는 것을 확인한 뒤, `argumentCountMismatch`가
+나오도록 Green으로 만든다. `docs/scenarios/lee-function-scenarios.md`의 에러 시나리오에도 이
+두 케이스를 추가한다.
