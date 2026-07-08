@@ -14,6 +14,7 @@
 #include <string>
 #include "assembler.h"
 #include "checker.h"
+#include "constant_folding.h"
 #include "environment.h"
 #include "executor.h"
 #include "io.h"
@@ -33,9 +34,10 @@ public:
 
 private:
 	// Facade가 감싸는 Unit들. 이들을 직접 조합하는 코드가 이 클래스 밖으로 새어나가지
-	// 않게 하는 것이 Facade 패턴의 핵심이다. Resolver는 Checker/Executor 사이에서 정적
-	// 바인딩(distance)을 미리 계산해두는 실행 전 최적화 패스다.
+	// 않게 하는 것이 Facade 패턴의 핵심이다. ConstantFolder/Resolver는 Checker/Executor
+	// 이전에 실행되는 실행 전 최적화 패스다(리터럴 폴딩 / 정적 바인딩 distance 계산).
 	Assembler assembler;
+	ConstantFolder constantFolder;
 	Resolver resolver;
 	Checker checker;
 	Executor executor;
