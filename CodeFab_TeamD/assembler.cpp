@@ -32,6 +32,7 @@ namespace
 		if (origin == KEYWORD_ELSE) return makeSimpleToken(TokenType::ELSE, origin);
 		if (origin == KEYWORD_FOR) return makeSimpleToken(TokenType::FOR, origin);
 		if (origin == KEYWORD_PRINT) return makeSimpleToken(TokenType::PRINT, origin);
+		if (origin == "Class") return makeSimpleToken(TokenType::CLASS, origin);
 		return std::nullopt;
 	}
 
@@ -52,6 +53,8 @@ namespace
 		case '>': return makeSimpleToken(TokenType::GREATER, ">");
 		case '{': return makeSimpleToken(TokenType::LEFT_BRACE, "{");
 		case '}': return makeSimpleToken(TokenType::RIGHT_BRACE, "}");
+		case '.': return makeSimpleToken(TokenType::DOT, ".");
+		case ',': return makeSimpleToken(TokenType::COMMA, ",");
 		default: return std::nullopt;
 		}
 	}
@@ -106,10 +109,34 @@ namespace
 			case TokenType::FOR: return parseForStatement();
 			case TokenType::FUNC: throw std::runtime_error("Func statement not yet implemented (Phase 1: Lee)."); // TODO(Lee)
 			case TokenType::RETURN: throw std::runtime_error("Return statement not yet implemented (Phase 1: Lee)."); // TODO(Lee)
-			case TokenType::CLASS: throw std::runtime_error("Class statement not yet implemented (Park)."); // TODO(Park)
+			case TokenType::CLASS: return parseClassStatement();
 			case TokenType::IMPORT: throw std::runtime_error("Import statement not yet implemented (Ryu)."); // TODO(Ryu)
 			default: return parseExpressionStatement();
 			}
+		}
+
+		Stmt* parseClassStatement()
+		{
+			getTokenAndAdvance(); // Class
+			auto* stmt = new ClassDeclStmt();
+			stmt->name = expectAndAdvance(TokenType::IDENTIFIER, "Expect class name.");
+
+			if (getCurrentToken().type == TokenType::COLON)
+			{
+				getTokenAndAdvance(); // :
+				auto* superToken = new Token(expectAndAdvance(TokenType::IDENTIFIER, "Expect superclass name."));
+				stmt->superclass = superToken;
+			}
+
+			expectAndAdvance(TokenType::LEFT_BRACE, "Expect '{' before class body.");
+			while (getCurrentToken().type != TokenType::RIGHT_BRACE &&
+				   getCurrentToken().type != TokenType::END_OF_FILE)
+			{
+				// TODO(Park): 메서드 파싱 - Phase 1에서 구현
+				getTokenAndAdvance();
+			}
+			expectAndAdvance(TokenType::RIGHT_BRACE, "Expect '}' after class body.");
+			return stmt;
 		}
 
 		// "var 이름 (= 초깃값)? ;" 을 읽어 VarDeclStmt를 만든다
@@ -208,7 +235,7 @@ namespace
 
 		Expr* parseExpression() { return parseAssignmentExpr(); }
 
-		// "이름 = 식" 을 읽어 AssignExpr를 만든다. 우결합이므로 재귀로 처리
+		// "이름 = 식" / "obj.field = 식" 을 읽어 AssignExpr / SetExpr를 만든다. 우결합이므로 재귀로 처리
 		Expr* parseAssignmentExpr()
 		{
 			Expr* expr = parseComparisonExpr();
@@ -217,6 +244,15 @@ namespace
 			{
 				getTokenAndAdvance(); // =
 				Expr* value = parseAssignmentExpr();
+
+				if (auto* get = dynamic_cast<GetExpr*>(expr))
+				{
+					auto* set = new SetExpr();
+					set->object = get->object;
+					set->name = get->name;
+					set->value = value;
+					return set;
+				}
 
 				auto* variable = dynamic_cast<VariableExpr*>(expr);
 				if (variable == nullptr)
@@ -306,7 +342,47 @@ namespace
 				return unary;
 			}
 
-			return parsePrimary();
+			return parsePostfixExpr();
+		}
+
+		// Lee(CallExpr/LEFT_PAREN), Park(GetExpr/DOT)이 각자 이 함수 안에 분기를 추가한다 (TODO)
+		Expr* parsePostfixExpr()
+		{
+			Expr* expr = parsePrimary();
+
+			while (true)
+			{
+				if (getCurrentToken().type == TokenType::LEFT_PAREN)
+				{
+					getTokenAndAdvance(); // (
+					auto* call = new CallExpr();
+					call->callee = expr;
+					while (getCurrentToken().type != TokenType::RIGHT_PAREN &&
+						   getCurrentToken().type != TokenType::END_OF_FILE)
+					{
+						call->arguments.push_back(parseExpression());
+						if (getCurrentToken().type == TokenType::COMMA)
+							getTokenAndAdvance();
+					}
+					expectAndAdvance(TokenType::RIGHT_PAREN, "Expect ')' after arguments.");
+					expr = call;
+				}
+				else if (getCurrentToken().type == TokenType::DOT)
+				{
+					getTokenAndAdvance(); // .
+					Token name = expectAndAdvance(TokenType::IDENTIFIER, "Expect property name after '.'.");
+					auto* get = new GetExpr();
+					get->object = expr;
+					get->name = name;
+					expr = get;
+				}
+				else
+				{
+					break;
+				}
+			}
+
+			return expr;
 		}
 
 		// 괄호면 GroupingExpr, 식별자면 VariableExpr, 리터럴이면 LiteralExpr, 그 외에는 구문 오류

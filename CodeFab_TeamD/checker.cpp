@@ -104,7 +104,6 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes) const
 
 	if (auto* classDecl = dynamic_cast<ClassDeclStmt*>(stmt))
 	{
-		// TODO(Park): 클래스 선언 정적 검사(this/super 범위, 자기 상속 등)
 		return CheckerErrno::success;
 	}
 

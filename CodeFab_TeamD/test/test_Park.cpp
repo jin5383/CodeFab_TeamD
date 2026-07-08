@@ -3,6 +3,9 @@
 #include <stdexcept>
 #include "../ast.h"
 #include "../assembler.h"
+#include "../executor.h"
+#include "../environment.h"
+#include "../io.h"
 
 using namespace testing;
 
@@ -527,5 +530,138 @@ TEST(AssemblerSyntaxErrorTest, UnexpectedTokenInExpressionPositionReportsError)
 	catch (const std::exception& e)
 	{
 		EXPECT_STREQ(e.what(), "Expect expression.");
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Assembler unit: Class 관련 AST 구조 검증
+// ──────────────────────────────────────────────────────────────────────────────
+
+// "Class Robot { }" → ClassDeclStmt { name: Robot, superclass: nullptr, methods: [] }
+TEST(AssemblerClassTest, EmptyClassDecl_BuildsClassDeclStmt)
+{
+	Program program = Assembler().assemble("Class Robot { }");
+
+	ASSERT_THAT(program.statements, SizeIs(1));
+	auto* classDecl = dynamic_cast<ClassDeclStmt*>(program.statements[0]);
+	ASSERT_NE(classDecl, nullptr);
+	EXPECT_EQ(classDecl->name.origin, "Robot");
+	EXPECT_EQ(classDecl->superclass, nullptr);
+	EXPECT_THAT(classDecl->methods, IsEmpty());
+}
+
+// "var r = Robot();" → VarDeclStmt { initializer: CallExpr { callee: VariableExpr(Robot) } }
+TEST(AssemblerClassTest, ClassInstantiation_BuildsCallExpr)
+{
+	Program program = Assembler().assemble("Class Robot { } var r = Robot();");
+
+	ASSERT_THAT(program.statements, SizeIs(2));
+	auto* varDecl = dynamic_cast<VarDeclStmt*>(program.statements[1]);
+	ASSERT_NE(varDecl, nullptr);
+	auto* call = dynamic_cast<CallExpr*>(varDecl->initializer);
+	ASSERT_NE(call, nullptr);
+	auto* callee = dynamic_cast<VariableExpr*>(call->callee);
+	ASSERT_NE(callee, nullptr);
+	EXPECT_EQ(callee->name.origin, "Robot");
+	EXPECT_THAT(call->arguments, IsEmpty());
+}
+
+// "r.name" → GetExpr { object: VariableExpr(r), name: name }
+TEST(AssemblerClassTest, FieldGet_BuildsGetExpr)
+{
+	Program program = Assembler().assemble("r.name;");
+
+	auto* exprStmt = dynamic_cast<ExpressionStmt*>(program.statements[0]);
+	ASSERT_NE(exprStmt, nullptr);
+	auto* get = dynamic_cast<GetExpr*>(exprStmt->expression);
+	ASSERT_NE(get, nullptr);
+	EXPECT_EQ(get->name.origin, "name");
+	auto* obj = dynamic_cast<VariableExpr*>(get->object);
+	ASSERT_NE(obj, nullptr);
+	EXPECT_EQ(obj->name.origin, "r");
+}
+
+// "r.name = \"SpeedRobot\";" → SetExpr { object: VariableExpr(r), name: name, value: LiteralExpr("SpeedRobot") }
+TEST(AssemblerClassTest, FieldSet_BuildsSetExpr)
+{
+	Program program = Assembler().assemble("r.name = \"SpeedRobot\";");
+
+	auto* exprStmt = dynamic_cast<ExpressionStmt*>(program.statements[0]);
+	ASSERT_NE(exprStmt, nullptr);
+	auto* set = dynamic_cast<SetExpr*>(exprStmt->expression);
+	ASSERT_NE(set, nullptr);
+	EXPECT_EQ(set->name.origin, "name");
+	auto* obj = dynamic_cast<VariableExpr*>(set->object);
+	ASSERT_NE(obj, nullptr);
+	EXPECT_EQ(obj->name.origin, "r");
+	auto* val = dynamic_cast<LiteralExpr*>(set->value);
+	ASSERT_NE(val, nullptr);
+	EXPECT_EQ(std::get<std::string>(val->value), "SpeedRobot");
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Executor unit: Class 실행 TC
+// ──────────────────────────────────────────────────────────────────────────────
+
+namespace
+{
+	struct StringWriter : IOutputWriter
+	{
+		std::string output;
+		void write(const std::string& text) override { output += text; }
+	};
+
+	std::string runCode(const std::string& source)
+	{
+		StringWriter writer;
+		Executor executor(writer);
+		Program program = Assembler().assemble(source);
+		executor.execute(program);
+		return writer.output;
+	}
+}
+
+// 메인 TC: Class Robot { } / var robot = Robot(); / var r = Robot(); / r.name = "SpeedRobot"; / r.speed = 10; / print r.name;
+TEST(ExecutorClassTest, MainTC_PrintsFieldValue)
+{
+	std::string result = runCode(
+		"Class Robot { } "
+		"var robot = Robot(); "
+		"var r = Robot(); "
+		"r.name = \"SpeedRobot\"; "
+		"r.speed = 10; "
+		"print r.name;"
+	);
+	EXPECT_EQ(result, "SpeedRobot\n");
+}
+
+// 필드 갱신: r.speed = r.speed + 5;
+TEST(ExecutorClassTest, FieldUpdate_PrintsUpdatedValue)
+{
+	std::string result = runCode(
+		"Class Robot { } "
+		"var r = Robot(); "
+		"r.speed = 10; "
+		"r.speed = r.speed + 5; "
+		"print r.speed;"
+	);
+	EXPECT_EQ(result, "15\n");
+}
+
+// 존재하지 않는 필드 읽기 → 런타임 오류
+TEST(ExecutorClassTest, UndefinedFieldGet_ThrowsRuntimeError)
+{
+	try
+	{
+		runCode(
+			"Class Robot { } "
+			"var r = Robot(); "
+			"print r.power;"
+		);
+		FAIL() << "런타임 오류 예외가 발생해야 한다.";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_THAT(e.what(), HasSubstr("Undefined property 'power'"));
 	}
 }

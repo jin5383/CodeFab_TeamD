@@ -41,11 +41,13 @@ enum class TokenType
 };
 
 struct FunctionDeclStmt;
+struct ClassDeclStmt; // Park: ClassValue가 non-owning 참조로 보관하기 위해 선행 선언
+struct ClassValue;    // Park: 클래스 선언을 LiteralValue로 환경에 저장하기 위한 핸들
 struct Instance;
 struct ArrayValue;
 
 using LiteralValue = std::variant<std::monostate, double, std::string, bool,
-	std::shared_ptr<FunctionDeclStmt>, std::shared_ptr<Instance>, std::shared_ptr<ArrayValue>>;
+	std::shared_ptr<FunctionDeclStmt>, std::shared_ptr<ClassValue>, std::shared_ptr<Instance>, std::shared_ptr<ArrayValue>>;
 
 // Hong: 배열 값. std::vector<LiteralValue>를 variant 안에 직접 넣으면 자기 참조 별칭이 되어
 // 컴파일이 불가능하므로, shared_ptr로 감싸는 래퍼 구조체를 하나 둔다(명세의 shared_ptr<vector<LiteralValue>>와 동등).
@@ -120,14 +122,12 @@ struct CallExpr : Expr
 	std::vector<Expr*> arguments;
 };
 
-// Park: r.name, This.position
 struct GetExpr : Expr
 {
 	Expr* object = nullptr;
 	Token name;
 };
 
-// Park: r.name = ..., This.field = value
 struct SetExpr : Expr
 {
 	Expr* object = nullptr;
@@ -230,7 +230,6 @@ struct ReturnStmt : Stmt
 	Expr* value = nullptr; // 생략 시(값 없는 return;) nullptr
 };
 
-// Park: 메서드는 Lee의 FunctionDeclStmt를 그대로 재사용
 struct ClassDeclStmt : Stmt
 {
 	Token name;
@@ -238,7 +237,12 @@ struct ClassDeclStmt : Stmt
 	std::vector<FunctionDeclStmt*> methods;
 };
 
-// Park: 인스턴스 값. 필드는 동적으로 생성되므로 unordered_map으로 보관
+// ClassDeclStmt의 소유권은 Program이 갖고, ClassValue는 non-owning 참조만 보관한다.
+struct ClassValue
+{
+	ClassDeclStmt* decl = nullptr;
+};
+
 struct Instance
 {
 	ClassDeclStmt* klass = nullptr;
