@@ -690,3 +690,26 @@ TEST_F(LeeExecutorTest, FunctionCallBindsArgumentAndExecutesBody)
 
 	EXPECT_EQ(writer.output, "42\n");
 }
+
+// Executor unit: return이 함수 실행을 조기 종료시키고, 그 값이 호출식의 결과가 되어야 한다
+// (docs/scenarios/lee-function-scenarios.md 선언+호출 시나리오).
+TEST_F(LeeExecutorTest, ReturnValueBecomesCallExpressionResult)
+{
+	Program program = Assembler().assemble("Func add(a, b) { return a + b; } print add(3, 7);");
+
+	Environment env;
+	executor.execute(program, env);
+
+	EXPECT_EQ(writer.output, "10\n");
+}
+
+// Executor unit: return 이후의 문장은 실행되지 않아야 한다(조기 종료 확인)
+TEST_F(LeeExecutorTest, StatementsAfterReturnAreSkipped)
+{
+	Program program = Assembler().assemble("Func f() { return 1; print \"unreachable\"; } f();");
+
+	Environment env;
+	executor.execute(program, env);
+
+	EXPECT_EQ(writer.output, "");
+}
