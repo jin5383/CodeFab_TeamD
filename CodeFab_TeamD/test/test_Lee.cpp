@@ -4,7 +4,9 @@
 #include "../assembler.h"
 #include "../executor.h"
 #include "../interpreter.h"
+#include "../dfine_shell.h"
 #include <functional>
+#include <sstream>
 #include <vector>
 
 // Lee 전용 Executor 테스트용 가짜 출력(test_Hong.cpp의 동명 클래스와는 별개 — 각자
@@ -806,4 +808,20 @@ TEST_F(LeeInterpreterIntegrationTest, RecursiveFactorialWorksThroughInterpreter)
 	interpreter.run("Func fact(n) { if (n < 2) return 1; return n * fact(n - 1); } print fact(5);", env);
 
 	EXPECT_EQ(writer.output, "120\n");
+}
+
+// 실사용 경로(DfineShell REPL) 검증: 함수 선언과 호출이 "서로 다른 줄"에 입력되는 흔한
+// REPL 사용 패턴에서도 인자 개수 불일치가 검출돼야 한다(docs/lee-function-impl-plan.md 4절).
+// DfineShell::runLine()이 매 줄 새 Interpreter/Checker를 만들어, 이전 줄에서 선언한 함수의
+// 인자 개수 정보가 다음 줄까지 남아있지 않으므로 지금은 실패한다(Red).
+TEST(DfineShellIntegrationTest, ArgumentCountMismatchDetectedAcrossSeparateLines)
+{
+	std::istringstream in("Func foo(a, b, c) { return a; }\nfoo(1, 2);\nexit\n");
+	std::ostringstream out;
+
+	DfineShell shell;
+	shell.run(in, out);
+
+	EXPECT_NE(out.str().find("Wrong number of arguments in function call."), std::string::npos)
+		<< "actual output: " << out.str();
 }
