@@ -19,27 +19,47 @@
 // Checker::checkStmt 참고). 노드 자체는 순수 데이터 구조로 남기고, 해석 로직은 그
 // 로직을 필요로 하는 Unit(Executor/Checker) 쪽에 두고 싶었기 때문이다(관심사 분리).
 
+#include <memory>
 #include <string>
+#include <unordered_map>
 #include <variant>
 #include <vector>
 
 enum class TokenType
 {
 	LEFT_PAREN, RIGHT_PAREN, LEFT_BRACE, RIGHT_BRACE,
+	LEFT_BRACKET, RIGHT_BRACKET, // Hong: 정적 배열 arr[i]
 	SEMICOLON, PLUS, MINUS, STAR, SLASH, EQUAL,
 	GREATER, LESS, BANG,
+	DOT, COLON, // Park: r.field / Class A : B
 	IDENTIFIER, STRING, NUMBER,
 	TRUE, FALSE, VAR, IF, ELSE, FOR, AND, OR, PRINT,
+	FUNC, RETURN, COMMA, // Lee: 함수
+	CLASS, THIS, SUPER, INSTANCEOF, // Park: 클래스
+	IMPORT, ALIAS, // Ryu: import
 	END_OF_FILE
 };
 
-using LiteralValue = std::variant<std::monostate, double, std::string, bool>;
+struct FunctionDeclStmt;
+struct Instance;
+struct ArrayValue;
+
+using LiteralValue = std::variant<std::monostate, double, std::string, bool,
+	std::shared_ptr<FunctionDeclStmt>, std::shared_ptr<Instance>, std::shared_ptr<ArrayValue>>;
+
+// Hong: 배열 값. std::vector<LiteralValue>를 variant 안에 직접 넣으면 자기 참조 별칭이 되어
+// 컴파일이 불가능하므로, shared_ptr로 감싸는 래퍼 구조체를 하나 둔다(명세의 shared_ptr<vector<LiteralValue>>와 동등).
+struct ArrayValue
+{
+	std::vector<LiteralValue> items;
+};
 
 struct Token
 {
 	TokenType type;
 	std::string origin;
 	LiteralValue value;
+	int line = 0; // Ryu: 파일 모드 런타임 에러 메시지에 사용
 };
 
 // Composite 패턴의 "Component" 역할. 값을 만들어내는 모든 노드(리프/복합 노드 공통)의
@@ -58,12 +78,14 @@ struct LiteralExpr : Expr
 struct VariableExpr : Expr
 {
 	Token name;
+	int distance = -1; // Kwon: 정적 바인딩 캐시(몇 단계 위 스코프인지). -1이면 미계산/전역
 };
 
 struct AssignExpr : Expr
 {
 	Token name;
 	Expr* value = nullptr;
+	int distance = -1; // Kwon: VariableExpr::distance와 동일한 용도
 };
 
 // 스펙의 'operator' 필드는 C++ 예약어와 충돌하여 'op'로 명명함
@@ -90,6 +112,65 @@ struct LogicalExpr : Expr
 struct GroupingExpr : Expr
 {
 	Expr* expression = nullptr;
+};
+
+struct CallExpr : Expr
+{
+	Expr* callee = nullptr;
+	std::vector<Expr*> arguments;
+};
+
+// Park: r.name, This.position
+struct GetExpr : Expr
+{
+	Expr* object = nullptr;
+	Token name;
+};
+
+// Park: r.name = ..., This.field = value
+struct SetExpr : Expr
+{
+	Expr* object = nullptr;
+	Token name;
+	Expr* value = nullptr;
+};
+
+struct ThisExpr : Expr
+{
+	Token keyword;
+};
+
+struct SuperExpr : Expr
+{
+	Token keyword;
+	Token method;
+};
+
+struct InstanceOfExpr : Expr
+{
+	Expr* object = nullptr;
+	Token className;
+};
+
+// Hong: arr[i]
+struct IndexGetExpr : Expr
+{
+	Expr* array = nullptr;
+	Expr* index = nullptr;
+};
+
+// Hong: arr[i] = v
+struct IndexSetExpr : Expr
+{
+	Expr* array = nullptr;
+	Expr* index = nullptr;
+	Expr* value = nullptr;
+};
+
+// Hong: Array(3) - CallExpr과 문법적으로 겹치지 않도록 전용 노드로 분리
+struct ArrayExpr : Expr
+{
+	Expr* size = nullptr;
 };
 
 // Expr과 마찬가지로 Composite 패턴의 "Component" 역할이지만, 값이 아니라 동작을
@@ -135,6 +216,40 @@ struct ForStmt : Stmt
 	Expr* condition = nullptr;
 	Expr* increment = nullptr;
 	Stmt* body = nullptr;
+};
+
+struct FunctionDeclStmt : Stmt
+{
+	Token name;
+	std::vector<Token> params;
+	std::vector<Stmt*> body;
+};
+
+struct ReturnStmt : Stmt
+{
+	Expr* value = nullptr; // 생략 시(값 없는 return;) nullptr
+};
+
+// Park: 메서드는 Lee의 FunctionDeclStmt를 그대로 재사용
+struct ClassDeclStmt : Stmt
+{
+	Token name;
+	Token* superclass = nullptr; // 부모 클래스 이름 토큰, 없으면 nullptr(단일 상속만 지원)
+	std::vector<FunctionDeclStmt*> methods;
+};
+
+// Park: 인스턴스 값. 필드는 동적으로 생성되므로 unordered_map으로 보관
+struct Instance
+{
+	ClassDeclStmt* klass = nullptr;
+	std::unordered_map<std::string, LiteralValue> fields;
+};
+
+// Ryu: import "path" alias name;
+struct ImportStmt : Stmt
+{
+	Token path;
+	Token alias;
 };
 
 // Composite 트리의 루트. Assembler Unit의 유일한 성공 Output이자 Checker/Executor

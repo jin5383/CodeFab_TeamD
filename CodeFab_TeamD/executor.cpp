@@ -43,6 +43,60 @@ LiteralValue Executor::evaluate(Expr* expr, Environment& environment) const
 			return -asNumber(evaluate(unary->right, environment));
 	}
 
+	if (auto* call = dynamic_cast<CallExpr*>(expr))
+	{
+		// TODO(Lee): 함수 호출 실행 - Phase 1에서 구현
+		return LiteralValue{};
+	}
+
+	if (auto* get = dynamic_cast<GetExpr*>(expr))
+	{
+		// TODO(Park): 필드/메서드 읽기
+		return LiteralValue{};
+	}
+
+	if (auto* set = dynamic_cast<SetExpr*>(expr))
+	{
+		// TODO(Park): 필드 쓰기(동적 필드 생성 포함)
+		return LiteralValue{};
+	}
+
+	if (auto* thisExpr = dynamic_cast<ThisExpr*>(expr))
+	{
+		// TODO(Park): this 평가
+		return LiteralValue{};
+	}
+
+	if (auto* superExpr = dynamic_cast<SuperExpr*>(expr))
+	{
+		// TODO(Park): super.method 평가
+		return LiteralValue{};
+	}
+
+	if (auto* instanceOf = dynamic_cast<InstanceOfExpr*>(expr))
+	{
+		// TODO(Park): instanceof 평가
+		return LiteralValue{};
+	}
+
+	if (auto* indexGet = dynamic_cast<IndexGetExpr*>(expr))
+	{
+		// TODO(Hong): 배열 인덱스 읽기
+		return LiteralValue{};
+	}
+
+	if (auto* indexSet = dynamic_cast<IndexSetExpr*>(expr))
+	{
+		// TODO(Hong): 배열 인덱스 쓰기
+		return LiteralValue{};
+	}
+
+	if (auto* arrayExpr = dynamic_cast<ArrayExpr*>(expr))
+	{
+		// TODO(Hong): Array(n) 생성
+		return LiteralValue{};
+	}
+
 	if (auto* binary = dynamic_cast<BinaryExpr*>(expr))
 	{
 		LiteralValue left = evaluate(binary->left, environment);
@@ -134,12 +188,32 @@ void Executor::executeStmt(Stmt* stmt, Environment& environment) const
 				evaluate(forStmt->increment, loopEnv);
 		}
 	}
+	else if (auto* funcDecl = dynamic_cast<FunctionDeclStmt*>(stmt))
+	{
+		// TODO(Lee): 함수 선언 실행 - Phase 1에서 구현
+	}
+	else if (auto* returnStmt = dynamic_cast<ReturnStmt*>(stmt))
+	{
+		// TODO(Lee): return 문 실행 - Phase 1에서 구현
+	}
+	else if (auto* classDecl = dynamic_cast<ClassDeclStmt*>(stmt))
+	{
+		// TODO(Park): 클래스 선언 실행
+	}
+	else if (auto* importStmt = dynamic_cast<ImportStmt*>(stmt))
+	{
+		// TODO(Ryu): import 실행
+	}
 }
 
-void Executor::execute(const Program& program, Environment& environment) const
+void Executor::execute(const Program& program, Environment& environment, const StmtExecutedCallback& onStmtExecuted) const
 {
 	for (Stmt* stmt : program.statements)
+	{
 		executeStmt(stmt, environment);
+		if (onStmtExecuted)
+			onStmtExecuted(*stmt, environment);
+	}
 }
 
 void Executor::execute(const Program& program) const
