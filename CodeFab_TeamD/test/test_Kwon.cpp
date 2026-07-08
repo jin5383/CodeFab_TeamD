@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include "../ast.h"
 #include "../assembler.h"
+#include "../environment.h"
 
 using namespace testing;
 
@@ -162,4 +163,60 @@ TEST(AssemblerSyntaxErrorTestSub, MissingClosingBraceReportsError)
 	{
 		EXPECT_STREQ(e.what(), "Expect '}' after block.");
 	}
+}
+
+// 회귀 테스트: PR-1에서 enclosing을 Environment*에서 IEnvironment*로 바꾼 뒤에도
+// 기존 get/assign 체인 조회 동작이 그대로 유지되는지 확인한다.
+// ::Environment로 명시한 이유: 파일 상단 using namespace testing; 때문에 testing::Environment와 충돌.
+TEST(EnvironmentUnitTest, GetFallsBackToEnclosingScope)
+{
+	::Environment global;
+	global.define("a", 1.0);
+	::Environment local(&global);
+
+	Token name{ TokenType::IDENTIFIER, "a", std::monostate{} };
+	EXPECT_DOUBLE_EQ(std::get<double>(local.get(name)), 1.0);
+}
+
+TEST(EnvironmentUnitTest, AssignFallsBackToEnclosingScope)
+{
+	::Environment global;
+	global.define("a", 1.0);
+	::Environment local(&global);
+
+	Token name{ TokenType::IDENTIFIER, "a", std::monostate{} };
+	local.assign(name, 2.0);
+
+	EXPECT_DOUBLE_EQ(std::get<double>(global.get(name)), 2.0);
+}
+
+// getAt/assignAt이 distance만큼 enclosing 체인을 재귀적으로 타고 올라가 정확한
+// 스코프에서 값을 읽고/쓰는지 검증한다(3단 체인: local -> middle -> global).
+TEST(EnvironmentUnitTest, GetAtReadsValueFromExactDistance)
+{
+	::Environment global;
+	global.define("a", "global-value");
+	::Environment middle(&global);
+	middle.define("a", "middle-value");
+	::Environment local(&middle);
+	local.define("a", "local-value");
+
+	Token name{ TokenType::IDENTIFIER, "a", std::monostate{} };
+	EXPECT_EQ(std::get<std::string>(local.getAt(0, name)), "local-value");
+	EXPECT_EQ(std::get<std::string>(local.getAt(1, name)), "middle-value");
+	EXPECT_EQ(std::get<std::string>(local.getAt(2, name)), "global-value");
+}
+
+TEST(EnvironmentUnitTest, AssignAtWritesValueAtExactDistance)
+{
+	::Environment global;
+	global.define("a", 0.0);
+	::Environment local(&global);
+	local.define("a", 0.0);
+
+	Token name{ TokenType::IDENTIFIER, "a", std::monostate{} };
+	local.assignAt(1, name, 9.0);
+
+	EXPECT_DOUBLE_EQ(std::get<double>(global.get(name)), 9.0);
+	EXPECT_DOUBLE_EQ(std::get<double>(local.getAt(0, name)), 0.0);
 }
