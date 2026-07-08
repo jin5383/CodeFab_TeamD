@@ -24,6 +24,9 @@ source code (string)
 - 원본: [`CodeFab_Requirement.pdf`](CodeFab_Requirement.pdf)
 - 텍스트 추출본(한글 포함): [`docs/CodeFab_Requirement.extracted.txt`](docs/CodeFab_Requirement.extracted.txt)
   - PDF가 갱신되면 `python scripts/extract_requirement_pdf.py`로 재생성합니다.
+- 추가 요구사항(3~4일차 기능 추가 미션) 원본: [`CodeFab_Additional_Requirement.pdf`](CodeFab_Additional_Requirement.pdf)
+  - 텍스트 추출본: [`docs/CodeFab_Additional_Requirement.extracted.txt`](docs/CodeFab_Additional_Requirement.extracted.txt)
+  - 구현 명세 및 5인 작업 분배/통합 계획: [`docs/additional-requirement-impl-spec.md`](docs/additional-requirement-impl-spec.md)
 
 ## 프로젝트 구조
 
@@ -50,7 +53,9 @@ docs/                          # 설계 명세 문서
   unit-layout-spec.md                 # Unit 파일 구성 및 진입점 명세
   program-tree-struct-spec.md         # Program/Expr/Stmt 트리 구조 명세
   tdd-workflow-rule.md                # TDD 진행 규칙 (Red → Green 사이클)
+  additional-requirement-impl-spec.md # 추가 기능 요구사항 구현 명세 및 5인 작업 분배/통합 계획
   CodeFab_Requirement.extracted.txt   # 요구사항 PDF 텍스트 추출본
+  CodeFab_Additional_Requirement.extracted.txt  # 추가 요구사항 PDF 텍스트 추출본
 packages/                      # NuGet 패키지 (GoogleTest/GoogleMock)
 scripts/                       # 보조 스크립트 (요구사항 PDF 텍스트 추출 등)
 ```
@@ -64,6 +69,7 @@ scripts/                       # 보조 스크립트 (요구사항 PDF 텍스트
 - [`program-tree-struct-spec.md`](docs/program-tree-struct-spec.md): Assembler의 Output이자 Checker/Executor의 Input인 Program 트리(Token/Expr 7종/Stmt 6종)의 필드와 계층 구조를 `ast.h` 구현 기준으로 확정합니다.
 - [`tdd-workflow-rule.md`](docs/tdd-workflow-rule.md): [`테스트 스크립트.md`](테스트%20스크립트.md)의 시나리오를 gtest 케이스로 옮기며 Red → Green을 반복하는 TDD 진행 절차(사이클 규칙)를 정의합니다.
 - [`CodeFab_Requirement.extracted.txt`](docs/CodeFab_Requirement.extracted.txt): 요구사항 원본 PDF의 텍스트 추출본입니다.
+- [`additional-requirement-impl-spec.md`](docs/additional-requirement-impl-spec.md): 추가 요구사항(function/class/정적배열/실행전 최적화/import/공장제어쉘)을 5명이 서로 막히지 않고 병행 개발하도록 나눈 작업 분배와, 각자 작업이 다시 합쳐질 때의 통합 절차를 정의합니다.
 
 ## 빌드 및 테스트 실행
 
