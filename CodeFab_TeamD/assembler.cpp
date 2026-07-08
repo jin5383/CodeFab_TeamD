@@ -115,7 +115,7 @@ namespace
 			case TokenType::LEFT_BRACE: return parseBlockStatement();
 			case TokenType::IF: return parseIfStatement();
 			case TokenType::FOR: return parseForStatement();
-			case TokenType::FUNC: throw std::runtime_error("Func statement not yet implemented (Phase 1: Lee)."); // TODO(Lee)
+			case TokenType::FUNC: return parseFunctionDeclStatement();
 			case TokenType::RETURN: throw std::runtime_error("Return statement not yet implemented (Phase 1: Lee)."); // TODO(Lee)
 			case TokenType::CLASS: return parseClassStatement();
 			case TokenType::IMPORT: return parseImportStatement();
@@ -183,6 +183,33 @@ namespace
 			auto* stmt = new ExpressionStmt();
 			stmt->expression = parseExpression();
 			expectAndAdvance(TokenType::SEMICOLON, "Expect ';' after value.");
+			return stmt;
+		}
+
+		// "Func 이름 ( 파라미터,* ) { 문장* }" 을 읽어 FunctionDeclStmt를 만든다
+		Stmt* parseFunctionDeclStatement()
+		{
+			getTokenAndAdvance(); // Func
+			auto* stmt = new FunctionDeclStmt();
+			stmt->name = expectAndAdvance(TokenType::IDENTIFIER, "Expect function name.");
+
+			expectAndAdvance(TokenType::LEFT_PAREN, "Expect '(' after function name.");
+			if (getCurrentToken().type != TokenType::RIGHT_PAREN)
+			{
+				stmt->params.push_back(expectAndAdvance(TokenType::IDENTIFIER, "Expect parameter name."));
+				while (getCurrentToken().type == TokenType::COMMA)
+				{
+					getTokenAndAdvance(); // ,
+					stmt->params.push_back(expectAndAdvance(TokenType::IDENTIFIER, "Expect parameter name."));
+				}
+			}
+			expectAndAdvance(TokenType::RIGHT_PAREN, "Expect ')' after parameters.");
+
+			expectAndAdvance(TokenType::LEFT_BRACE, "Expect '{' before function body.");
+			while (getCurrentToken().type != TokenType::RIGHT_BRACE && getCurrentToken().type != TokenType::END_OF_FILE)
+				stmt->body.push_back(parseStatement());
+			expectAndAdvance(TokenType::RIGHT_BRACE, "Expect '}' after function body.");
+
 			return stmt;
 		}
 
