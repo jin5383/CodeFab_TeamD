@@ -11,10 +11,14 @@
 //
 // 출력은 std::cout에 직접 쓰지 않고 IOutputWriter(Strategy 패턴, io.h 참고)를 통해
 // 내보내, 실행 로직과 "결과를 어디로 보낼지"를 분리한다.
+#include <functional>
 #include <string>
 #include "ast.h"
 #include "environment.h"
 #include "io.h"
+
+// Ryu: 디버그 모드에서 한 Stmt 실행마다 호출되는 콜백. 기본값(nullptr)이면 기존과 동일하게 콜백 없이 실행.
+using StmtExecutedCallback = std::function<void(const Stmt&, Environment&)>;
 
 class Executor
 {
@@ -25,7 +29,8 @@ public:
 
 	// 주어진 environment(컨텍스트)를 그대로 사용해 실행한다. DfineShell처럼 여러 줄에 걸쳐
 	// 변수 컨텍스트를 유지해야 하는 호출자를 위한 진입점.
-	void execute(const Program& program, Environment& environment) const;
+	// onStmtExecuted: Ryu의 디버그 모드 stepping 훅(기본값 nullptr이면 기존과 동일하게 동작).
+	void execute(const Program& program, Environment& environment, const StmtExecutedCallback& onStmtExecuted = nullptr) const;
 
 	// 매번 새 global Environment로 한 번만 실행하는 호출자를 위한 진입점.
 	void execute(const Program& program) const;

@@ -32,17 +32,20 @@
     <ClCompile Include="dfine_shell.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="function\Assembler_Token_Unit.cpp">
-      <Filter>function</Filter>
+    <ClCompile Include="assembler.cpp">
+      <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="function\Assembler_Construct_Unit.cpp">
-      <Filter>function</Filter>
+    <ClCompile Include="checker.cpp">
+      <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="function\Checker_Unit.cpp">
-      <Filter>function</Filter>
+    <ClCompile Include="executor.cpp">
+      <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="function\Executor_Unit.cpp">
-      <Filter>function</Filter>
+    <ClCompile Include="interpreter.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="io.cpp">
+      <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="test\test_Ryu.cpp">
       <Filter>test</Filter>
@@ -61,10 +64,22 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="function.h">
+    <ClInclude Include="ast.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="ast.h">
+    <ClInclude Include="assembler.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="checker.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="executor.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="interpreter.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="io.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="environment.h">

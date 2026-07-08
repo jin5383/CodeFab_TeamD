@@ -141,10 +141,11 @@
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="dfine_shell.cpp" />
-    <ClCompile Include="function\Assembler_Token_Unit.cpp" />
-    <ClCompile Include="function\Assembler_Construct_Unit.cpp" />
-    <ClCompile Include="function\Checker_Unit.cpp" />
-    <ClCompile Include="function\Executor_Unit.cpp" />
+    <ClCompile Include="assembler.cpp" />
+    <ClCompile Include="checker.cpp" />
+    <ClCompile Include="executor.cpp" />
+    <ClCompile Include="interpreter.cpp" />
+    <ClCompile Include="io.cpp" />
     <ClCompile Include="test\test_Ryu.cpp" />
     <ClCompile Include="test\test_Kwon.cpp" />
     <ClCompile Include="test\test_Lee.cpp" />
@@ -152,8 +153,12 @@
     <ClCompile Include="test\test_Park.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="function.h" />
     <ClInclude Include="ast.h" />
+    <ClInclude Include="assembler.h" />
+    <ClInclude Include="checker.h" />
+    <ClInclude Include="executor.h" />
+    <ClInclude Include="interpreter.h" />
+    <ClInclude Include="io.h" />
     <ClInclude Include="environment.h" />
     <ClInclude Include="dfine_shell.h" />
   </ItemGroup>

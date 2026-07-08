@@ -90,6 +90,30 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes) const
 		return result;
 	}
 
+	if (auto* funcDecl = dynamic_cast<FunctionDeclStmt*>(stmt))
+	{
+		// TODO(Lee): 함수 선언 정적 검사(파라미터 중복, 인자 개수 등) - Phase 1에서 구현
+		return CheckerErrno::success;
+	}
+
+	if (auto* returnStmt = dynamic_cast<ReturnStmt*>(stmt))
+	{
+		// TODO(Lee): 함수 밖 return 검사 - Phase 1에서 구현
+		return CheckerErrno::success;
+	}
+
+	if (auto* classDecl = dynamic_cast<ClassDeclStmt*>(stmt))
+	{
+		// TODO(Park): 클래스 선언 정적 검사(this/super 범위, 자기 상속 등)
+		return CheckerErrno::success;
+	}
+
+	if (auto* importStmt = dynamic_cast<ImportStmt*>(stmt))
+	{
+		// TODO(Ryu): import 정적 검사(반복문 내부 금지, 순환/재import 등)
+		return CheckerErrno::success;
+	}
+
 	return CheckerErrno::success;
 }
 

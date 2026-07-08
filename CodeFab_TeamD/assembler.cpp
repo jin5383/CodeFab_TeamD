@@ -104,6 +104,10 @@ namespace
 			case TokenType::LEFT_BRACE: return parseBlockStatement();
 			case TokenType::IF: return parseIfStatement();
 			case TokenType::FOR: return parseForStatement();
+			case TokenType::FUNC: throw std::runtime_error("Func statement not yet implemented (Phase 1: Lee)."); // TODO(Lee)
+			case TokenType::RETURN: throw std::runtime_error("Return statement not yet implemented (Phase 1: Lee)."); // TODO(Lee)
+			case TokenType::CLASS: throw std::runtime_error("Class statement not yet implemented (Park)."); // TODO(Park)
+			case TokenType::IMPORT: throw std::runtime_error("Import statement not yet implemented (Ryu)."); // TODO(Ryu)
 			default: return parseExpressionStatement();
 			}
 		}

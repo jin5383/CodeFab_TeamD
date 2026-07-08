@@ -21,6 +21,19 @@ enum class CheckerErrno
 	success = 0,
 	selfReferencingInitializer,
 	duplicateDeclarationInSameScope,
+	returnOutsideFunction,        // Lee: 함수 밖 return
+	duplicateParameterName,       // Lee: Func foo(a, a)
+	argumentCountMismatch,        // Lee/Park 공용: 호출부 인자 개수 불일치(정적으로 판단 가능한 경우)
+	undeclaredVariableReference,  // Hong: Array(a) / arr[i]에서 a가 미선언
+	thisOutsideClass,             // Park: 클래스 밖 This
+	superOutsideClass,            // Park: 클래스 밖 Super
+	selfInheritance,              // Park: Class A : A
+	superWithoutParent,           // Park: 부모 없는 클래스에서 Super 사용
+	returnValueInInit,            // Park: init에서 값 있는 return
+	importInsideLoop,             // Ryu: 반복문 내부 import
+	duplicateImportInScope,       // Ryu: 같은 스코프 재import / 상위에서 이미 import된 파일 재import
+	circularImportDetected,       // Ryu: 순환 import
+	aliasNameConflict,            // Ryu: 같은 스코프 내 alias 이름 충돌
 };
 
 // Program(Assembler Unit의 Output)을 읽기 전용으로 검사해 정적 에러를 찾는 Unit.

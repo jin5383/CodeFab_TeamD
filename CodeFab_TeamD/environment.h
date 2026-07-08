@@ -43,7 +43,34 @@ public:
 		throw std::runtime_error("Undefined variable '" + name.origin + "'.");
 	}
 
+	// Kwon: Resolver가 미리 계산해둔 distance로 스코프 체인을 거슬러 올라가지 않고 즉시 접근
+	LiteralValue getAt(int distance, const Token& name) const
+	{
+		return ancestor(distance)->values.at(name.origin);
+	}
+
+	void assignAt(int distance, const Token& name, const LiteralValue& value)
+	{
+		ancestor(distance)->values[name.origin] = value;
+	}
+
 private:
 	std::unordered_map<std::string, LiteralValue> values;
 	Environment* enclosing;
+
+	const Environment* ancestor(int distance) const
+	{
+		const Environment* env = this;
+		for (int i = 0; i < distance; ++i)
+			env = env->enclosing;
+		return env;
+	}
+
+	Environment* ancestor(int distance)
+	{
+		Environment* env = this;
+		for (int i = 0; i < distance; ++i)
+			env = env->enclosing;
+		return env;
+	}
 };
