@@ -3,6 +3,7 @@
 #include "../checker.h"
 #include "../assembler.h"
 #include "../executor.h"
+#include "../interpreter.h"
 #include <functional>
 #include <vector>
 
@@ -744,4 +745,35 @@ TEST_F(LeeExecutorTest, CallingNonFunctionValueThrowsRuntimeError)
 	{
 		EXPECT_STREQ(e.what(), "Can only call functions.");
 	}
+}
+
+// docs/lee-function-impl-plan.md 4절: Checker/Executor 유닛 테스트만으로는 Interpreter
+// (실사용 경로)를 통해 실행했을 때의 동작을 보장하지 못한다 — 여기서는 Interpreter를 직접
+// 사용해 그 경로까지 검증한다.
+class LeeInterpreterIntegrationTest : public ::testing::Test
+{
+protected:
+	LeeFakeOutputWriter writer;
+	Interpreter interpreter{ writer };
+};
+
+// Interpreter::run()은 현재 checker.check()가 success가 아니면 아무 것도 하지 않고 조용히
+// 넘어간다 — 즉 Checker가 함수 밖 return을 정확히 잡아내도 사용자에게는 아무 것도 보이지
+// 않는다. 이 테스트는 그 문제를 재현하기 위해 실패해야 한다(Red).
+TEST_F(LeeInterpreterIntegrationTest, ReturnOutsideFunctionIsSurfacedAsError)
+{
+	Environment env;
+	EXPECT_THROW(interpreter.run("return 1;", env), std::runtime_error);
+}
+
+TEST_F(LeeInterpreterIntegrationTest, DuplicateParameterNameIsSurfacedAsError)
+{
+	Environment env;
+	EXPECT_THROW(interpreter.run("Func foo(a, a) { return a; }", env), std::runtime_error);
+}
+
+TEST_F(LeeInterpreterIntegrationTest, ArgumentCountMismatchIsSurfacedAsError)
+{
+	Environment env;
+	EXPECT_THROW(interpreter.run("Func foo(a, b, c) { return a; } foo(1, 2);", env), std::runtime_error);
 }
