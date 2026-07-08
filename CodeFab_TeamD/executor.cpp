@@ -19,7 +19,7 @@ bool Executor::isTruthy(const LiteralValue& value) const
 
 // Interpreter 패턴: 각 if는 "이 노드가 무슨 문법 규칙인가"를 판별해 그 규칙에 맞는
 // 해석 방법을 적용한다. 재귀 호출(evaluate(binary->left, ...) 등)이 트리를 파고든다.
-LiteralValue Executor::evaluate(Expr* expr, Environment& environment) const
+LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 {
 	if (auto* literal = dynamic_cast<LiteralExpr*>(expr))
 		return literal->value;
@@ -28,12 +28,21 @@ LiteralValue Executor::evaluate(Expr* expr, Environment& environment) const
 		return evaluate(grouping->expression, environment);
 
 	if (auto* variable = dynamic_cast<VariableExpr*>(expr))
+	{
+		// Resolver가 distance를 계산해뒀으면(>=0) 체인 탐색 없이 즉시 접근하고,
+		// 계산되지 않았으면(-1, 최상위/전역) 기존 방식대로 체인을 거슬러 올라가며 찾는다.
+		if (variable->distance >= 0)
+			return environment.getAt(variable->distance, variable->name);
 		return environment.get(variable->name);
+	}
 
 	if (auto* assign = dynamic_cast<AssignExpr*>(expr))
 	{
 		LiteralValue value = evaluate(assign->value, environment);
-		environment.assign(assign->name, value);
+		if (assign->distance >= 0)
+			environment.assignAt(assign->distance, assign->name, value);
+		else
+			environment.assign(assign->name, value);
 		return value;
 	}
 
@@ -163,7 +172,7 @@ std::string Executor::stringify(const LiteralValue& value) const
 	return out.str();
 }
 
-void Executor::executeStmt(Stmt* stmt, Environment& environment) const
+void Executor::executeStmt(Stmt* stmt, IEnvironment& environment) const
 {
 	if (auto* printStmt = dynamic_cast<PrintStmt*>(stmt))
 	{
@@ -226,7 +235,7 @@ void Executor::executeStmt(Stmt* stmt, Environment& environment) const
 	}
 }
 
-void Executor::execute(const Program& program, Environment& environment, const StmtExecutedCallback& onStmtExecuted) const
+void Executor::execute(const Program& program, IEnvironment& environment, const StmtExecutedCallback& onStmtExecuted) const
 {
 	for (Stmt* stmt : program.statements)
 	{
