@@ -58,6 +58,16 @@ namespace
 	}
 }
 
+namespace
+{
+	// Lee: return 문 실행 중 함수 본문을 조기 종료하기 위해 throw하는 신호(Crafting
+	// Interpreters와 동일한 관용적 패턴). CallExpr 평가 쪽에서 catch해 반환값으로 쓴다.
+	struct ReturnSignal
+	{
+		LiteralValue value;
+	};
+}
+
 double Executor::asNumber(const LiteralValue& value, int line) const
 {
 	if (!std::holds_alternative<double>(value))
@@ -150,10 +160,16 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 		for (size_t i = 0; i < function->params.size(); ++i)
 			callEnvironment.define(function->params[i].origin, evaluate(call->arguments[i], environment));
 
-		for (Stmt* bodyStmt : function->body)
-			executeStmt(bodyStmt, callEnvironment);
+		try
+		{
+			for (Stmt* bodyStmt : function->body)
+				executeStmt(bodyStmt, callEnvironment);
+		}
+		catch (const ReturnSignal& signal)
+		{
+			return signal.value;
+		}
 
-		// TODO(Lee): return 조기 종료로 실제 반환값을 전달하는 것은 다음 기능에서 구현
 		return LiteralValue{};
 	}
 
@@ -316,7 +332,7 @@ void Executor::executeStmt(Stmt* stmt, IEnvironment& environment) const
 	}
 	else if (auto* returnStmt = dynamic_cast<ReturnStmt*>(stmt))
 	{
-		// TODO(Lee): return 문 실행 - Phase 1에서 구현
+		throw ReturnSignal{ returnStmt->value ? evaluate(returnStmt->value, environment) : LiteralValue{} };
 	}
 	else if (auto* classDecl = dynamic_cast<ClassDeclStmt*>(stmt))
 	{
