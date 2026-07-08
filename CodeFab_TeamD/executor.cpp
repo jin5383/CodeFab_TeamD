@@ -165,7 +165,7 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 	if (auto* thisExpr = dynamic_cast<ThisExpr*>(expr))
 	{
 		Token thisToken;
-		thisToken.origin = "this";
+		thisToken.origin = "This";
 		return environment.get(thisToken);
 	}
 
@@ -368,7 +368,7 @@ LiteralValue Executor::callMethod(FunctionDeclStmt* method, std::shared_ptr<Inst
 		throw std::runtime_error("Expected " + std::to_string(method->params.size()) +
 		                         " arguments but got " + std::to_string(args.size()) + ".");
 	Environment methodEnv;
-	methodEnv.define("this", instance);
+	methodEnv.define("This", instance);
 	for (size_t i = 0; i < method->params.size(); ++i)
 		methodEnv.define(method->params[i].origin, evaluate(args[i], callerEnv));
 	for (Stmt* stmt : method->body)
