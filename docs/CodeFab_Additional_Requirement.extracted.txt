@@ -1,0 +1,499 @@
+# NOTE
+# 이 파일은 CodeFab_Additional_Requirement.pdf을 scripts/extract_requirement_pdf.py
+# (PyMuPDF)로 추출한 결과입니다. PDF가 갱신되면 위 스크립트를 다시 실행해
+# 이 파일을 갱신하세요.
+# 원본 PDF의 표지/구분 슬라이드 일부는 텍스트 없이 이미지로만 되어 있어
+# 추출되지 않습니다(아래 목록 참고). 그 외 페이지는 한글 포함 전체 텍스트가
+# 정상적으로 추출됩니다.
+#
+# 텍스트 없는 페이지(이미지 전용 슬라이드로 추정): [24]
+#
+----- page 1 -----
+CodeFab Interpreter 프로젝트
+기능추가요청
+
+----- page 2 -----
+기능추가미션, 유의사항
+
+----- page 3 -----
+기능추가미션소개
+
+----- page 4 -----
+3 ~ 4일차미션
+기능확장을염두에두고클린하게리팩토링한구조위에, 
+실제기능을추가해보자
+미션
+•
+function 관련요구사항
+•
+class 관련요구사항
+•
+import 
+•
+정적배열구현
+•
+실행전최적화
+•
+공장제어쉘제작
+
+----- page 5 -----
+[추가] function 관련요구사항
+
+----- page 6 -----
+함수선언과호출기능을추가로구현한다.
+지원범위
+Func add(a, b) { 
+return a + b; 
+} 
+ret = add(3, 7); 
+print ret; 
+기능
+예시
+함수선언
+Func add(a, b) {  …  }
+함수호출, 매개변수전달
+add(1, 2); 
+return 처리
+return ; null 값반환
+ret = add(1, 2);   ret 에return 값반환
+재귀호출
+Func fact(n) { 
+if(n <= 1) return 1;  
+return n * fact(n – 1); 
+}
+
+----- page 7 -----
+함수에관련한오류를검사한다. 
+•
+오류메시지를출력하고오류발생을시킨다
+지원범위
+기능
+예시
+함수외부에서return 사용
+return 5; 함수외부에작성
+파라미터이름중복
+Func foo(a, a) {  … } 변수a 이름중복
+함수가아닌대상호출
+var x = “hello”; 
+x( );    // 문자열을호출한경우
+인자개수불일치
+Func foo(a, b, c) {  … }  파라미터3개
+Foo(1, 2); 인자2개
+
+----- page 8 -----
+[추가] class 관련요구사항
+
+----- page 9 -----
+클래스선언과인스턴스생성기능을구현한다.
+지원범위
+Class Robot { } 
+var robot = Robot (); 
+기능
+예시
+클래스선언
+Class Robot {  …  }
+인스턴스생성
+var r = Robot( ); 클래스를함수처럼호출하여생성
+
+----- page 10 -----
+인스턴스에필드를동적으로저장하고읽는기능을구현한다.
+지원범위
+var r = Robot(); 
+r.name = "SpeedRobot"; 
+r.speed = 10; 
+print r.name;      // SpeedRobot
+기능
+예시
+필드쓰기(set)
+r.speed = 10; 없는필드일경우새로생성
+필드읽기(get)
+print r.speed;   
+필드갱신
+r.speed = r.speed + 5; 
+존재하지않는필드읽기
+print r.power; 런타임오류
+
+----- page 11 -----
+클래스내부에메서드를선언하고, This 로자기인스턴스를접근한다.
+지원범위
+Class Robot { 
+move(dist) { 
+This.position = This.position + dist;  
+}
+report(){ 
+print This.position; 
+}
+}
+var r = Robot(); 
+r.position = 0; 
+r.move(5); 
+r.report(); 
+기능
+예시
+메서드선언
+Class Robot { move(dist) { … } }
+메서드호출
+r.move(5);   
+This로필드접근
+This.position = This.position + dist; 
+메서드내부에서다른메서드호출
+This.report( );
+
+----- page 12 -----
+인스턴스생성시자동호출되는초기화메서드init 을구현한다.
+지원범위
+Class Robot { 
+init(name, speed) { 
+This.name = name; 
+This.speed = speed; 
+}
+}
+var r = Robot("AndOr", 10); 
+print r.name; 
+기능
+예시
+생성자선언
+init(name, speed) { … }
+생성시인자전달
+var r = Robot("AndOr", 10); 
+생성자에서필드초기화
+This.name = name; 
+init 은항상인스턴스반환
+return 허용x
+
+----- page 13 -----
+부모클래스의메서드와필드를물려받고, Super 로부모메서드를호출, 부모필드를접근한다. 
+지원범위
+Class Robot { 
+move(dist) { print "move";}
+}
+Class SpeedRobot : Robot { 
+move(dist) { 
+Super.move(dist); 
+Print "Speeeed!"; 
+}
+}
+SpeedRobot().move(3); 
+기능
+예시
+상속선언
+Class SpeedRobot : Robot { … }
+메서드상속
+자식인스턴스에서부모메서드호출가능
+메서드오버라이딩
+자식에서같은이름메서드재정의
+Super 호출
+Super.move(dist); 부모메서드실행
+
+----- page 14 -----
+instance of 와같이인스턴스가특정클래스인지확인하는연산자를추가한다.
+•
+부모클래스가오는경우도true 가나오도록한다.
+Class Robot {
+init(name) { this.name = name; }
+}
+Class SpeedRobot : Robot {
+init(name) { Super.init(name); }
+}
+var w = SpeedRobot(“Sam");
+print (w instanceof SpeedRobot);   // true — 자기자신
+print (w instanceof Robot);        // true — 부모클래스도성립
+
+----- page 15 -----
+클래스에관련한오류를검사한다.
+기능
+예시
+클래스외부에서This 사용
+print this; 클래스외부에서작성
+init 에서return 사용
+init( ) { return 5; } 
+자기자신상속
+Class Robot : Robot { … }
+클래스가아닌대상상속
+var x = 10;  Class Robot : x { … }
+클래스외부에서Super 사용
+Super.move(); 클래스외부에서Super 사용
+부모없는클래스에서Super 사용
+상속하지않은클래스내부의Super.move( )
+인스턴스가아닌대상의필드접근
+var x = "hello";    x.field = 1; 
+존재하지않는필드/메서드접근
+r.notExist() 런타임오류
+
+----- page 16 -----
+[추가] 정적배열구현
+
+----- page 17 -----
+고정크기배열을지원한다.
+•
+배열생성시크기가확정
+•
+인덱스를통한읽기/ 쓰기지원
+예시코드
+var arr = Array(3);         // 크기3의배열생성[null, null, null]
+arr[0] = 10; 
+arr[1] = 20; 
+arr[2] = 30; 
+print arr[0];               // 10 출력
+var i = 2; 
+arr[i – 1] = 7;
+
+----- page 18 -----
+Token 추가
+•
+LEFT_BRACKET ( [ )    : 인덱스시작
+•
+RIGHT_BRACKET ( ] )  : 인덱스종료
+Expr 추가
+•
+배열읽기표현식추가: 예) v = arr[i];  인덱스읽기
+•
+배열쓰기표현식추가: 예) arr[i] = 7;  인덱스쓰기
+
+----- page 19 -----
+실행중배열의잘못된사용의경우런타임오류를발생시킨다.
+•
+범위를벗어난인덱스접근
+•
+인덱스가숫자가아닌경우
+•
+배열이아닌대상에[ ] 사용
+•
+배열생성시크기로숫자가아닌값대입
+var arr = Array(3);      // [null, null, null] 
+print arr[5];            // 인덱스범위벗어남
+print arr[“hello”]       //  인덱스는반드시숫자여야함
+var x = 10; 
+print x[0] ;             // index 접근은오직배열만지원한다
+var brr = Array(“hi”);
+// 배열의사이즈는반드시number
+
+----- page 20 -----
+[추가] 실행전최적화
+
+----- page 21 -----
+지역변수에대해정적바인딩을구현한다.
+•
+바인딩정보가없다면실행단계(Executor)에서매번상위스코프를거슬러올라가며
+변수저장소를찾아야함
+•
+바인딩정보가있으면미리계산된거리(distance) 로즉시접근가능하다.
+Checker Unit 에서미리distance 를계산해둔다.
+•
+최적화전: O(depth), depth 는중첩된블록수
+•
+최적화후: O(1) , 미리계산된거리를통해즉시접근
+{
+var a = 0;
+{ { { { { { { { { { { { {
+for (var i = 0; i < 1000000; i = i + 1) {
+a = a + 1;
+}
+} } } } } } } } } } } } }
+}
+중첩된스코프에서변수참조시, 
+매번상위스코프를따라탐색하는‘동적조회(Dynamic Lookup)‘
+방식은오버헤드가발생하여실행성능이저하된다.
+정적바인딩을이용해서최적화를한다.
+
+----- page 22 -----
+리터럴상수연산에대해매번계산할필요없는수식합치기
+•
+루프내상수표현식에서성능향상
+•
+표현식의결과가런타임이전에100% 확정할수있을때만최적화진행
+•
+Before : 100 만번의루프동안매번복잡한연산작업을수행실행시800 만번연산
+•
+After : 수식을리터럴로교체해서연산없이바로사용
+실행시100 만번연산
+var total = 0;
+for (var i = 0; i < 1000000; i = i + 1) {
+total = total + (1 - 2 * 3 * 4 * 5 / 6 + 7 + 8 + 9) % 1000 % 30; 
+}
+리터럴5 로
+
+----- page 23 -----
+Test Double 을사용해서2 가지최적화를검증해본다.
+•
+정적바인딩
+•
+수식합치기
+최적화검증예시
+정적바인딩: 스코프를거슬러올라가지않고계산된위치로즉시접근했는지검증
+수식합치기: 계산횟수가N 회에서0회로줄었는지검증
+
+----- page 24 -----
+
+
+----- page 25 -----
+Library Import 기능을지원한다.
+•
+import “파일주소” alias 별칭명;
+예시코드
+import “sum.txt” alias sum;
+var a = sum.add(1, 2);
+Func add(a, b) { 
+return a + b; 
+} 
+sum.txt
+REPL
+
+----- page 26 -----
+import문은어디서든작성가능
+•
+단, 반복문내에선import 사용불가
+Import 되는파일은선언에대한내용만허용
+•
+다른파일import, 함수선언, 전역변수선언허용
+•
+그외의구문에대한처리는팀에서자율적용(ex. error처리or 선언구문외ignore처리)
+파일경로는문자열Literal만허용
+•
+import “sum.txt” alias sum
+순환import시error 처리
+•
+예시) a.txt 에서import “b.txt” , b.txt 에서import “a.txt”
+
+----- page 27 -----
+import된선언은import 문이실행된현재scope에만적용
+•
+상위level에서이미import된파일을다시import 불가
+•
+같은scope에서는같은파일을다시import 불가
+예시코드
+import “sum.txt” alias sum;
+{
+import “sum.txt” alias sum;
+}
+{
+import “sum.txt” alias sum;
+}
+{
+import “sum.txt” alias sum;
+}
+{
+import “sum.txt” alias sum;
+import “sum.txt” alias sum;
+}
+error
+error
+정상
+{
+import “sum.txt” alias sum;
+}
+import “sum.txt” alias sum;
+정상
+
+----- page 28 -----
+•
+import 문법오류
+•
+import 대상파일없음
+•
+같은scope 내중복import
+•
+순환import
+•
+alias name 충돌
+•
+반복문내import 문호출
+
+----- page 29 -----
+[추가] 공장제어쉘제작
+
+----- page 30 -----
+공장제어쉘은Interpreter Factory 를운용하고점검하는인터페이스
+•
+모드: Interpreter Factory 를실행하는방법을선택
+프롬프트모드(REPL), 파일모드, 디버그모드
+
+----- page 31 -----
+프롬프트모드(REPL Mode)
+사용자가소스를한줄씩직접입력하는대화형실행모드
+기존에구현한모드로파일모드와구분해서실행합니다.
+동작방식
+•
+>  프롬프트가표시되면코드한줄입력후Enter
+•
+전역변수저장소는세션종료전까지유지
+•
+exit 또는quit 입력시종료
+동작예시
+
+----- page 32 -----
+파일모드
+.txt 소스코드파일을읽어실행하는모드
+구현요구사항
+•
+파일이존재하지않을경우명확한오류메시지출력
+•
+실행중런타임오류발생시오류발생줄번호와함께출력
+•
+오류발생시오류메시지출력후즉시종료
+동작예시
+
+----- page 33 -----
+디버그모드
+소스코드를한Stmt 단위로멈추며실행상태를점검하는모드
+진입방법
+구현요구사항
+•
+stepping 단위는Stmt 기준
+•
+watch 는변수저장소에서직접조회하여출력
+
+----- page 34 -----
+Stepping 은파이프라인을Stmt 단위로정지하며단계별실행을한다.
+예시
+명령어
+설명
+step
+현재Stmt 실행후다음Stmt 에서정지
+next
+현재Stmt 실행(블록내부로진입X)
+break <줄번호>
+해당줄에breakpoint 설정
+Breakpoints
+현재설정된breakpoint 목록출력
+remove <줄번호>
+breakpoint 해제
+continue
+다음breakpoint 까지실행
+
+----- page 35 -----
+watch variable
+실행정지시점마다관찰중인(지정한) 변수의현재값을자동으로출력한다.
+예시
+명령어
+설명
+watch <변수명>
+해당변수를감시목록에추가
+unwatch <변수명>
+감시목록에서제거
+watches
+현재감시중인변수목록과값출력( 가장인접한스코프의변수)
+inspect
+현재스코프의모든변수와값출력
+
+----- page 36 -----
+기능추가미션, 유의사항
+
+----- page 37 -----
+유의사항
+1. 3일차부터는TDD로개발하지않아도됩니다.
+2. 기존UnitTest는유지보수를되어야합니다.
+3. 추가기능에대한UnitTest는생성되어야합니다.
+4. Custom Language에대한사용방법을README.md에명시합니다.
+- 기타특이사항도README.md에명시합니다.
+
+----- page 38 -----
+디자인패턴을사용시, 추가점수
+디자인패턴은여러곳에서발생될수있는문제를해결하는
+일반화된모범사례입니다. 이를클린코드의Best Practice 라고합니다. 
+따라서, GoF 디자인패턴을사용하면약간의추가점수가주어집니다.
+• 예시)
+Visitor Pattern,
+Interpreter Pattern , 
+Command Pattern,
+Strategy Pattern 등
