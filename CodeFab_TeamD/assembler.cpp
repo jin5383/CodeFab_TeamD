@@ -16,6 +16,8 @@ namespace
 	const std::string KEYWORD_ELSE = "else";
 	const std::string KEYWORD_FOR = "for";
 	const std::string KEYWORD_PRINT = "print";
+	const std::string KEYWORD_IMPORT = "import";
+	const std::string KEYWORD_ALIAS = "alias";
 
 	Token makeSimpleToken(TokenType type, const std::string& origin)
 	{
@@ -33,6 +35,8 @@ namespace
 		if (origin == KEYWORD_FOR) return makeSimpleToken(TokenType::FOR, origin);
 		if (origin == KEYWORD_PRINT) return makeSimpleToken(TokenType::PRINT, origin);
 		if (origin == "Class") return makeSimpleToken(TokenType::CLASS, origin);
+		if (origin == KEYWORD_IMPORT) return makeSimpleToken(TokenType::IMPORT, origin);
+		if (origin == KEYWORD_ALIAS) return makeSimpleToken(TokenType::ALIAS, origin);
 		return std::nullopt;
 	}
 
@@ -110,7 +114,7 @@ namespace
 			case TokenType::FUNC: throw std::runtime_error("Func statement not yet implemented (Phase 1: Lee)."); // TODO(Lee)
 			case TokenType::RETURN: throw std::runtime_error("Return statement not yet implemented (Phase 1: Lee)."); // TODO(Lee)
 			case TokenType::CLASS: return parseClassStatement();
-			case TokenType::IMPORT: throw std::runtime_error("Import statement not yet implemented (Ryu)."); // TODO(Ryu)
+			case TokenType::IMPORT: return parseImportStatement();
 			default: return parseExpressionStatement();
 			}
 		}
@@ -136,6 +140,19 @@ namespace
 				getTokenAndAdvance();
 			}
 			expectAndAdvance(TokenType::RIGHT_BRACE, "Expect '}' after class body.");
+			return stmt;
+		}
+
+		// "import "경로" alias 별칭 ;" 을 읽어 ImportStmt를 만든다.
+		// 최소 구현: 문법이 올바른지만 검사한다(순환 import, 스코프 규칙 등은 다루지 않음).
+		Stmt* parseImportStatement()
+		{
+			getTokenAndAdvance(); // import
+			auto* stmt = new ImportStmt();
+			stmt->path = expectAndAdvance(TokenType::STRING, "Expect string literal after 'import'.");
+			expectAndAdvance(TokenType::ALIAS, "Expect 'alias' after import path.");
+			stmt->alias = expectAndAdvance(TokenType::IDENTIFIER, "Expect alias name after 'alias'.");
+			expectAndAdvance(TokenType::SEMICOLON, "Expect ';' after import statement.");
 			return stmt;
 		}
 
