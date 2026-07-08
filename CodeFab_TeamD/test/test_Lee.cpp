@@ -517,3 +517,25 @@ TEST(AssemblerUnitTest, ReturnStatementParsesValueAndNoValueForms)
 	ASSERT_NE(returnStmt2, nullptr);
 	EXPECT_EQ(returnStmt2->value, nullptr);
 }
+
+// Assembler_Construct_Unit: "add(3, 7);" -> ExpressionStmt{ CallExpr{ callee: VariableExpr(add),
+// arguments: [3, 7] } } (docs/scenarios/lee-function-scenarios.md 선언+호출 시나리오)
+TEST(AssemblerUnitTest, FunctionCallWithTwoArguments_BuildsCallExprTree)
+{
+	Program program = Assembler().assemble("add(3, 7);");
+
+	ASSERT_EQ(program.statements.size(), 1u);
+	auto* exprStmt = dynamic_cast<ExpressionStmt*>(program.statements[0]);
+	ASSERT_NE(exprStmt, nullptr);
+
+	auto* call = dynamic_cast<CallExpr*>(exprStmt->expression);
+	ASSERT_NE(call, nullptr);
+
+	auto* callee = dynamic_cast<VariableExpr*>(call->callee);
+	ASSERT_NE(callee, nullptr);
+	EXPECT_EQ(callee->name.origin, "add");
+
+	ASSERT_EQ(call->arguments.size(), 2u);
+	EXPECT_DOUBLE_EQ(std::get<double>(dynamic_cast<LiteralExpr*>(call->arguments[0])->value), 3.0);
+	EXPECT_DOUBLE_EQ(std::get<double>(dynamic_cast<LiteralExpr*>(call->arguments[1])->value), 7.0);
+}
