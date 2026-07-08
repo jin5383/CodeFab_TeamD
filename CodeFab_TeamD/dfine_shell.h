@@ -3,6 +3,7 @@
 #include <iostream>
 #include <string>
 #include "environment.h"
+#include "interpreter.h"
 
 // Assembler -> Checker -> Executor 세 Unit을 한 줄씩 순서대로 실행하는 REPL 셸.
 // Environment(변수 컨텍스트)를 인스턴스가 직접 들고 있어서, 여러 줄에 걸쳐 세션 전체의
