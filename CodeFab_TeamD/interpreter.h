@@ -26,6 +26,12 @@ public:
 	// IOutputWriter는 Executor에게 그대로 전달된다(io.h의 Strategy 패턴 참고).
 	explicit Interpreter(IOutputWriter& output) : executor(output) {}
 
+	// 주어진 environment(변수 값)와 functionArities(함수 인자 개수 정적 정보)를 모두
+	// 유지하며 실행한다. DfineShell처럼 여러 줄에 걸친 세션에서, 한 줄에서 선언한 함수를
+	// 다른 줄에서 호출할 때도 Checker가 인자 개수를 검사할 수 있게 하려면 이 오버로드를
+	// 써야 한다(Environment만 유지하는 아래 오버로드는 매 줄 함수 정보를 잃어버린다).
+	void run(const std::string& source, IEnvironment& environment, Checker::FunctionArities& functionArities) const;
+
 	// 주어진 environment(컨텍스트)를 유지하며 실행 (DfineShell 등 여러 줄에 걸친 세션용)
 	void run(const std::string& source, IEnvironment& environment) const;
 
