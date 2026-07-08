@@ -777,3 +777,13 @@ TEST_F(LeeInterpreterIntegrationTest, ArgumentCountMismatchIsSurfacedAsError)
 	Environment env;
 	EXPECT_THROW(interpreter.run("Func foo(a, b, c) { return a; } foo(1, 2);", env), std::runtime_error);
 }
+
+// 재귀 호출이 Interpreter::run() 하나로(assemble -> check -> execute 전체 파이프라인)
+// 실제로 동작해야 한다.
+TEST_F(LeeInterpreterIntegrationTest, RecursiveFactorialWorksThroughInterpreter)
+{
+	Environment env;
+	interpreter.run("Func fact(n) { if (n < 2) return 1; return n * fact(n - 1); } print fact(5);", env);
+
+	EXPECT_EQ(writer.output, "120\n");
+}
