@@ -496,3 +496,24 @@ TEST(AssemblerUnitTest, FunctionDeclWithTwoParams_BuildsParamList)
 	EXPECT_EQ(funcDecl->params[0].origin, "a");
 	EXPECT_EQ(funcDecl->params[1].origin, "b");
 }
+
+// Assembler_Construct_Unit: "return 식;" / "return;" 이 각각 값 있는/없는 ReturnStmt로
+// 파싱되어야 한다(docs/scenarios/lee-function-scenarios.md return 시나리오).
+TEST(AssemblerUnitTest, ReturnStatementParsesValueAndNoValueForms)
+{
+	Program withValue = Assembler().assemble("Func f() { return 1 + 2; }");
+	auto* funcDecl = dynamic_cast<FunctionDeclStmt*>(withValue.statements[0]);
+	ASSERT_NE(funcDecl, nullptr);
+	ASSERT_EQ(funcDecl->body.size(), 1u);
+	auto* returnStmt = dynamic_cast<ReturnStmt*>(funcDecl->body[0]);
+	ASSERT_NE(returnStmt, nullptr);
+	EXPECT_NE(returnStmt->value, nullptr);
+
+	Program noValue = Assembler().assemble("Func g() { return; }");
+	auto* funcDecl2 = dynamic_cast<FunctionDeclStmt*>(noValue.statements[0]);
+	ASSERT_NE(funcDecl2, nullptr);
+	ASSERT_EQ(funcDecl2->body.size(), 1u);
+	auto* returnStmt2 = dynamic_cast<ReturnStmt*>(funcDecl2->body[0]);
+	ASSERT_NE(returnStmt2, nullptr);
+	EXPECT_EQ(returnStmt2->value, nullptr);
+}
