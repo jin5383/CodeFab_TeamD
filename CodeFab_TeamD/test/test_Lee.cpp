@@ -1,6 +1,7 @@
 ﻿#include <gtest/gtest.h>
 #include "../ast.h"
 #include "../checker.h"
+#include "../assembler.h"
 #include <functional>
 #include <vector>
 
@@ -449,4 +450,16 @@ TEST_F(CheckerUnitTest, DuplicateDeclarationInSameScope_ReportsError)
 	program.statements.push_back(block);
 
 	EXPECT_EQ(CheckerErrno::duplicateDeclarationInSameScope, Checker().check(program));
+}
+
+// Assembler_Token_Unit: "Func" / "return" 이 각각 TokenType::FUNC / TokenType::RETURN 으로
+// 토큰화되어야 한다(docs/scenarios/lee-function-scenarios.md 1절 함수 선언 시나리오의 전제 조건).
+// 아직 scanKeywordToken에 등록되지 않아 IDENTIFIER로 잡히므로 이 테스트는 RED 상태다.
+TEST(AssemblerTokenUnitTest, TokenizeSource_ProducesFuncAndReturnKeywordTokens)
+{
+	std::vector<Token> tokens = Assembler().tokenize("Func return");
+
+	ASSERT_EQ(tokens.size(), 3u); // FUNC, RETURN, END_OF_FILE
+	EXPECT_EQ(tokens[0].type, TokenType::FUNC);
+	EXPECT_EQ(tokens[1].type, TokenType::RETURN);
 }
