@@ -45,20 +45,38 @@ LiteralValue Executor::evaluate(Expr* expr, Environment& environment) const
 
 	if (auto* call = dynamic_cast<CallExpr*>(expr))
 	{
+		LiteralValue callee = evaluate(call->callee, environment);
+		if (std::holds_alternative<std::shared_ptr<ClassValue>>(callee))
+		{
+			auto& cls = std::get<std::shared_ptr<ClassValue>>(callee);
+			auto instance = std::make_shared<Instance>();
+			instance->klass = cls->decl;
+			return instance;
+		}
 		// TODO(Lee): 함수 호출 실행 - Phase 1에서 구현
 		return LiteralValue{};
 	}
 
 	if (auto* get = dynamic_cast<GetExpr*>(expr))
 	{
-		// TODO(Park): 필드/메서드 읽기
-		return LiteralValue{};
+		LiteralValue object = evaluate(get->object, environment);
+		if (!std::holds_alternative<std::shared_ptr<Instance>>(object))
+			throw std::runtime_error("Only instances have properties.");
+		auto& inst = std::get<std::shared_ptr<Instance>>(object);
+		auto it = inst->fields.find(get->name.origin);
+		if (it == inst->fields.end())
+			throw std::runtime_error("Undefined property '" + get->name.origin + "'.");
+		return it->second;
 	}
 
 	if (auto* set = dynamic_cast<SetExpr*>(expr))
 	{
-		// TODO(Park): 필드 쓰기(동적 필드 생성 포함)
-		return LiteralValue{};
+		LiteralValue object = evaluate(set->object, environment);
+		if (!std::holds_alternative<std::shared_ptr<Instance>>(object))
+			throw std::runtime_error("Only instances have fields.");
+		LiteralValue value = evaluate(set->value, environment);
+		std::get<std::shared_ptr<Instance>>(object)->fields[set->name.origin] = value;
+		return value;
 	}
 
 	if (auto* thisExpr = dynamic_cast<ThisExpr*>(expr))
@@ -198,7 +216,9 @@ void Executor::executeStmt(Stmt* stmt, Environment& environment) const
 	}
 	else if (auto* classDecl = dynamic_cast<ClassDeclStmt*>(stmt))
 	{
-		// TODO(Park): 클래스 선언 실행
+		auto classValue = std::make_shared<ClassValue>();
+		classValue->decl = classDecl;
+		environment.define(classDecl->name.origin, classValue);
 	}
 	else if (auto* importStmt = dynamic_cast<ImportStmt*>(stmt))
 	{
