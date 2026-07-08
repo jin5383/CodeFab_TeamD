@@ -17,9 +17,6 @@ namespace
 		void write(const std::string&) override {}
 	};
 
-	// Ryu: import된 모듈의 최상위 선언을 담는 그릇. alias.name(GetExpr)이 이미 Instance만
-	// 대상으로 동작하므로, 모듈을 "필드들의 묶음"인 Instance로 표현하면 별도의 LiteralValue
-	// 변형 없이 그대로 재사용할 수 있다(klass는 클래스가 아니므로 nullptr).
 	class ModuleEnvironment : public IEnvironment
 	{
 	public:
@@ -53,9 +50,6 @@ namespace
 		std::shared_ptr<Instance> module;
 	};
 
-	// 순환 import 감지용: 현재 실행 중인(스택에 쌓인) import 대상 파일 경로.
-	// Checker의 정적 순환 검사(TODO(Ryu))가 아직 없으므로, 최소한 무한 재귀로 인한
-	// 크래시는 막기 위해 Executor 단에서도 스택을 추적한다.
 	std::vector<std::string>& importStack()
 	{
 		static std::vector<std::string> stack;

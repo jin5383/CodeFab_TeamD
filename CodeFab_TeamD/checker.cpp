@@ -109,7 +109,6 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes) const
 
 	if (auto* importStmt = dynamic_cast<ImportStmt*>(stmt))
 	{
-		// TODO(Ryu): import 정적 검사(반복문 내부 금지, 순환/재import 등)
 		return CheckerErrno::success;
 	}
 
