@@ -678,3 +678,15 @@ TEST_F(LeeExecutorTest, FunctionDeclDefinesFunctionValueInEnvironment)
 	ASSERT_NE(func, nullptr);
 	EXPECT_EQ(func->name.origin, "greet");
 }
+
+// Executor unit: 함수 호출이 인자를 파라미터에 바인딩하고 본문을 실행해야 한다.
+// return 값 자체는 다루지 않는다(다음 기능에서 검증) — 여기서는 호출 메커니즘만 확인.
+TEST_F(LeeExecutorTest, FunctionCallBindsArgumentAndExecutesBody)
+{
+	Program program = Assembler().assemble("Func printA(a) { print a; } printA(42);");
+
+	Environment env;
+	executor.execute(program, env);
+
+	EXPECT_EQ(writer.output, "42\n");
+}
