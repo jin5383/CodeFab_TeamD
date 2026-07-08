@@ -53,6 +53,13 @@ private:
 	// 일으킨다. BlockStmt/ForStmt에서 재귀 호출 시 새 Environment를 만들어 스코프를 연다.
 	void executeStmt(Stmt* stmt, Environment& environment) const;
 
+	// klass의 methods 목록에서 name을 찾아 반환한다. 없으면 nullptr.
+	static FunctionDeclStmt* findMethod(ClassDeclStmt* klass, const std::string& name);
+
+	// method를 instance에 바인딩해 실행한다. this를 새 Environment에 정의하고 body를 실행.
+	LiteralValue callMethod(FunctionDeclStmt* method, std::shared_ptr<Instance> instance,
+	                        const std::vector<Expr*>& args, Environment& callerEnv) const;
+
 	// Strategy 패턴으로 주입된 출력 대상 (io.h 참고).
 	IOutputWriter& output;
 };

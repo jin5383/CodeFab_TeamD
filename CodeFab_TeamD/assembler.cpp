@@ -33,6 +33,7 @@ namespace
 		if (origin == KEYWORD_FOR) return makeSimpleToken(TokenType::FOR, origin);
 		if (origin == KEYWORD_PRINT) return makeSimpleToken(TokenType::PRINT, origin);
 		if (origin == "Class") return makeSimpleToken(TokenType::CLASS, origin);
+		if (origin == "This")  return makeSimpleToken(TokenType::THIS,  origin);
 		return std::nullopt;
 	}
 
@@ -132,11 +133,33 @@ namespace
 			while (getCurrentToken().type != TokenType::RIGHT_BRACE &&
 				   getCurrentToken().type != TokenType::END_OF_FILE)
 			{
-				// TODO(Park): 메서드 파싱 - Phase 1에서 구현
-				getTokenAndAdvance();
+				stmt->methods.push_back(parseMethodDecl());
 			}
 			expectAndAdvance(TokenType::RIGHT_BRACE, "Expect '}' after class body.");
 			return stmt;
+		}
+
+		FunctionDeclStmt* parseMethodDecl()
+		{
+			auto* method = new FunctionDeclStmt();
+			method->name = expectAndAdvance(TokenType::IDENTIFIER, "Expect method name.");
+			expectAndAdvance(TokenType::LEFT_PAREN, "Expect '(' after method name.");
+			while (getCurrentToken().type != TokenType::RIGHT_PAREN &&
+				   getCurrentToken().type != TokenType::END_OF_FILE)
+			{
+				method->params.push_back(expectAndAdvance(TokenType::IDENTIFIER, "Expect parameter name."));
+				if (getCurrentToken().type == TokenType::COMMA)
+					getTokenAndAdvance();
+			}
+			expectAndAdvance(TokenType::RIGHT_PAREN, "Expect ')' after parameters.");
+			expectAndAdvance(TokenType::LEFT_BRACE, "Expect '{' before method body.");
+			while (getCurrentToken().type != TokenType::RIGHT_BRACE &&
+				   getCurrentToken().type != TokenType::END_OF_FILE)
+			{
+				method->body.push_back(parseStatement());
+			}
+			expectAndAdvance(TokenType::RIGHT_BRACE, "Expect '}' after method body.");
+			return method;
 		}
 
 		// "var 이름 (= 초깃값)? ;" 을 읽어 VarDeclStmt를 만든다
@@ -395,6 +418,13 @@ namespace
 				grouping->expression = parseExpression();
 				expectAndAdvance(TokenType::RIGHT_PAREN, "Expect ')' after expression.");
 				return grouping;
+			}
+
+			if (getCurrentToken().type == TokenType::THIS)
+			{
+				auto* thisExpr = new ThisExpr();
+				thisExpr->keyword = getTokenAndAdvance();
+				return thisExpr;
 			}
 
 			if (getCurrentToken().type == TokenType::IDENTIFIER)
