@@ -4,6 +4,7 @@
 
 #include <fstream>
 #include <sstream>
+#include <vector>
 
 namespace
 {
@@ -22,6 +23,33 @@ namespace
 			return "";
 		size_t end = text.find_last_not_of(" \t\r\n");
 		return text.substr(begin, end - begin + 1);
+	}
+
+	// 메인 토크나이저가 아직 import/alias 키워드를 모르므로, import 문(들)만 텍스트 단계에서
+	// 먼저 걸러내고 나머지만 Interpreter(assemble/check/execute)에 넘긴다.
+	std::vector<std::string> splitBySemicolon(const std::string& source)
+	{
+		std::vector<std::string> statements;
+		std::string current;
+		for (char c : source)
+		{
+			current += c;
+			if (c == ';')
+			{
+				statements.push_back(current);
+				current.clear();
+			}
+		}
+		if (!trim(current).empty())
+			statements.push_back(current);
+		return statements;
+	}
+
+	// 순환 임포트 감지용: 현재 로딩 중인 파일 경로 스택 (재귀적인 importFile 호출 전체에서 공유).
+	std::vector<std::string>& importStack()
+	{
+		static std::vector<std::string> stack;
+		return stack;
 	}
 }
 
@@ -106,13 +134,47 @@ Environment& ImportScope::importFile(const std::string& path, const std::string&
 		throw ImportError("Alias '" + alias + "' is already imported in an enclosing scope.");
 	}
 
+	auto& stack = importStack();
+	for (const std::string& inProgress : stack)
+		if (inProgress == path)
+			throw ImportError("Circular import detected for '" + path + "'.");
+
 	std::string source = readImportFileOrThrow(path);
 
-	auto [it, inserted] = bindings.emplace(alias, Binding{ path, Environment{} });
+	stack.push_back(path);
+	try
+	{
+		std::string remainingSource;
+		ImportScope moduleImports; // 모듈 내부의 import는 모듈 자신만의 독립된 스코프에 적용된다.
+		for (const std::string& statementText : splitBySemicolon(source))
+		{
+			std::string trimmed = trim(statementText);
+			if (trimmed.empty())
+				continue;
+			if (trimmed.compare(0, 6, "import") == 0)
+			{
+				ImportStatementText nested = parseImportStatementText(trimmed);
+				moduleImports.importFile(nested.path, nested.alias);
+			}
+			else
+			{
+				remainingSource += trimmed + "\n";
+			}
+		}
 
-	// Interpreter(Facade)가 이미 assemble -> check -> execute 조합을 알고 있으므로 그대로 재사용한다.
-	NullOutputWriter output;
-	Interpreter(output).run(source, it->second.environment);
+		auto [it, inserted] = bindings.emplace(alias, Binding{ path, Environment{} });
 
-	return it->second.environment;
+		// Interpreter(Facade)가 이미 assemble -> check -> execute 조합을 알고 있으므로 그대로 재사용한다.
+		NullOutputWriter output;
+		Interpreter(output).run(remainingSource, it->second.environment);
+
+		stack.pop_back();
+		return it->second.environment;
+	}
+	catch (...)
+	{
+		stack.pop_back();
+		bindings.erase(alias);
+		throw;
+	}
 }
