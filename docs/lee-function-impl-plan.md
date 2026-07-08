@@ -76,3 +76,36 @@
 
 각 단계는 커밋 1개당 100라인 내외로 쪼개져 있어 PR 분할 기준과 맞는다. 1번(시나리오 문서)부터
 시작해 순서대로 진행한다.
+
+## 4. 실사용 경로(Interpreter/DfineShell) 검증 (필수)
+
+2절의 Red/Green 테스트는 전부 `Checker().check(program)` 또는 `executor.execute(program, env)`를
+**직접, 한 번만** 호출하는 유닛 테스트였다. 그런데 실제 사용자는 `Checker`/`Executor`를 직접
+호출하지 않고 `Interpreter`(Facade)나 `DfineShell`(REPL, 한 줄씩 별도로 `Interpreter::run()`을
+호출하며 `Environment`만 줄 사이에 유지)을 통해서만 프로그램을 실행한다. 이 계층은 다음 두 가지
+방식으로 유닛 테스트와 다르게 동작할 수 있다:
+
+1. **Checker가 에러를 감지해도 사용자에게 보이지 않을 수 있다.** `Interpreter::run()`이
+   `CheckerErrno`를 무시하고 조용히 실행을 건너뛰면, `Checker` 유닛 테스트는 여전히 통과하지만
+   실제로는 아무 에러 메시지도 뜨지 않는다. (실제로 이 문제가 발생했었다 — `returnOutsideFunction`/
+   `duplicateParameterName`이 REPL에서 전혀 출력되지 않았다.)
+2. **`Checker`/`Executor` 상태가 한 번의 `Program` 단위로 초기화된다.** `DfineShell`처럼 여러 줄에
+   걸쳐 세션을 유지하는 호출자가 매 줄 새 `Interpreter`/`Checker`를 만들면, 한 줄에서 선언한 함수의
+   정보(예: 인자 개수)가 다음 줄의 검사에 남아있지 않을 수 있다. Assembler/Checker/Executor
+   유닛 테스트는 항상 함수 선언과 호출을 **하나의 Program**으로 조립하므로 이 문제를 절대
+   재현하지 못한다.
+
+**따라서 아래 항목은 `Checker`/`Executor` 유닛 테스트만으로는 "완료"로 보지 않고, `Interpreter`
+(필요하면 두 번 이상의 `run()` 호출로 여러 줄 세션을 흉내내어)를 직접 사용하는 통합 테스트로
+별도 검증해야 한다**:
+
+- [ ] `Interpreter::run()`이 `returnOutsideFunction`/`duplicateParameterName`/
+      `argumentCountMismatch`를 실제로 예외(에러 메시지)로 노출하는지.
+- [ ] 재귀 호출(`fact(5)` 등)이 `Interpreter::run()`을 통해 처음부터 끝까지(assemble → check →
+      execute) 정상 동작하는지.
+- [ ] `Interpreter::run()`을 **두 번 이상** 같은 `Environment`(그리고 필요한 정적 정보)로 호출했을
+      때 — 즉 "한 줄에서 `Func foo(a,b,c){...}` 선언, 다음 호출에서 `foo(1,2);`" 같은 시나리오 —
+      에서도 인자 개수 불일치가 여전히 검출되는지.
+
+이 절의 테스트를 먼저 작성해 Red 상태를 확인한 뒤에, 필요한 계층(`Checker`/`Interpreter`/
+`DfineShell`)을 고쳐 Green으로 만든다.
