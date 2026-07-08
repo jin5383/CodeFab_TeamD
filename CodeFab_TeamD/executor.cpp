@@ -148,6 +148,10 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 			return instance;
 		}
 
+		// 3.1.1 확정: 호출 대상이 함수인지는 런타임에만 알 수 있으므로 Executor에서 검사한다
+		// (Checker는 스코프/선언 규칙만 검사, docs/phase0-review-checklist.md Lee 항목).
+		if (!std::holds_alternative<std::shared_ptr<FunctionDeclStmt>>(calleeValue))
+			throw std::runtime_error("Can only call functions.");
 		auto function = std::get<std::shared_ptr<FunctionDeclStmt>>(calleeValue);
 
 		// 이 언어는 클로저(중첩 함수의 선언 시점 지역 스코프 캡처)를 지원하지 않으므로
