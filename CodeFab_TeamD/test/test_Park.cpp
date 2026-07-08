@@ -665,3 +665,99 @@ TEST(ExecutorClassTest, UndefinedFieldGet_ThrowsRuntimeError)
 		EXPECT_THAT(e.what(), HasSubstr("Undefined property 'power'"));
 	}
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Assembler unit: 메서드 선언 AST 구조 검증
+// ──────────────────────────────────────────────────────────────────────────────
+
+// "Class Robot { move(dist) { } }" → ClassDeclStmt에 FunctionDeclStmt 메서드가 들어야 한다
+TEST(AssemblerClassTest, ClassWithMethod_BuildsMethodInClassDecl)
+{
+	Program program = Assembler().assemble("Class Robot { move(dist) { } }");
+
+	ASSERT_THAT(program.statements, SizeIs(1));
+	auto* classDecl = dynamic_cast<ClassDeclStmt*>(program.statements[0]);
+	ASSERT_NE(classDecl, nullptr);
+	ASSERT_THAT(classDecl->methods, SizeIs(1));
+	EXPECT_EQ(classDecl->methods[0]->name.origin, "move");
+	ASSERT_THAT(classDecl->methods[0]->params, SizeIs(1));
+	EXPECT_EQ(classDecl->methods[0]->params[0].origin, "dist");
+}
+
+// "This.name" → GetExpr { object: ThisExpr, name: name }
+TEST(AssemblerClassTest, ThisFieldAccess_BuildsGetExprWithThisExpr)
+{
+	Program program = Assembler().assemble("This.name;");
+
+	auto* exprStmt = dynamic_cast<ExpressionStmt*>(program.statements[0]);
+	ASSERT_NE(exprStmt, nullptr);
+	auto* get = dynamic_cast<GetExpr*>(exprStmt->expression);
+	ASSERT_NE(get, nullptr);
+	EXPECT_EQ(get->name.origin, "name");
+	EXPECT_NE(dynamic_cast<ThisExpr*>(get->object), nullptr);
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Executor unit: 메서드 호출 및 생성자 TC
+// ──────────────────────────────────────────────────────────────────────────────
+
+// TC1: 메서드 호출 + This로 필드 접근
+// Class Robot { move(dist) { This.position = This.position + dist; } report(){ print This.position; } }
+// var r = Robot(); r.position = 0; r.move(5); r.report();  →  출력: 5
+TEST(ExecutorClassTest, MethodCall_MovesPositionAndPrints)
+{
+	std::string result = runCode(
+		"Class Robot { "
+		"  move(dist) { This.position = This.position + dist; } "
+		"  report() { print This.position; } "
+		"} "
+		"var r = Robot(); "
+		"r.position = 0; "
+		"r.move(5); "
+		"r.report();"
+	);
+	EXPECT_EQ(result, "5\n");
+}
+
+// TC2: init 생성자에서 필드 초기화 후 읽기
+// Class Robot { init(name, speed) { This.name = name; This.speed = speed; } }
+// var r = Robot("AndOr", 10); print r.name;  →  출력: AndOr
+TEST(ExecutorClassTest, InitConstructor_InitializesFields)
+{
+	std::string result = runCode(
+		"Class Robot { "
+		"  init(name, speed) { This.name = name; This.speed = speed; } "
+		"} "
+		"var r = Robot(\"AndOr\", 10); "
+		"print r.name;"
+	);
+	EXPECT_EQ(result, "AndOr\n");
+}
+
+// init 없는 클래스에 인자 전달 → 런타임 오류
+TEST(ExecutorClassTest, NoInitWithArgs_ThrowsRuntimeError)
+{
+	try
+	{
+		runCode("Class Robot { } var r = Robot(1, 2);");
+		FAIL() << "런타임 오류 예외가 발생해야 한다.";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_THAT(e.what(), HasSubstr("Expected 0 arguments"));
+	}
+}
+
+// 존재하지 않는 메서드 호출 → 런타임 오류
+TEST(ExecutorClassTest, UndefinedMethod_ThrowsRuntimeError)
+{
+	try
+	{
+		runCode("Class Robot { } var r = Robot(); r.fly();");
+		FAIL() << "런타임 오류 예외가 발생해야 한다.";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_THAT(e.what(), HasSubstr("Undefined method 'fly'"));
+	}
+}
