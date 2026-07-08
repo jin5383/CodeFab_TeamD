@@ -747,6 +747,26 @@ TEST_F(LeeExecutorTest, CallingNonFunctionValueThrowsRuntimeError)
 	}
 }
 
+// Executor unit: Checker의 checkCallArity는 호출이 ExpressionStmt 최상위일 때만 정적으로
+// 잡아낸다("foo(1,2);" 형태). "print foo(1,2);"처럼 호출이 다른 표현식 안에 있으면
+// Checker를 통과해버리므로, Executor가 인자 개수 불일치를 런타임 최종 방어선으로 검사해
+// 범위 밖 접근(정의되지 않은 동작) 대신 명확한 에러를 던져야 한다.
+TEST_F(LeeExecutorTest, CallWithTooFewArgumentsInsideExpressionThrowsRuntimeError)
+{
+	Program program = Assembler().assemble("Func foo(a, b, c) { return a; } print foo(1, 2);");
+
+	Environment env;
+	try
+	{
+		executor.execute(program, env);
+		FAIL() << "Expected a runtime error to be thrown";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Expected 3 arguments but got 2.");
+	}
+}
+
 // docs/lee-function-impl-plan.md 4절: Checker/Executor 유닛 테스트만으로는 Interpreter
 // (실사용 경로)를 통해 실행했을 때의 동작을 보장하지 못한다 — 여기서는 Interpreter를 직접
 // 사용해 그 경로까지 검증한다.
