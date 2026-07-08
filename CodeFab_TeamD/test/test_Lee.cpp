@@ -2,8 +2,19 @@
 #include "../ast.h"
 #include "../checker.h"
 #include "../assembler.h"
+#include "../executor.h"
 #include <functional>
 #include <vector>
+
+// Lee 전용 Executor 테스트용 가짜 출력(test_Hong.cpp의 동명 클래스와는 별개 — 각자
+// test_<이름>.cpp 안에서 독립적으로 조립한다는 tdd-workflow-rule.md 2절 규칙을 따른다).
+class LeeFakeOutputWriter : public IOutputWriter
+{
+public:
+	void write(const std::string& text) override { output += text; }
+
+	std::string output;
+};
 
 class CheckerUnitTest : public ::testing::Test
 {
@@ -641,4 +652,29 @@ TEST_F(CheckerUnitTest, CallArgumentCountMatches_NoError)
 	program.statements.push_back(callStmt);
 
 	EXPECT_EQ(CheckerErrno::success, Checker().check(program));
+}
+
+class LeeExecutorTest : public ::testing::Test
+{
+protected:
+	LeeFakeOutputWriter writer;
+	Executor executor{ writer };
+};
+
+// Executor unit: "Func greet() { return 1; }" 실행 시 environment에 함수 값이
+// 정의되어야 한다(docs/scenarios/lee-function-scenarios.md 선언+호출 시나리오의 전제 조건).
+TEST_F(LeeExecutorTest, FunctionDeclDefinesFunctionValueInEnvironment)
+{
+	Program program = Assembler().assemble("Func greet() { return 1; }");
+
+	Environment env;
+	executor.execute(program, env);
+
+	Token name{ TokenType::IDENTIFIER, "greet", std::monostate{} };
+	LiteralValue value = env.get(name);
+
+	ASSERT_TRUE(std::holds_alternative<std::shared_ptr<FunctionDeclStmt>>(value));
+	auto func = std::get<std::shared_ptr<FunctionDeclStmt>>(value);
+	ASSERT_NE(func, nullptr);
+	EXPECT_EQ(func->name.origin, "greet");
 }
