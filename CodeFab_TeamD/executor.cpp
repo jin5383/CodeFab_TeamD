@@ -204,8 +204,9 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 
 	if (auto* indexGet = dynamic_cast<IndexGetExpr*>(expr))
 	{
-		// TODO(Hong): 배열 인덱스 읽기
-		return LiteralValue{};
+		auto array = asArray(evaluate(indexGet->array, environment));
+		size_t index = asArrayIndex(evaluate(indexGet->index, environment), array->items.size());
+		return array->items[index];
 	}
 
 	if (auto* indexSet = dynamic_cast<IndexSetExpr*>(expr))
