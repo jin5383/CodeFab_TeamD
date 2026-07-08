@@ -1,9 +1,13 @@
 ﻿#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <sstream>
 #include <stdexcept>
 #include "../ast.h"
 #include "../assembler.h"
 #include "../environment.h"
+#include "../executor.h"
+#include "../io.h"
+#include "../resolver.h"
 
 using namespace testing;
 
@@ -219,4 +223,214 @@ TEST(EnvironmentUnitTest, AssignAtWritesValueAtExactDistance)
 
 	EXPECT_DOUBLE_EQ(std::get<double>(global.get(name)), 9.0);
 	EXPECT_DOUBLE_EQ(std::get<double>(local.getAt(0, name)), 0.0);
+}
+
+class ResolverUnitTest : public ::testing::Test
+{
+protected:
+	Token identifierToken(const std::string& name)
+	{
+		return Token{ TokenType::IDENTIFIER, name, std::monostate{} };
+	}
+
+	VariableExpr* makeVariable(const std::string& name)
+	{
+		auto* variable = new VariableExpr();
+		variable->name = identifierToken(name);
+		return variable;
+	}
+
+	VarDeclStmt* makeVarDecl(const std::string& name)
+	{
+		auto* decl = new VarDeclStmt();
+		decl->name = identifierToken(name);
+		return decl;
+	}
+
+	PrintStmt* makePrint(Expr* expression)
+	{
+		auto* print = new PrintStmt();
+		print->expression = expression;
+		return print;
+	}
+
+	BlockStmt* makeBlock(std::vector<Stmt*> statements)
+	{
+		auto* block = new BlockStmt();
+		block->statements = std::move(statements);
+		return block;
+	}
+};
+
+// 같은 스코프에서 선언되고 참조되면 distance == 0.
+TEST_F(ResolverUnitTest, VariableInSameScopeHasZeroDistance)
+{
+	auto* varRef = makeVariable("a");
+	auto* block = makeBlock({ makeVarDecl("a"), makePrint(varRef) });
+
+	Program program;
+	program.statements.push_back(block);
+	Resolver().resolve(program);
+
+	EXPECT_EQ(varRef->distance, 0);
+}
+
+// 한 단계 안쪽 블록에서 참조하면 distance == 1.
+TEST_F(ResolverUnitTest, VariableInNestedBlockHasDistanceOne)
+{
+	auto* varRef = makeVariable("a");
+	auto* innerBlock = makeBlock({ makePrint(varRef) });
+	auto* outerBlock = makeBlock({ makeVarDecl("a"), innerBlock });
+
+	Program program;
+	program.statements.push_back(outerBlock);
+	Resolver().resolve(program);
+
+	EXPECT_EQ(varRef->distance, 1);
+}
+
+// 최상위(top-level)는 스코프를 만들지 않으므로 distance는 항상 -1로 남는다
+// (Environment::get/assign이 처리하는 전역 조회 경로).
+TEST_F(ResolverUnitTest, TopLevelVariableKeepsDistanceMinusOne)
+{
+	auto* varRef = makeVariable("a");
+
+	Program program;
+	program.statements.push_back(makeVarDecl("a"));
+	program.statements.push_back(makePrint(varRef));
+	Resolver().resolve(program);
+
+	EXPECT_EQ(varRef->distance, -1);
+}
+
+// IfStmt 자체는 새 스코프를 만들지 않으므로, 중괄호 없는 thenBranch에서 참조해도
+// 바깥 블록과 같은 깊이(distance == 0)로 계산돼야 한다.
+TEST_F(ResolverUnitTest, IfBranchWithoutBlockDoesNotAddExtraScope)
+{
+	auto* varRef = makeVariable("a");
+	auto* ifStmt = new IfStmt();
+	ifStmt->condition = new LiteralExpr();
+	ifStmt->thenBranch = makePrint(varRef);
+	auto* block = makeBlock({ makeVarDecl("a"), ifStmt });
+
+	Program program;
+	program.statements.push_back(block);
+	Resolver().resolve(program);
+
+	EXPECT_EQ(varRef->distance, 0);
+}
+
+// ForStmt는 자체 스코프를 하나 만들고, 중괄호가 있는 body는 그 안에 스코프를 하나 더
+// 만들므로 init 변수를 body에서 참조하면 distance == 1이 된다.
+TEST_F(ResolverUnitTest, ForLoopVariableInsideBlockBodyHasDistanceOne)
+{
+	auto* varRef = makeVariable("i");
+	auto* forStmt = new ForStmt();
+	forStmt->init = makeVarDecl("i");
+	forStmt->body = makeBlock({ makePrint(varRef) });
+
+	Program program;
+	program.statements.push_back(forStmt);
+	Resolver().resolve(program);
+
+	EXPECT_EQ(varRef->distance, 1);
+}
+
+// AssignExpr도 VariableExpr과 동일한 규칙으로 distance가 계산되는지 확인한다.
+TEST_F(ResolverUnitTest, AssignExprInNestedBlockHasDistanceOne)
+{
+	auto* assign = new AssignExpr();
+	assign->name = identifierToken("a");
+	assign->value = new LiteralExpr();
+	auto* exprStmt = new ExpressionStmt();
+	exprStmt->expression = assign;
+	auto* innerBlock = makeBlock({ exprStmt });
+	auto* outerBlock = makeBlock({ makeVarDecl("a"), innerBlock });
+
+	Program program;
+	program.statements.push_back(outerBlock);
+	Resolver().resolve(program);
+
+	EXPECT_EQ(assign->distance, 1);
+}
+
+class ExecutorMockEnvironmentTest : public ::testing::Test
+{
+protected:
+	// Strategy(io.h)의 테스트용 ConcreteStrategy. test_Hong.cpp의 FakeOutputWriter와 동일한 역할.
+	class FakeOutputWriter : public IOutputWriter
+	{
+	public:
+		void write(const std::string& text) override { output += text; }
+		std::string output;
+	};
+
+	// Environment/IEnvironment를 gmock으로 대체한 Test Double. Executor가 distance 유무에 따라
+	// getAt/get 중 정확히 하나만 호출하는지(3.1절) 검증하는 데 쓴다.
+	class MockEnvironment : public IEnvironment
+	{
+	public:
+		MOCK_METHOD(void, define, (const std::string& name, const LiteralValue& value), (override));
+		MOCK_METHOD(LiteralValue, get, (const Token& name), (const, override));
+		MOCK_METHOD(void, assign, (const Token& name, const LiteralValue& value), (override));
+		MOCK_METHOD(LiteralValue, getAt, (int distance, const Token& name), (const, override));
+		MOCK_METHOD(void, assignAt, (int distance, const Token& name, const LiteralValue& value), (override));
+	};
+
+	Token identifierToken(const std::string& name)
+	{
+		return Token{ TokenType::IDENTIFIER, name, std::monostate{} };
+	}
+
+	VariableExpr* makeVariable(const std::string& name)
+	{
+		auto* variable = new VariableExpr();
+		variable->name = identifierToken(name);
+		return variable;
+	}
+
+	PrintStmt* makePrint(Expr* expression)
+	{
+		auto* print = new PrintStmt();
+		print->expression = expression;
+		return print;
+	}
+};
+
+// distance가 계산된(>=0) 변수는 체인 탐색 없이 getAt만 호출되고 get은 호출되지 않아야 한다.
+TEST_F(ExecutorMockEnvironmentTest, StaticallyBoundVariableCallsGetAtNotGet)
+{
+	MockEnvironment env;
+	EXPECT_CALL(env, getAt(0, _)).WillOnce(Return(LiteralValue{ 1.0 }));
+	EXPECT_CALL(env, get(_)).Times(0);
+
+	auto* varRef = makeVariable("a");
+	varRef->distance = 0;
+
+	FakeOutputWriter writer;
+	Executor executor(writer);
+	Program program;
+	program.statements.push_back(makePrint(varRef));
+	executor.execute(program, env);
+
+	EXPECT_EQ(writer.output, "1\n");
+}
+
+// distance가 없는(-1, 전역) 변수는 반대로 get만 호출되고 getAt은 호출되지 않아야 한다.
+TEST_F(ExecutorMockEnvironmentTest, UnresolvedVariableCallsGetNotGetAt)
+{
+	MockEnvironment env;
+	EXPECT_CALL(env, get(_)).WillOnce(Return(LiteralValue{ 2.0 }));
+	EXPECT_CALL(env, getAt(_, _)).Times(0);
+
+	auto* varRef = makeVariable("a");
+	varRef->distance = -1;
+
+	FakeOutputWriter writer;
+	Executor executor(writer);
+	Program program;
+	program.statements.push_back(makePrint(varRef));
+	executor.execute(program, env);
+
+	EXPECT_EQ(writer.output, "2\n");
 }
