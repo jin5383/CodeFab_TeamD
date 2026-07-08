@@ -79,6 +79,19 @@ public:
 		enclosing->assignAt(distance - 1, name, value);
 	}
 
+	// Lee: 함수 호출 시 콜 프레임의 enclosing으로 쓸 최상위(전역) Environment를 찾는다.
+	// 이 언어는 중첩 함수 선언의 클로저 캡처를 지원하지 않으므로(3.1절), 재귀 호출이
+	// 함수 이름을 다시 찾을 수 있도록 전역까지 체인을 타고 올라가는 것으로 충분하다.
+	// enclosing이 IEnvironment*(Kwon: gmock Test Double 대체용 인터페이스)이므로, 실제
+	// Environment 체인을 타는 동안만 dynamic_cast로 확인하며 올라간다.
+	Environment& root()
+	{
+		Environment* env = this;
+		while (auto* parent = dynamic_cast<Environment*>(env->enclosing))
+			env = parent;
+		return *env;
+	}
+
 private:
 	std::unordered_map<std::string, LiteralValue> values;
 	IEnvironment* enclosing;
