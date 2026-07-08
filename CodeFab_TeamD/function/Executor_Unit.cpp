@@ -77,6 +77,11 @@ namespace
 			}
 		}
 
+		// 기능별 위임: Lee(function) / Park(class) / Hong(array)
+		if (auto result = evaluateFunction(expr, env)) return *result;
+		if (auto result = evaluateClass(expr, env))    return *result;
+		if (auto result = evaluateArray(expr, env))    return *result;
+
 		return LiteralValue{};
 	}
 
@@ -132,6 +137,11 @@ namespace
 					evaluate(forStmt->increment, loopEnv);
 			}
 		}
+		// 기능별 위임: Lee(function) / Park(class) / Hong(array) / Ryu(import)
+		else if (executeFunction(stmt, env)) {}
+		else if (executeClass(stmt, env))    {}
+		else if (executeArray(stmt, env))    {}
+		else if (executeImport(stmt, env))   {}
 	}
 }
 
@@ -148,3 +158,24 @@ void executeAssembly(const Program& program)
 	Environment global;
 	executeAssembly(program, global);
 }
+
+// Ryu: 디버그 모드용 — 각 Stmt 실행 직전에 onStep 콜백을 호출한다
+void executeAssembly(const Program& program, Environment& environment, StepCallback onStep)
+{
+	for (Stmt* stmt : program.statements)
+	{
+		if (onStep)
+			onStep(stmt);
+		execute(stmt, environment);
+	}
+}
+
+// 기능별 위임 함수 스텁 — 각 담당자가 별도 파일로 구현하면 이 스텁을 제거한다
+bool executeFunction(Stmt*, Environment&) { return false; }
+bool executeClass(Stmt*, Environment&)    { return false; }
+bool executeArray(Stmt*, Environment&)    { return false; }
+bool executeImport(Stmt*, Environment&)   { return false; }
+
+std::optional<LiteralValue> evaluateFunction(Expr*, Environment&) { return std::nullopt; }
+std::optional<LiteralValue> evaluateClass(Expr*, Environment&)    { return std::nullopt; }
+std::optional<LiteralValue> evaluateArray(Expr*, Environment&)    { return std::nullopt; }

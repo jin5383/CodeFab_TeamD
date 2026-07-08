@@ -40,6 +40,8 @@ namespace
 		{
 		case '=': return makeSimpleToken(TokenType::EQUAL, "=");
 		case ';': return makeSimpleToken(TokenType::SEMICOLON, ";");
+		case ',': return makeSimpleToken(TokenType::COMMA, ",");
+		case '.': return makeSimpleToken(TokenType::DOT, ".");
 		case '+': return makeSimpleToken(TokenType::PLUS, "+");
 		case '-': return makeSimpleToken(TokenType::MINUS, "-");
 		case '*': return makeSimpleToken(TokenType::STAR, "*");
@@ -50,6 +52,8 @@ namespace
 		case '>': return makeSimpleToken(TokenType::GREATER, ">");
 		case '{': return makeSimpleToken(TokenType::LEFT_BRACE, "{");
 		case '}': return makeSimpleToken(TokenType::RIGHT_BRACE, "}");
+		case '[': return makeSimpleToken(TokenType::LEFT_BRACKET, "[");
+		case ']': return makeSimpleToken(TokenType::RIGHT_BRACKET, "]");
 		default: return std::nullopt;
 		}
 	}
@@ -59,13 +63,16 @@ std::vector<Token> tokenizeSource(const std::string& source)
 {
 	std::vector<Token> tokens;
 	size_t i = 0;
+	int line = 1;
 	while (i < source.size())
 	{
 		const char c = source[i];
 
-		// 1단계: 공백은 토큰 없이 SKIP
+		// 1단계: 공백은 토큰 없이 SKIP. 개행 시 줄 번호 증가
 		if (std::isspace(static_cast<unsigned char>(c)))
 		{
+			if (c == '\n')
+				++line;
 			++i;
 			continue;
 		}
@@ -85,7 +92,7 @@ std::vector<Token> tokenizeSource(const std::string& source)
 					++i;
 			}
 			const std::string origin = source.substr(start, i - start);
-			tokens.push_back(Token{ TokenType::NUMBER, origin, std::stod(origin) });
+			tokens.push_back(Token{ TokenType::NUMBER, origin, std::stod(origin), line });
 			continue;
 		}
 
@@ -96,10 +103,13 @@ std::vector<Token> tokenizeSource(const std::string& source)
 			while (i < source.size() && std::isalnum(static_cast<unsigned char>(source[i])))
 				++i;
 			const std::string origin = source.substr(start, i - start);
+			Token token;
 			if (const auto keyword = scanKeywordToken(origin))
-				tokens.push_back(*keyword);
+				token = *keyword;
 			else
-				tokens.push_back(makeSimpleToken(TokenType::IDENTIFIER, origin));
+				token = makeSimpleToken(TokenType::IDENTIFIER, origin);
+			token.line = line;
+			tokens.push_back(token);
 			continue;
 		}
 
@@ -112,17 +122,21 @@ std::vector<Token> tokenizeSource(const std::string& source)
 			const std::string origin = source.substr(start, i - start);
 			if (i < source.size())
 				++i; // 닫는 "
-			tokens.push_back(Token{ TokenType::STRING, origin, origin });
+			tokens.push_back(Token{ TokenType::STRING, origin, origin, line });
 			continue;
 		}
 
 		// 5단계: 나머지는 한 글자짜리 연산자/구두점 토큰으로 처리
 		if (const auto symbol = scanSymbolToken(c))
-			tokens.push_back(*symbol);
+		{
+			Token token = *symbol;
+			token.line = line;
+			tokens.push_back(token);
+		}
 		++i;
 	}
 
 	// 6단계: 파서가 끝을 알 수 있도록 마지막에 END_OF_FILE 토큰 추가
-	tokens.push_back(makeSimpleToken(TokenType::END_OF_FILE, ""));
+	tokens.push_back(Token{ TokenType::END_OF_FILE, "", std::monostate{}, line });
 	return tokens;
 }

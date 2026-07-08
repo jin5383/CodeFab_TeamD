@@ -41,6 +41,9 @@ namespace
 
 	private:
 		std::vector<std::set<std::string>> scopes;
+		bool isInsideFunction = false;  // Lee: return 위치 검사
+		bool isInsideClass    = false;  // Park: this 접근 유효성 검사
+		bool isInsideLoop     = false;  // Ryu: import 위치 제한 검사
 
 		CheckerErrno checkStmts(const std::vector<Stmt*>& statements)
 		{

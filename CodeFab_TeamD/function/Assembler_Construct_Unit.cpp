@@ -248,6 +248,13 @@ namespace
 				return unary;
 			}
 
+			return parsePostfixExpr();
+		}
+
+		// Lee(CallExpr/LEFT_PAREN), Park(GetExpr·SetExpr/DOT), Hong(IndexGetExpr·IndexSetExpr/LEFT_BRACKET)가
+		// 각자 이 함수 안에 후위 연산자 처리를 추가한다
+		Expr* parsePostfixExpr()
+		{
 			return parsePrimary();
 		}
 
