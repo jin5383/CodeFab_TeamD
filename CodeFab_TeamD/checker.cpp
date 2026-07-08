@@ -154,9 +154,14 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, int loopDepth, F
 	return CheckerErrno::success;
 }
 
-CheckerErrno Checker::check(const Program& program) const
+CheckerErrno Checker::check(const Program& program, FunctionArities& functionArities) const
 {
 	ScopeStack scopes(1);
-	FunctionArities functionArities;
 	return checkStmts(program.statements, scopes, 0, functionArities);
+}
+
+CheckerErrno Checker::check(const Program& program) const
+{
+	FunctionArities functionArities;
+	return check(program, functionArities);
 }
