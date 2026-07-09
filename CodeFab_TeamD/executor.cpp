@@ -218,8 +218,7 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 				callMethod(initMethod, instance, call->arguments, environment, owner);
 			}
 			else if (!call->arguments.empty())
-				throw std::runtime_error("Expected 0 arguments but got " +
-				                         std::to_string(call->arguments.size()) + ".");
+				throw std::runtime_error(formatArityMismatch(0, call->arguments.size()));
 			return instance;
 		}
 
@@ -236,8 +235,7 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 		// 접근(정의되지 않은 동작 — 실제로 벡터 어설션 크래시로 재현됨)이 된다 — 런타임
 		// 최종 방어선으로 항상 검사한다.
 		if (call->arguments.size() != function->params.size())
-			throw std::runtime_error("Expected " + std::to_string(function->params.size()) +
-				" arguments but got " + std::to_string(call->arguments.size()) + ".");
+			throw std::runtime_error(formatArityMismatch(function->params.size(), call->arguments.size()));
 
 		// 이 언어는 클로저(중첩 함수의 선언 시점 지역 스코프 캡처)를 지원하지 않으므로
 		// (docs/lee-function-impl-plan.md 0절), 콜 프레임의 enclosing은 전역으로 고정한다.
@@ -563,8 +561,7 @@ LiteralValue Executor::callMethod(FunctionDeclStmt* method, std::shared_ptr<Inst
                                   ClassDeclStmt* methodOwnerClass) const
 {
 	if (method->params.size() != args.size())
-		throw std::runtime_error("Expected " + std::to_string(method->params.size()) +
-		                         " arguments but got " + std::to_string(args.size()) + ".");
+		throw std::runtime_error(formatArityMismatch(method->params.size(), args.size()));
 	Environment methodEnv;
 	methodEnv.define("This", instance);
 	if (methodOwnerClass != nullptr)

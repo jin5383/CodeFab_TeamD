@@ -54,19 +54,18 @@ CheckerErrno Checker::checkCallArity(Expr* expr, const FunctionArities& function
 	return CheckerErrno::success;
 }
 
-CheckerErrno Checker::checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes, int loopDepth,
-	FunctionArities& functionArities, bool insideFunction) const
+CheckerErrno Checker::checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes, CheckContext ctx) const
 {
 	for (Stmt* stmt : statements)
 	{
-		CheckerErrno result = checkStmt(stmt, scopes, loopDepth, functionArities, insideFunction);
+		CheckerErrno result = checkStmt(stmt, scopes, ctx);
 		if (result != CheckerErrno::success)
 			return result;
 	}
 	return CheckerErrno::success;
 }
 
-CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, int loopDepth, FunctionArities& functionArities, bool insideFunction) const
+CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, CheckContext ctx) const
 {
 	if (!stmt)
 		return CheckerErrno::success;
@@ -86,37 +85,41 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, int loopDepth, F
 	}
 
 	if (auto* exprStmt = dynamic_cast<ExpressionStmt*>(stmt))
-		return checkCallArity(exprStmt->expression, functionArities);
+		return checkCallArity(exprStmt->expression, ctx.functionArities);
 
 	if (auto* block = dynamic_cast<BlockStmt*>(stmt))
 	{
 		scopes.push_back({});
-		CheckerErrno result = checkStmts(block->statements, scopes, loopDepth, functionArities, insideFunction);
+		CheckerErrno result = checkStmts(block->statements, scopes, ctx);
 		scopes.pop_back();
 		return result;
 	}
 
 	if (auto* ifStmt = dynamic_cast<IfStmt*>(stmt))
 	{
-		CheckerErrno result = checkStmt(ifStmt->thenBranch, scopes, loopDepth, functionArities, insideFunction);
+		CheckerErrno result = checkStmt(ifStmt->thenBranch, scopes, ctx);
 		if (result != CheckerErrno::success)
 			return result;
-		return checkStmt(ifStmt->elseBranch, scopes, loopDepth, functionArities, insideFunction);
+		return checkStmt(ifStmt->elseBranch, scopes, ctx);
 	}
 
 	if (auto* forStmt = dynamic_cast<ForStmt*>(stmt))
 	{
 		scopes.push_back({});
-		CheckerErrno result = checkStmt(forStmt->init, scopes, loopDepth, functionArities, insideFunction);
+		CheckerErrno result = checkStmt(forStmt->init, scopes, ctx);
 		if (result == CheckerErrno::success)
-			result = checkStmt(forStmt->body, scopes, loopDepth + 1, functionArities, insideFunction);
+		{
+			CheckContext bodyCtx = ctx;
+			bodyCtx.loopDepth = ctx.loopDepth + 1;
+			result = checkStmt(forStmt->body, scopes, bodyCtx);
+		}
 		scopes.pop_back();
 		return result;
 	}
 
 	if (auto* funcDecl = dynamic_cast<FunctionDeclStmt*>(stmt))
 	{
-		functionArities[funcDecl->name.origin] = funcDecl->params.size();
+		ctx.functionArities[funcDecl->name.origin] = funcDecl->params.size();
 
 		scopes.push_back({});
 		for (const Token& param : funcDecl->params)
@@ -127,14 +130,17 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, int loopDepth, F
 				return CheckerErrno::duplicateParameterName;
 			}
 		}
-		CheckerErrno result = checkStmts(funcDecl->body, scopes, 0, functionArities, true);
+		CheckContext funcCtx = ctx;
+		funcCtx.loopDepth = 0;
+		funcCtx.insideFunction = true;
+		CheckerErrno result = checkStmts(funcDecl->body, scopes, funcCtx);
 		scopes.pop_back();
 		return result;
 	}
 
 	if (auto* returnStmt = dynamic_cast<ReturnStmt*>(stmt))
 	{
-		if (!insideFunction)
+		if (!ctx.insideFunction)
 			return CheckerErrno::returnOutsideFunction;
 		return CheckerErrno::success;
 	}
@@ -146,7 +152,7 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, int loopDepth, F
 
 	if (auto* importStmt = dynamic_cast<ImportStmt*>(stmt))
 	{
-		if (loopDepth > 0)
+		if (ctx.loopDepth > 0)
 			return CheckerErrno::importInsideLoop;
 		return CheckerErrno::success;
 	}
@@ -157,7 +163,7 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, int loopDepth, F
 CheckerErrno Checker::check(const Program& program, FunctionArities& functionArities) const
 {
 	ScopeStack scopes(1);
-	return checkStmts(program.statements, scopes, 0, functionArities);
+	return checkStmts(program.statements, scopes, CheckContext{ 0, false, functionArities });
 }
 
 CheckerErrno Checker::check(const Program& program) const
