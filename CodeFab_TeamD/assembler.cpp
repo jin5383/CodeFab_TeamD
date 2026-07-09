@@ -438,7 +438,7 @@ namespace
 			return parsePostfixExpr();
 		}
 
-		// Lee(CallExpr/LEFT_PAREN), Park(GetExpr/DOT)이 각자 이 함수 안에 분기를 추가한다 (TODO)
+		// Lee(CallExpr/LEFT_PAREN), Park(GetExpr/DOT) 분기 모두 구현 완료 — 체이닝(a.b(x).c 등)까지 지원한다
 		Expr* parsePostfixExpr()
 		{
 			Expr* expr = parsePrimary();
