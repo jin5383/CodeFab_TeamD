@@ -35,6 +35,7 @@ inline std::string describeCheckerError(CheckerErrno errorCode)
 	case CheckerErrno::thisOutsideClass: return "Can't use 'This' outside of a class.";
 	case CheckerErrno::superOutsideClass: return "Can't use 'Super' outside of a class.";
 	case CheckerErrno::selfInheritance: return "A class can't inherit from itself.";
+	case CheckerErrno::circularInheritance: return "Circular inheritance detected.";
 	case CheckerErrno::superWithoutParent: return "Can't use 'Super' in a class with no superclass.";
 	case CheckerErrno::returnValueInInit: return "Can't return a value from an initializer.";
 	case CheckerErrno::importInsideLoop: return "Can't import inside a loop.";

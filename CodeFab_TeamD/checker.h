@@ -29,6 +29,7 @@ enum class CheckerErrno
 	thisOutsideClass,             // 클래스 밖 This
 	superOutsideClass,            // 클래스 밖 Super
 	selfInheritance,              // Class A : A
+	circularInheritance,          // Class A : B, Class B : A 처럼 서로(또는 더 긴 체인으로) 상속
 	superWithoutParent,           // 부모 없는 클래스에서 Super 사용
 	returnValueInInit,            // init에서 값 있는 return
 	importInsideLoop,
@@ -80,6 +81,15 @@ private:
 	// 모든 자리(대입 값, 이항/단항/논리 연산의 좌우항, 괄호 안, 호출 인자 등)에 중첩된
 	// CallExpr까지 훑는다(docs/lee-function-impl-plan.md 5절 후속 작업).
 	CheckerErrno checkExprCallArity(Expr* expr, const FunctionArities& functionArities) const;
+	// 최상위 ClassDeclStmt들의 (클래스 이름 -> superclass 이름) 관계를 모아 순환 상속을 찾는다.
+	// Class A : A(1단계, selfInheritance로 별도 처리)와 달리 Class A : B / Class B : A 처럼
+	// 2단계 이상의 순환은 여기서만 잡힌다.
+	CheckerErrno checkClassInheritanceCycles(const std::vector<Stmt*>& statements) const;
+	// Park: expr/stmt 트리 안에 SuperExpr가 어디든 있으면 true. Super가 클래스 메서드 밖에서
+	// 쓰였는지(superOutsideClass)와, superclass 없는 클래스의 메서드 안에서 쓰였는지
+	// (superWithoutParent)를 정적으로 판별하는 데 쓰인다.
+	bool exprUsesSuper(Expr* expr) const;
+	bool stmtUsesSuper(Stmt* stmt) const;
 	bool isNameDeclared(const std::string& name, const ScopeStack& scopes) const;
 	bool exprReferencesName(Expr* expr, const std::string& name) const;
 };
