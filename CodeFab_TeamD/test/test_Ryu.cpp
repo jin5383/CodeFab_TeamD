@@ -3,6 +3,7 @@
 #include <fstream>
 #include <string>
 #include "../import.h"
+#include "../interpreter.h"
 
 using namespace std;
 
@@ -22,6 +23,11 @@ namespace
 		file << content;
 		return path;
 	}
+
+	struct NullWriter : IOutputWriter
+	{
+		void write(const string&) override {}
+	};
 }
 
 TEST(ImportUnitTest, ParseImportStatementText_ValidSyntax_ExtractsPathAndAlias)
@@ -55,22 +61,25 @@ TEST(ImportUnitTest, ImportFile_ValidVarOnlyFile_BindsVariablesIntoModuleEnviron
 {
 	auto path = writeTempFile("valid", "var value = 42; var greeting = \"hello\";");
 
-	ImportScope scope;
-	Environment& module = scope.importFile(path.string(), "m");
+	NullWriter writer;
+	Environment environment;
+	Interpreter(writer).run("import \"" + path.string() + "\" alias m;", environment);
 
-	EXPECT_DOUBLE_EQ(get<double>(module.get(Token{ TokenType::IDENTIFIER, "value" })), 42.0);
-	EXPECT_EQ(get<string>(module.get(Token{ TokenType::IDENTIFIER, "greeting" })), "hello");
+	auto module = get<shared_ptr<Instance>>(environment.get(Token{ TokenType::IDENTIFIER, "m" }));
+	EXPECT_DOUBLE_EQ(get<double>(module->fields.at("value")), 42.0);
+	EXPECT_EQ(get<string>(module->fields.at("greeting")), "hello");
 
 	filesystem::remove(path);
 }
 
 TEST(ImportUnitTest, ImportFile_FileNotFound_Throws)
 {
-	ImportScope scope;
 	auto missing = filesystem::temp_directory_path() / "codefab_import_definitely_missing.txt";
 	filesystem::remove(missing);
 
-	EXPECT_THROW(scope.importFile(missing.string(), "m"), ImportError);
+	NullWriter writer;
+	Environment environment;
+	EXPECT_THROW(Interpreter(writer).run("import \"" + missing.string() + "\" alias m;", environment), ImportError);
 }
 
 TEST(ImportUnitTest, ImportFile_SameFileTwiceInSameScope_Throws)
@@ -153,8 +162,9 @@ TEST(ImportUnitTest, ImportFile_CircularImport_Throws)
 		fileB << "import \"" << pathA.string() << "\" alias a;";
 	}
 
-	ImportScope scope;
-	EXPECT_THROW(scope.importFile(pathA.string(), "a"), ImportError);
+	NullWriter writer;
+	Environment environment;
+	EXPECT_THROW(Interpreter(writer).run("import \"" + pathA.string() + "\" alias a;", environment), std::runtime_error);
 
 	filesystem::remove(pathA);
 	filesystem::remove(pathB);
@@ -166,10 +176,12 @@ TEST(ImportUnitTest, ImportFile_NestedImportInsideModule_BindsIntoModulesOwnScop
 	auto outerPath = writeTempFile("outer_nested",
 		"import \"" + innerPath.string() + "\" alias inner; var outerValue = 3;");
 
-	ImportScope scope;
-	Environment& outerModule = scope.importFile(outerPath.string(), "outer");
+	NullWriter writer;
+	Environment environment;
+	Interpreter(writer).run("import \"" + outerPath.string() + "\" alias outer;", environment);
 
-	EXPECT_DOUBLE_EQ(get<double>(outerModule.get(Token{ TokenType::IDENTIFIER, "outerValue" })), 3.0);
+	auto outerModule = get<shared_ptr<Instance>>(environment.get(Token{ TokenType::IDENTIFIER, "outer" }));
+	EXPECT_DOUBLE_EQ(get<double>(outerModule->fields.at("outerValue")), 3.0);
 
 	filesystem::remove(innerPath);
 	filesystem::remove(outerPath);
