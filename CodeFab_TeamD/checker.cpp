@@ -34,18 +34,39 @@ bool Checker::isNameDeclared(const std::string& name, const ScopeStack& scopes) 
 	return false;
 }
 
-CheckerErrno Checker::checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes, int loopDepth) const
+// CallExpr의 callee가 정적으로 알려진 함수 이름을 가리키는 VariableExpr인 경우에만
+// 인자 개수를 검사한다(3.1절 "정적으로 판단 가능한 경우"). 그 외에는 Executor 런타임으로 위임.
+CheckerErrno Checker::checkCallArity(Expr* expr, const FunctionArities& functionArities) const
+{
+	if (!expr)
+		return CheckerErrno::success;
+
+	if (auto* call = dynamic_cast<CallExpr*>(expr))
+	{
+		if (auto* callee = dynamic_cast<VariableExpr*>(call->callee))
+		{
+			auto it = functionArities.find(callee->name.origin);
+			if (it != functionArities.end() && it->second != call->arguments.size())
+				return CheckerErrno::argumentCountMismatch;
+		}
+	}
+
+	return CheckerErrno::success;
+}
+
+CheckerErrno Checker::checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes, int loopDepth,
+	FunctionArities& functionArities, bool insideFunction) const
 {
 	for (Stmt* stmt : statements)
 	{
-		CheckerErrno result = checkStmt(stmt, scopes, loopDepth);
+		CheckerErrno result = checkStmt(stmt, scopes, loopDepth, functionArities, insideFunction);
 		if (result != CheckerErrno::success)
 			return result;
 	}
 	return CheckerErrno::success;
 }
 
-CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, int loopDepth) const
+CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, int loopDepth, FunctionArities& functionArities, bool insideFunction) const
 {
 	if (!stmt)
 		return CheckerErrno::success;
@@ -64,41 +85,57 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, int loopDepth) c
 		return CheckerErrno::success;
 	}
 
+	if (auto* exprStmt = dynamic_cast<ExpressionStmt*>(stmt))
+		return checkCallArity(exprStmt->expression, functionArities);
+
 	if (auto* block = dynamic_cast<BlockStmt*>(stmt))
 	{
 		scopes.push_back({});
-		CheckerErrno result = checkStmts(block->statements, scopes, loopDepth);
+		CheckerErrno result = checkStmts(block->statements, scopes, loopDepth, functionArities, insideFunction);
 		scopes.pop_back();
 		return result;
 	}
 
 	if (auto* ifStmt = dynamic_cast<IfStmt*>(stmt))
 	{
-		CheckerErrno result = checkStmt(ifStmt->thenBranch, scopes, loopDepth);
+		CheckerErrno result = checkStmt(ifStmt->thenBranch, scopes, loopDepth, functionArities, insideFunction);
 		if (result != CheckerErrno::success)
 			return result;
-		return checkStmt(ifStmt->elseBranch, scopes, loopDepth);
+		return checkStmt(ifStmt->elseBranch, scopes, loopDepth, functionArities, insideFunction);
 	}
 
 	if (auto* forStmt = dynamic_cast<ForStmt*>(stmt))
 	{
 		scopes.push_back({});
-		CheckerErrno result = checkStmt(forStmt->init, scopes, loopDepth);
+		CheckerErrno result = checkStmt(forStmt->init, scopes, loopDepth, functionArities, insideFunction);
 		if (result == CheckerErrno::success)
-			result = checkStmt(forStmt->body, scopes, loopDepth + 1);
+			result = checkStmt(forStmt->body, scopes, loopDepth + 1, functionArities, insideFunction);
 		scopes.pop_back();
 		return result;
 	}
 
 	if (auto* funcDecl = dynamic_cast<FunctionDeclStmt*>(stmt))
 	{
-		// TODO(Lee): 함수 선언 정적 검사(파라미터 중복, 인자 개수 등) - Phase 1에서 구현
-		return CheckerErrno::success;
+		functionArities[funcDecl->name.origin] = funcDecl->params.size();
+
+		scopes.push_back({});
+		for (const Token& param : funcDecl->params)
+		{
+			if (!scopes.back().insert(param.origin).second)
+			{
+				scopes.pop_back();
+				return CheckerErrno::duplicateParameterName;
+			}
+		}
+		CheckerErrno result = checkStmts(funcDecl->body, scopes, 0, functionArities, true);
+		scopes.pop_back();
+		return result;
 	}
 
 	if (auto* returnStmt = dynamic_cast<ReturnStmt*>(stmt))
 	{
-		// TODO(Lee): 함수 밖 return 검사 - Phase 1에서 구현
+		if (!insideFunction)
+			return CheckerErrno::returnOutsideFunction;
 		return CheckerErrno::success;
 	}
 
@@ -117,8 +154,14 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, int loopDepth) c
 	return CheckerErrno::success;
 }
 
-CheckerErrno Checker::check(const Program& program) const
+CheckerErrno Checker::check(const Program& program, FunctionArities& functionArities) const
 {
 	ScopeStack scopes(1);
-	return checkStmts(program.statements, scopes, 0);
+	return checkStmts(program.statements, scopes, 0, functionArities);
+}
+
+CheckerErrno Checker::check(const Program& program) const
+{
+	FunctionArities functionArities;
+	return check(program, functionArities);
 }

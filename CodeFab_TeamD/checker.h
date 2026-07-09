@@ -12,6 +12,7 @@
 // 여러 Program에 대해 반복 호출해도 이전 호출의 잔여 상태가 남지 않는다.
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include "ast.h"
 
@@ -41,13 +42,28 @@ enum class CheckerErrno
 class Checker
 {
 public:
+	// Lee/Park 공용: 함수/(향후) 클래스 이름 -> 정적으로 알려진 인자 개수(arity).
+	// 호출부의 인자 개수를 정적으로 판단 가능한 경우에만 검사하기 위한 보조 정보(3.1절).
+	// public인 이유: DfineShell처럼 여러 줄에 걸쳐 세션을 유지하는 호출자가 이 맵을
+	// Environment처럼 줄 사이에 들고 있어야, 한 줄에서 선언한 함수를 다른 줄에서 호출할
+	// 때도 인자 개수를 검사할 수 있다(한 줄짜리 check()는 매번 상태 없이 새로 검사한다).
+	using FunctionArities = std::unordered_map<std::string, size_t>;
+
+	// 기존 방식: 매 호출마다 상태 없이 Program 하나만 검사(단발성 호출자, 테스트용).
 	CheckerErrno check(const Program& program) const;
+
+	// 호출자가 들고 있는 FunctionArities를 그대로 읽고 갱신한다 — 여러 줄에 걸쳐 선언된
+	// 함수의 인자 개수를 뒤이은 줄의 호출에서도 검사할 수 있게 한다.
+	CheckerErrno check(const Program& program, FunctionArities& functionArities) const;
 
 private:
 	using ScopeStack = std::vector<std::set<std::string>>;
 
-	CheckerErrno checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes, int loopDepth) const;
-	CheckerErrno checkStmt(Stmt* stmt, ScopeStack& scopes, int loopDepth) const;
+	CheckerErrno checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes, int loopDepth,
+		FunctionArities& functionArities, bool insideFunction = false) const;
+	CheckerErrno checkStmt(Stmt* stmt, ScopeStack& scopes, int loopDepth, FunctionArities& functionArities,
+		bool insideFunction = false) const;
+	CheckerErrno checkCallArity(Expr* expr, const FunctionArities& functionArities) const;
 	bool isNameDeclared(const std::string& name, const ScopeStack& scopes) const;
 	bool exprReferencesName(Expr* expr, const std::string& name) const;
 };

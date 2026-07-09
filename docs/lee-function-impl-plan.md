@@ -40,9 +40,10 @@
 
 1. `Func name(params) { body }` 선언 파싱 → `parseFunctionDeclStatement()` 신설,
    `assembler.cpp:107`의 TODO 교체.
-2. `name(args, ...)` 호출 파싱 → `parsePrimary()`에 postfix 콜 처리 추가(식별자 뒤 `(`면
-   `CallExpr` 생성). 인자 구분자 `COMMA` 토큰화 필요(현재 tokenizer에 없음 —
-   `scanSymbolToken`에 `,` 추가).
+2. (완료) `name(args, ...)` 호출 파싱 → `parsePostfixExpr()`에 postfix 콜 처리 추가(`(`면
+   `CallExpr` 생성). Park의 `GetExpr`(`.`) 분기와 같은 함수에 병합되어 있다(`assembler.cpp`
+   `parsePostfixExpr`, 옛 `f07f6f7c`의 별도 `parseCallExpr()`는 이 병합 버전으로 대체됨).
+   인자 구분자 `COMMA` 토큰화도 완료.
 3. `return`/`return expr;` 파싱 → `parseReturnStatement()`, `assembler.cpp:108`의 TODO 교체.
 4. tokenizer에 `func`/`return` 키워드 스캔 추가(`scanKeywordToken`에 등록 — 현재 미등록이라
    지금은 IDENTIFIER로 잡힘).
@@ -75,3 +76,71 @@
 
 각 단계는 커밋 1개당 100라인 내외로 쪼개져 있어 PR 분할 기준과 맞는다. 1번(시나리오 문서)부터
 시작해 순서대로 진행한다.
+
+## 4. 실사용 경로(Interpreter/DfineShell) 검증 (필수)
+
+2절의 Red/Green 테스트는 전부 `Checker().check(program)` 또는 `executor.execute(program, env)`를
+**직접, 한 번만** 호출하는 유닛 테스트였다. 그런데 실제 사용자는 `Checker`/`Executor`를 직접
+호출하지 않고 `Interpreter`(Facade)나 `DfineShell`(REPL, 한 줄씩 별도로 `Interpreter::run()`을
+호출하며 `Environment`만 줄 사이에 유지)을 통해서만 프로그램을 실행한다. 이 계층은 다음 두 가지
+방식으로 유닛 테스트와 다르게 동작할 수 있다:
+
+1. **Checker가 에러를 감지해도 사용자에게 보이지 않을 수 있다.** `Interpreter::run()`이
+   `CheckerErrno`를 무시하고 조용히 실행을 건너뛰면, `Checker` 유닛 테스트는 여전히 통과하지만
+   실제로는 아무 에러 메시지도 뜨지 않는다. (실제로 이 문제가 발생했었다 — `returnOutsideFunction`/
+   `duplicateParameterName`이 REPL에서 전혀 출력되지 않았다.)
+2. **`Checker`/`Executor` 상태가 한 번의 `Program` 단위로 초기화된다.** `DfineShell`처럼 여러 줄에
+   걸쳐 세션을 유지하는 호출자가 매 줄 새 `Interpreter`/`Checker`를 만들면, 한 줄에서 선언한 함수의
+   정보(예: 인자 개수)가 다음 줄의 검사에 남아있지 않을 수 있다. Assembler/Checker/Executor
+   유닛 테스트는 항상 함수 선언과 호출을 **하나의 Program**으로 조립하므로 이 문제를 절대
+   재현하지 못한다.
+
+**따라서 아래 항목은 `Checker`/`Executor` 유닛 테스트만으로는 "완료"로 보지 않고, `Interpreter`
+(필요하면 두 번 이상의 `run()` 호출로 여러 줄 세션을 흉내내어)를 직접 사용하는 통합 테스트로
+별도 검증해야 한다**:
+
+- [x] `Interpreter::run()`이 `returnOutsideFunction`/`duplicateParameterName`/
+      `argumentCountMismatch`를 실제로 예외(에러 메시지)로 노출하는지.
+      (`describeCheckerErrno` + `Interpreter::run()` 연결, `LeeInterpreterIntegrationTest`)
+- [x] 재귀 호출(`fact(5)` 등)이 `Interpreter::run()`을 통해 처음부터 끝까지(assemble → check →
+      execute) 정상 동작하는지. (`LeeInterpreterIntegrationTest.RecursiveFactorialWorksThroughInterpreter`)
+- [x] `Interpreter::run()`을 **두 번 이상** 같은 `Environment`(그리고 필요한 정적 정보)로 호출했을
+      때 — 즉 "한 줄에서 `Func foo(a,b,c){...}` 선언, 다음 호출에서 `foo(1,2);`" 같은 시나리오 —
+      에서도 인자 개수 불일치가 여전히 검출되는지. (`Checker::FunctionArities` public화 +
+      `check(program, functionArities)`/`Interpreter::run(source, env, functionArities)` 오버로드
+      + `DfineShell`이 `Environment`처럼 줄 사이에 유지, `DfineShellIntegrationTest`)
+- [x] (계획에 없었지만 검증 중 발견) `CallExpr` 평가가 인자 개수를 확인하지 않고
+      `function->params.size()`만큼 `call->arguments`를 인덱싱해 인자 부족 시 범위 밖 접근
+      (벡터 어설션 크래시로 실제 재현됨)이 나던 문제 → Executor에 런타임 최종 방어선 추가.
+
+이 절의 테스트를 먼저 작성해 Red 상태를 확인한 뒤에, 필요한 계층(`Checker`/`Interpreter`/
+`DfineShell`)을 고쳐 Green으로 만들었다(완료).
+
+## 5. 후속 작업 — `checkCallArity`의 정적 검사 범위 확대 (미착수)
+
+**문제**: `additional-requirement-impl-spec.md` 3.1절은 "호출 대상이 함수인지 정적으로 알 수
+없는 경우만" Executor 런타임으로 미루라고 되어 있는데, 지금 `Checker::checkCallArity`는
+`checkStmt`의 `ExpressionStmt` 분기에서만 호출된다 — 즉 `foo(1, 2);`처럼 호출이 **문장 그
+자체**일 때만 정적으로 검사되고, 아래처럼 콜리가 정적으로 함수라고 알 수 있는데도 다른 표현식
+안에 중첩된 경우는 정적 검사를 건너뛴다:
+
+```
+Func foo(a, b, c) { return a; }
+var x = foo(1, 2);   // 정적 검사 안 됨 — Executor 런타임 방어선만 작동
+print foo(1, 2);      // 정적 검사 안 됨 — Executor 런타임 방어선만 작동
+```
+
+**현재 동작(안전하지만 불완전)**: 4절에서 추가한 Executor 런타임 방어선(`executor.cpp`
+`CallExpr` 평가) 덕분에 크래시 없이 `"Expected N arguments but got M."` 런타임 에러는 발생한다.
+다만 스펙이 요구하는 "정적으로 판단 가능한 경우 Checker가 잡는다"는 기준에는 못 미친다.
+
+**해야 할 일**: `checkCallArity`(또는 이를 감싸는 새 `checkExpr` 같은 일반 표현식 검사 함수)를
+`ExpressionStmt` 최상위뿐 아니라 `VarDeclStmt::initializer`, `ReturnStmt::value`,
+`PrintStmt::expression`, `IfStmt`/`ForStmt`의 조건식, `BinaryExpr`/`UnaryExpr`/`GroupingExpr`
+등 표현식이 나타날 수 있는 모든 자리를 재귀적으로 훑도록 확장한다. 기존 `exprReferencesName`가
+비슷한 재귀 구조(일부 Expr 타입만 처리)라 참고할 수 있다.
+
+**테스트 방향**: 위 두 예시(`var x = foo(1,2);`, `print foo(1,2);`)를 `CheckerUnitTest`에
+Red로 추가해 지금은 `CheckerErrno::success`가 나오는 것을 확인한 뒤, `argumentCountMismatch`가
+나오도록 Green으로 만든다. `docs/scenarios/lee-function-scenarios.md`의 에러 시나리오에도 이
+두 케이스를 추가한다.

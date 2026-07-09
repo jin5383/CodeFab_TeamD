@@ -2,8 +2,22 @@
 #include "../ast.h"
 #include "../checker.h"
 #include "../assembler.h"
+#include "../executor.h"
+#include "../interpreter.h"
+#include "../dfine_shell.h"
 #include <functional>
+#include <sstream>
 #include <vector>
+
+// Lee 전용 Executor 테스트용 가짜 출력(test_Hong.cpp의 동명 클래스와는 별개 — 각자
+// test_<이름>.cpp 안에서 독립적으로 조립한다는 tdd-workflow-rule.md 2절 규칙을 따른다).
+class LeeFakeOutputWriter : public IOutputWriter
+{
+public:
+	void write(const std::string& text) override { output += text; }
+
+	std::string output;
+};
 
 class CheckerUnitTest : public ::testing::Test
 {
@@ -495,4 +509,319 @@ TEST(AssemblerUnitTest, FunctionDeclWithTwoParams_BuildsParamList)
 	ASSERT_EQ(funcDecl->params.size(), 2u);
 	EXPECT_EQ(funcDecl->params[0].origin, "a");
 	EXPECT_EQ(funcDecl->params[1].origin, "b");
+}
+
+// Assembler_Construct_Unit: "return 식;" / "return;" 이 각각 값 있는/없는 ReturnStmt로
+// 파싱되어야 한다(docs/scenarios/lee-function-scenarios.md return 시나리오).
+TEST(AssemblerUnitTest, ReturnStatementParsesValueAndNoValueForms)
+{
+	Program withValue = Assembler().assemble("Func f() { return 1 + 2; }");
+	auto* funcDecl = dynamic_cast<FunctionDeclStmt*>(withValue.statements[0]);
+	ASSERT_NE(funcDecl, nullptr);
+	ASSERT_EQ(funcDecl->body.size(), 1u);
+	auto* returnStmt = dynamic_cast<ReturnStmt*>(funcDecl->body[0]);
+	ASSERT_NE(returnStmt, nullptr);
+	EXPECT_NE(returnStmt->value, nullptr);
+
+	Program noValue = Assembler().assemble("Func g() { return; }");
+	auto* funcDecl2 = dynamic_cast<FunctionDeclStmt*>(noValue.statements[0]);
+	ASSERT_NE(funcDecl2, nullptr);
+	ASSERT_EQ(funcDecl2->body.size(), 1u);
+	auto* returnStmt2 = dynamic_cast<ReturnStmt*>(funcDecl2->body[0]);
+	ASSERT_NE(returnStmt2, nullptr);
+	EXPECT_EQ(returnStmt2->value, nullptr);
+}
+
+// Assembler_Construct_Unit: "add(3, 7);" -> ExpressionStmt{ CallExpr{ callee: VariableExpr(add),
+// arguments: [3, 7] } } (docs/scenarios/lee-function-scenarios.md 선언+호출 시나리오)
+TEST(AssemblerUnitTest, FunctionCallWithTwoArguments_BuildsCallExprTree)
+{
+	Program program = Assembler().assemble("add(3, 7);");
+
+	ASSERT_EQ(program.statements.size(), 1u);
+	auto* exprStmt = dynamic_cast<ExpressionStmt*>(program.statements[0]);
+	ASSERT_NE(exprStmt, nullptr);
+
+	auto* call = dynamic_cast<CallExpr*>(exprStmt->expression);
+	ASSERT_NE(call, nullptr);
+
+	auto* callee = dynamic_cast<VariableExpr*>(call->callee);
+	ASSERT_NE(callee, nullptr);
+	EXPECT_EQ(callee->name.origin, "add");
+
+	ASSERT_EQ(call->arguments.size(), 2u);
+	EXPECT_DOUBLE_EQ(std::get<double>(dynamic_cast<LiteralExpr*>(call->arguments[0])->value), 3.0);
+	EXPECT_DOUBLE_EQ(std::get<double>(dynamic_cast<LiteralExpr*>(call->arguments[1])->value), 7.0);
+}
+
+// Checker unit: 최상위(함수 밖)에서 return 사용 -> returnOutsideFunction 에러
+TEST_F(CheckerUnitTest, ReturnOutsideFunction_ReportsError)
+{
+	auto* returnStmt = new ReturnStmt();
+	returnStmt->value = makeNumberLiteral(1.0);
+
+	Program program;
+	program.statements.push_back(returnStmt);
+
+	EXPECT_EQ(CheckerErrno::returnOutsideFunction, Checker().check(program));
+}
+
+// Checker unit: 함수 안에서 return 사용 -> 에러 없음
+TEST_F(CheckerUnitTest, ReturnInsideFunction_NoError)
+{
+	auto* returnStmt = new ReturnStmt();
+	returnStmt->value = makeNumberLiteral(1.0);
+
+	auto* funcDecl = new FunctionDeclStmt();
+	funcDecl->name = identifierToken("f");
+	funcDecl->body.push_back(returnStmt);
+
+	Program program;
+	program.statements.push_back(funcDecl);
+
+	EXPECT_EQ(CheckerErrno::success, Checker().check(program));
+}
+
+// Checker unit: "Func foo(a, a) { return a; }" 처럼 파라미터 이름이 중복되면
+// duplicateParameterName 에러
+TEST_F(CheckerUnitTest, DuplicateParameterName_ReportsError)
+{
+	auto* returnStmt = new ReturnStmt();
+	returnStmt->value = makeVariable("a");
+
+	auto* funcDecl = new FunctionDeclStmt();
+	funcDecl->name = identifierToken("foo");
+	funcDecl->params.push_back(identifierToken("a"));
+	funcDecl->params.push_back(identifierToken("a"));
+	funcDecl->body.push_back(returnStmt);
+
+	Program program;
+	program.statements.push_back(funcDecl);
+
+	EXPECT_EQ(CheckerErrno::duplicateParameterName, Checker().check(program));
+}
+
+// Checker unit: "Func foo(a, b, c) { return a; } foo(1, 2);" 처럼 정적으로 콜리가 함수
+// 선언임을 알 수 있는 호출부의 인자 개수가 다르면 argumentCountMismatch 에러
+TEST_F(CheckerUnitTest, CallArgumentCountMismatch_ReportsError)
+{
+	auto* returnStmt = new ReturnStmt();
+	returnStmt->value = makeVariable("a");
+
+	auto* funcDecl = new FunctionDeclStmt();
+	funcDecl->name = identifierToken("foo");
+	funcDecl->params.push_back(identifierToken("a"));
+	funcDecl->params.push_back(identifierToken("b"));
+	funcDecl->params.push_back(identifierToken("c"));
+	funcDecl->body.push_back(returnStmt);
+
+	auto* call = new CallExpr();
+	call->callee = makeVariable("foo");
+	call->arguments.push_back(makeNumberLiteral(1.0));
+	call->arguments.push_back(makeNumberLiteral(2.0));
+
+	auto* callStmt = new ExpressionStmt();
+	callStmt->expression = call;
+
+	Program program;
+	program.statements.push_back(funcDecl);
+	program.statements.push_back(callStmt);
+
+	EXPECT_EQ(CheckerErrno::argumentCountMismatch, Checker().check(program));
+}
+
+// Checker unit: 인자 개수가 일치하면 에러 없음 (회귀 방지)
+TEST_F(CheckerUnitTest, CallArgumentCountMatches_NoError)
+{
+	auto* returnStmt = new ReturnStmt();
+	returnStmt->value = makeVariable("a");
+
+	auto* funcDecl = new FunctionDeclStmt();
+	funcDecl->name = identifierToken("foo");
+	funcDecl->params.push_back(identifierToken("a"));
+	funcDecl->params.push_back(identifierToken("b"));
+	funcDecl->body.push_back(returnStmt);
+
+	auto* call = new CallExpr();
+	call->callee = makeVariable("foo");
+	call->arguments.push_back(makeNumberLiteral(1.0));
+	call->arguments.push_back(makeNumberLiteral(2.0));
+
+	auto* callStmt = new ExpressionStmt();
+	callStmt->expression = call;
+
+	Program program;
+	program.statements.push_back(funcDecl);
+	program.statements.push_back(callStmt);
+
+	EXPECT_EQ(CheckerErrno::success, Checker().check(program));
+}
+
+class LeeExecutorTest : public ::testing::Test
+{
+protected:
+	LeeFakeOutputWriter writer;
+	Executor executor{ writer };
+};
+
+// Executor unit: "Func greet() { return 1; }" 실행 시 environment에 함수 값이
+// 정의되어야 한다(docs/scenarios/lee-function-scenarios.md 선언+호출 시나리오의 전제 조건).
+TEST_F(LeeExecutorTest, FunctionDeclDefinesFunctionValueInEnvironment)
+{
+	Program program = Assembler().assemble("Func greet() { return 1; }");
+
+	Environment env;
+	executor.execute(program, env);
+
+	Token name{ TokenType::IDENTIFIER, "greet", std::monostate{} };
+	LiteralValue value = env.get(name);
+
+	ASSERT_TRUE(std::holds_alternative<std::shared_ptr<FunctionDeclStmt>>(value));
+	auto func = std::get<std::shared_ptr<FunctionDeclStmt>>(value);
+	ASSERT_NE(func, nullptr);
+	EXPECT_EQ(func->name.origin, "greet");
+}
+
+// Executor unit: 함수 호출이 인자를 파라미터에 바인딩하고 본문을 실행해야 한다.
+// return 값 자체는 다루지 않는다(다음 기능에서 검증) — 여기서는 호출 메커니즘만 확인.
+TEST_F(LeeExecutorTest, FunctionCallBindsArgumentAndExecutesBody)
+{
+	Program program = Assembler().assemble("Func printA(a) { print a; } printA(42);");
+
+	Environment env;
+	executor.execute(program, env);
+
+	EXPECT_EQ(writer.output, "42\n");
+}
+
+// Executor unit: return이 함수 실행을 조기 종료시키고, 그 값이 호출식의 결과가 되어야 한다
+// (docs/scenarios/lee-function-scenarios.md 선언+호출 시나리오).
+TEST_F(LeeExecutorTest, ReturnValueBecomesCallExpressionResult)
+{
+	Program program = Assembler().assemble("Func add(a, b) { return a + b; } print add(3, 7);");
+
+	Environment env;
+	executor.execute(program, env);
+
+	EXPECT_EQ(writer.output, "10\n");
+}
+
+// Executor unit: return 이후의 문장은 실행되지 않아야 한다(조기 종료 확인)
+TEST_F(LeeExecutorTest, StatementsAfterReturnAreSkipped)
+{
+	Program program = Assembler().assemble("Func f() { return 1; print \"unreachable\"; } f();");
+
+	Environment env;
+	executor.execute(program, env);
+
+	EXPECT_EQ(writer.output, "");
+}
+
+// Executor unit: 재귀 호출 검증 - fact(5) == 120
+// (docs/scenarios/lee-function-scenarios.md 재귀 시나리오). 새 프로덕션 코드 없이
+// 기능 9~11(함수 선언/호출/return 조기 종료)의 조합만으로 통과해야 하는 확인용 테스트.
+TEST_F(LeeExecutorTest, RecursiveFactorialComputesOneTwenty)
+{
+	Program program = Assembler().assemble(
+		"Func fact(n) { if (n < 2) return 1; return n * fact(n - 1); } print fact(5);");
+
+	Environment env;
+	executor.execute(program, env);
+
+	EXPECT_EQ(writer.output, "120\n");
+}
+
+// Executor unit: 함수가 아닌 값을 호출("var x = "hello"; x();")하면 명확한 런타임 에러가
+// 나야 한다(3.1.1 확정: Checker가 아닌 Executor 런타임 에러로 처리, docs/phase0-review-checklist.md).
+TEST_F(LeeExecutorTest, CallingNonFunctionValueThrowsRuntimeError)
+{
+	Program program = Assembler().assemble("var x = \"hello\"; x();");
+
+	Environment env;
+	try
+	{
+		executor.execute(program, env);
+		FAIL() << "Expected a runtime error to be thrown";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Can only call functions.");
+	}
+}
+
+// Executor unit: Checker의 checkCallArity는 호출이 ExpressionStmt 최상위일 때만 정적으로
+// 잡아낸다("foo(1,2);" 형태). "print foo(1,2);"처럼 호출이 다른 표현식 안에 있으면
+// Checker를 통과해버리므로, Executor가 인자 개수 불일치를 런타임 최종 방어선으로 검사해
+// 범위 밖 접근(정의되지 않은 동작) 대신 명확한 에러를 던져야 한다.
+TEST_F(LeeExecutorTest, CallWithTooFewArgumentsInsideExpressionThrowsRuntimeError)
+{
+	Program program = Assembler().assemble("Func foo(a, b, c) { return a; } print foo(1, 2);");
+
+	Environment env;
+	try
+	{
+		executor.execute(program, env);
+		FAIL() << "Expected a runtime error to be thrown";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Expected 3 arguments but got 2.");
+	}
+}
+
+// docs/lee-function-impl-plan.md 4절: Checker/Executor 유닛 테스트만으로는 Interpreter
+// (실사용 경로)를 통해 실행했을 때의 동작을 보장하지 못한다 — 여기서는 Interpreter를 직접
+// 사용해 그 경로까지 검증한다.
+class LeeInterpreterIntegrationTest : public ::testing::Test
+{
+protected:
+	LeeFakeOutputWriter writer;
+	Interpreter interpreter{ writer };
+};
+
+// Interpreter::run()은 현재 checker.check()가 success가 아니면 아무 것도 하지 않고 조용히
+// 넘어간다 — 즉 Checker가 함수 밖 return을 정확히 잡아내도 사용자에게는 아무 것도 보이지
+// 않는다. 이 테스트는 그 문제를 재현하기 위해 실패해야 한다(Red).
+TEST_F(LeeInterpreterIntegrationTest, ReturnOutsideFunctionIsSurfacedAsError)
+{
+	Environment env;
+	EXPECT_THROW(interpreter.run("return 1;", env), std::runtime_error);
+}
+
+TEST_F(LeeInterpreterIntegrationTest, DuplicateParameterNameIsSurfacedAsError)
+{
+	Environment env;
+	EXPECT_THROW(interpreter.run("Func foo(a, a) { return a; }", env), std::runtime_error);
+}
+
+TEST_F(LeeInterpreterIntegrationTest, ArgumentCountMismatchIsSurfacedAsError)
+{
+	Environment env;
+	EXPECT_THROW(interpreter.run("Func foo(a, b, c) { return a; } foo(1, 2);", env), std::runtime_error);
+}
+
+// 재귀 호출이 Interpreter::run() 하나로(assemble -> check -> execute 전체 파이프라인)
+// 실제로 동작해야 한다.
+TEST_F(LeeInterpreterIntegrationTest, RecursiveFactorialWorksThroughInterpreter)
+{
+	Environment env;
+	interpreter.run("Func fact(n) { if (n < 2) return 1; return n * fact(n - 1); } print fact(5);", env);
+
+	EXPECT_EQ(writer.output, "120\n");
+}
+
+// 실사용 경로(DfineShell REPL) 검증: 함수 선언과 호출이 "서로 다른 줄"에 입력되는 흔한
+// REPL 사용 패턴에서도 인자 개수 불일치가 검출돼야 한다(docs/lee-function-impl-plan.md 4절).
+// DfineShell::runLine()이 매 줄 새 Interpreter/Checker를 만들어, 이전 줄에서 선언한 함수의
+// 인자 개수 정보가 다음 줄까지 남아있지 않으므로 지금은 실패한다(Red).
+TEST(DfineShellIntegrationTest, ArgumentCountMismatchDetectedAcrossSeparateLines)
+{
+	std::istringstream in("Func foo(a, b, c) { return a; }\nfoo(1, 2);\nexit\n");
+	std::ostringstream out;
+
+	DfineShell shell;
+	shell.run(in, out);
+
+	EXPECT_NE(out.str().find("Argument count mismatch."), std::string::npos)
+		<< "actual output: " << out.str();
 }

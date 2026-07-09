@@ -3,6 +3,7 @@
 #include <memory>
 #include <sstream>
 #include <stdexcept>
+#include <string>
 #include <vector>
 #include "assembler.h"
 #include "checker.h"
@@ -75,6 +76,16 @@ namespace
 	}
 }
 
+namespace
+{
+	// Lee: return 문 실행 중 함수 본문을 조기 종료하기 위해 throw하는 신호(Crafting
+	// Interpreters와 동일한 관용적 패턴). CallExpr 평가 쪽에서 catch해 반환값으로 쓴다.
+	struct ReturnSignal
+	{
+		LiteralValue value;
+	};
+}
+
 double Executor::asNumber(const LiteralValue& value, int line) const
 {
 	if (!std::holds_alternative<double>(value))
@@ -140,10 +151,10 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 			}
 		}
 
-		LiteralValue callee = evaluate(call->callee, environment);
-		if (std::holds_alternative<std::shared_ptr<ClassValue>>(callee))
+		LiteralValue calleeValue = evaluate(call->callee, environment);
+		if (std::holds_alternative<std::shared_ptr<ClassValue>>(calleeValue))
 		{
-			auto cls = std::get<std::shared_ptr<ClassValue>>(callee);
+			auto& cls = std::get<std::shared_ptr<ClassValue>>(calleeValue);
 			auto instance = std::make_shared<Instance>();
 			instance->klass = cls->decl;
 			FunctionDeclStmt* initMethod = findMethod(cls->decl, "init");
@@ -154,7 +165,43 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 				                         std::to_string(call->arguments.size()) + ".");
 			return instance;
 		}
-		// TODO(Lee): 함수 호출 실행 - Phase 1에서 구현
+
+		// 3.1.1 확정: 호출 대상이 함수인지는 런타임에만 알 수 있으므로 Executor에서 검사한다
+		// (Checker는 스코프/선언 규칙만 검사, docs/phase0-review-checklist.md Lee 항목).
+		if (!std::holds_alternative<std::shared_ptr<FunctionDeclStmt>>(calleeValue))
+			throw std::runtime_error("Can only call functions.");
+		auto function = std::get<std::shared_ptr<FunctionDeclStmt>>(calleeValue);
+
+		// Checker의 인자 개수 검사(checkCallArity)는 호출이 ExpressionStmt 최상위일 때만
+		// 작동해 print/var 초기화식/중첩 호출 등은 정적으로 걸러지지 않는다(여러 줄에 걸친
+		// REPL 세션에서 함수 정보가 유지되지 않는 경우도 마찬가지). 파라미터 개수만큼
+		// call->arguments를 인덱싱하므로, 여기서 막지 않으면 인자가 부족할 때 범위 밖
+		// 접근(정의되지 않은 동작 — 실제로 벡터 어설션 크래시로 재현됨)이 된다 — 런타임
+		// 최종 방어선으로 항상 검사한다.
+		if (call->arguments.size() != function->params.size())
+			throw std::runtime_error("Expected " + std::to_string(function->params.size()) +
+				" arguments but got " + std::to_string(call->arguments.size()) + ".");
+
+		// 이 언어는 클로저(중첩 함수의 선언 시점 지역 스코프 캡처)를 지원하지 않으므로
+		// (docs/lee-function-impl-plan.md 0절), 콜 프레임의 enclosing은 전역으로 고정한다.
+		// 재귀 호출은 전역에 정의된 자기 이름을 다시 찾는 것으로 충분히 해결된다.
+		// environment는 인터페이스(IEnvironment&)지만, 실행 중 실제로 전달되는 것은 항상
+		// 구체 Environment 체인이므로(Kwon의 gmock Test Double은 함수 호출과 함께 쓰이지
+		// 않는다) root()를 쓰기 위해 다시 Environment&로 캐스팅한다.
+		Environment callEnvironment(&dynamic_cast<Environment&>(environment).root());
+		for (size_t i = 0; i < function->params.size(); ++i)
+			callEnvironment.define(function->params[i].origin, evaluate(call->arguments[i], environment));
+
+		try
+		{
+			for (Stmt* bodyStmt : function->body)
+				executeStmt(bodyStmt, callEnvironment);
+		}
+		catch (const ReturnSignal& signal)
+		{
+			return signal.value;
+		}
+
 		return LiteralValue{};
 	}
 
@@ -310,11 +357,14 @@ void Executor::executeStmt(Stmt* stmt, IEnvironment& environment, const StmtExec
 	}
 	else if (auto* funcDecl = dynamic_cast<FunctionDeclStmt*>(stmt))
 	{
-		// TODO(Lee): 함수 선언 실행 - Phase 1에서 구현
+		// funcDecl은 AST 소유(Program이 들고 있는 원본 포인터)라 shared_ptr이 대신 delete하지
+		// 않도록 no-op deleter로 감싼다(LiteralValue variant가 shared_ptr<FunctionDeclStmt>를
+		// 요구하므로 형태만 맞춘 비소유 래핑).
+		environment.define(funcDecl->name.origin, std::shared_ptr<FunctionDeclStmt>(funcDecl, [](FunctionDeclStmt*) {}));
 	}
 	else if (auto* returnStmt = dynamic_cast<ReturnStmt*>(stmt))
 	{
-		// TODO(Lee): return 문 실행 - Phase 1에서 구현
+		throw ReturnSignal{ returnStmt->value ? evaluate(returnStmt->value, environment) : LiteralValue{} };
 	}
 	else if (auto* classDecl = dynamic_cast<ClassDeclStmt*>(stmt))
 	{
