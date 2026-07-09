@@ -1,10 +1,9 @@
 #pragma once
 
-// Ryu: import "path" alias name; 기능. 최소 구현 — 현재는 문법 오류 검출까지만 지원한다
-// (파일 로딩/스코프 규칙 등은 이후 테스트 케이스가 추가되는 대로 확장).
-
+#include "environment.h"
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 
 struct ImportError : std::runtime_error
 {
@@ -17,5 +16,28 @@ struct ImportStatementText
 	std::string alias;
 };
 
-// "import \"path\" alias name;" 한 줄을 파싱해 path/alias를 추출한다.
 ImportStatementText parseImportStatementText(const std::string& line);
+
+std::string readImportFileOrThrow(const std::string& path);
+
+class ImportScope
+{
+public:
+	explicit ImportScope(ImportScope* enclosing = nullptr) : enclosing(enclosing) {}
+
+	Environment& importFile(const std::string& path, const std::string& alias);
+
+	Environment* findModule(const std::string& alias);
+
+private:
+	struct Binding
+	{
+		std::string path;
+		Environment environment;
+	};
+
+	ImportScope* enclosing;
+	std::unordered_map<std::string, Binding> bindings;
+
+	bool findAliasInChain(const std::string& alias, bool& sameScope);
+};

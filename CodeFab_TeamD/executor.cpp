@@ -1,7 +1,61 @@
 ﻿#include "executor.h"
 
+#include <memory>
 #include <sstream>
 #include <stdexcept>
+#include <vector>
+#include "assembler.h"
+#include "checker.h"
+#include "import.h"
+
+namespace
+{
+	// import로 로딩되는 모듈은 자신의 print 등 부수효과를 메인 프로그램의 출력에 섞지 않는다.
+	class NullOutputWriter : public IOutputWriter
+	{
+	public:
+		void write(const std::string&) override {}
+	};
+
+	class ModuleEnvironment : public IEnvironment
+	{
+	public:
+		explicit ModuleEnvironment(std::shared_ptr<Instance> module) : module(std::move(module)) {}
+
+		void define(const std::string& name, const LiteralValue& value) override
+		{
+			module->fields[name] = value;
+		}
+
+		LiteralValue get(const Token& name) const override
+		{
+			auto it = module->fields.find(name.origin);
+			if (it != module->fields.end())
+				return it->second;
+			throw std::runtime_error("Undefined variable '" + name.origin + "'.");
+		}
+
+		void assign(const Token& name, const LiteralValue& value) override
+		{
+			auto it = module->fields.find(name.origin);
+			if (it == module->fields.end())
+				throw std::runtime_error("Undefined variable '" + name.origin + "'.");
+			it->second = value;
+		}
+
+		LiteralValue getAt(int, const Token& name) const override { return get(name); }
+		void assignAt(int, const Token& name, const LiteralValue& value) override { assign(name, value); }
+
+	private:
+		std::shared_ptr<Instance> module;
+	};
+
+	std::vector<std::string>& importStack()
+	{
+		static std::vector<std::string> stack;
+		return stack;
+	}
+}
 
 double Executor::asNumber(const LiteralValue& value) const
 {
@@ -19,7 +73,7 @@ bool Executor::isTruthy(const LiteralValue& value) const
 
 // Interpreter 패턴: 각 if는 "이 노드가 무슨 문법 규칙인가"를 판별해 그 규칙에 맞는
 // 해석 방법을 적용한다. 재귀 호출(evaluate(binary->left, ...) 등)이 트리를 파고든다.
-LiteralValue Executor::evaluate(Expr* expr, Environment& environment) const
+LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 {
 	if (auto* literal = dynamic_cast<LiteralExpr*>(expr))
 		return literal->value;
@@ -28,12 +82,21 @@ LiteralValue Executor::evaluate(Expr* expr, Environment& environment) const
 		return evaluate(grouping->expression, environment);
 
 	if (auto* variable = dynamic_cast<VariableExpr*>(expr))
+	{
+		// Resolver가 distance를 계산해뒀으면(>=0) 체인 탐색 없이 즉시 접근하고,
+		// 계산되지 않았으면(-1, 최상위/전역) 기존 방식대로 체인을 거슬러 올라가며 찾는다.
+		if (variable->distance >= 0)
+			return environment.getAt(variable->distance, variable->name);
 		return environment.get(variable->name);
+	}
 
 	if (auto* assign = dynamic_cast<AssignExpr*>(expr))
 	{
 		LiteralValue value = evaluate(assign->value, environment);
-		environment.assign(assign->name, value);
+		if (assign->distance >= 0)
+			environment.assignAt(assign->distance, assign->name, value);
+		else
+			environment.assign(assign->name, value);
 		return value;
 	}
 
@@ -184,7 +247,7 @@ std::string Executor::stringify(const LiteralValue& value) const
 	return out.str();
 }
 
-void Executor::executeStmt(Stmt* stmt, Environment& environment) const
+void Executor::executeStmt(Stmt* stmt, IEnvironment& environment) const
 {
 	if (auto* printStmt = dynamic_cast<PrintStmt*>(stmt))
 	{
@@ -243,11 +306,38 @@ void Executor::executeStmt(Stmt* stmt, Environment& environment) const
 	}
 	else if (auto* importStmt = dynamic_cast<ImportStmt*>(stmt))
 	{
-		// TODO(Ryu): import 실행
+		const std::string path = std::get<std::string>(importStmt->path.value);
+
+		for (const std::string& inProgress : importStack())
+			if (inProgress == path)
+				throw std::runtime_error("Circular import detected for '" + path + "'.");
+
+		const std::string source = readImportFileOrThrow(path);
+		Program moduleProgram = Assembler().assemble(source);
+		if (Checker().check(moduleProgram) != CheckerErrno::success)
+			throw std::runtime_error("Import target file has a static error: '" + path + "'.");
+
+		auto module = std::make_shared<Instance>();
+		ModuleEnvironment moduleEnv(module);
+		NullOutputWriter nullOutput;
+
+		importStack().push_back(path);
+		try
+		{
+			Executor(nullOutput).execute(moduleProgram, moduleEnv);
+		}
+		catch (...)
+		{
+			importStack().pop_back();
+			throw;
+		}
+		importStack().pop_back();
+
+		environment.define(importStmt->alias.origin, module);
 	}
 }
 
-void Executor::execute(const Program& program, Environment& environment, const StmtExecutedCallback& onStmtExecuted) const
+void Executor::execute(const Program& program, IEnvironment& environment, const StmtExecutedCallback& onStmtExecuted) const
 {
 	for (Stmt* stmt : program.statements)
 	{

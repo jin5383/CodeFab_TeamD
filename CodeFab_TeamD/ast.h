@@ -36,7 +36,7 @@ enum class TokenType
 	TRUE, FALSE, VAR, IF, ELSE, FOR, AND, OR, PRINT,
 	FUNC, RETURN, COMMA, // Lee: 함수
 	CLASS, THIS, SUPER, INSTANCEOF, // Park: 클래스
-	IMPORT, ALIAS, // Ryu: import
+	IMPORT, ALIAS,
 	END_OF_FILE
 };
 
@@ -61,7 +61,7 @@ struct Token
 	TokenType type;
 	std::string origin;
 	LiteralValue value;
-	int line = 0; // Ryu: 파일 모드 런타임 에러 메시지에 사용
+	int line = 0;
 };
 
 // Composite 패턴의 "Component" 역할. 값을 만들어내는 모든 노드(리프/복합 노드 공통)의
@@ -249,7 +249,6 @@ struct Instance
 	std::unordered_map<std::string, LiteralValue> fields;
 };
 
-// Ryu: import "path" alias name;
 struct ImportStmt : Stmt
 {
 	Token path;

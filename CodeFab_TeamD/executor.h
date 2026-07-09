@@ -17,8 +17,7 @@
 #include "environment.h"
 #include "io.h"
 
-// Ryu: 디버그 모드에서 한 Stmt 실행마다 호출되는 콜백. 기본값(nullptr)이면 기존과 동일하게 콜백 없이 실행.
-using StmtExecutedCallback = std::function<void(const Stmt&, Environment&)>;
+using StmtExecutedCallback = std::function<void(const Stmt&, IEnvironment&)>;
 
 class Executor
 {
@@ -28,9 +27,9 @@ public:
 	explicit Executor(IOutputWriter& output) : output(output) {}
 
 	// 주어진 environment(컨텍스트)를 그대로 사용해 실행한다. DfineShell처럼 여러 줄에 걸쳐
-	// 변수 컨텍스트를 유지해야 하는 호출자를 위한 진입점.
-	// onStmtExecuted: Ryu의 디버그 모드 stepping 훅(기본값 nullptr이면 기존과 동일하게 동작).
-	void execute(const Program& program, Environment& environment, const StmtExecutedCallback& onStmtExecuted = nullptr) const;
+	// 변수 컨텍스트를 유지해야 하는 호출자를 위한 진입점. IEnvironment&를 받아 테스트에서
+	// gmock으로 대체할 수 있다(Test Double).
+	void execute(const Program& program, IEnvironment& environment, const StmtExecutedCallback& onStmtExecuted = nullptr) const;
 
 	// 매번 새 global Environment로 한 번만 실행하는 호출자를 위한 진입점.
 	void execute(const Program& program) const;
@@ -44,14 +43,14 @@ private:
 
 	// Interpreter 패턴의 핵심 재귀 함수. Expr 트리를 자식 -> 부모 순(post-order)으로
 	// 내려가며 실제 값을 계산한다. Expr 서브타입이 하나 늘어나면 이 함수에 분기가 하나 는다.
-	LiteralValue evaluate(Expr* expr, Environment& environment) const;
+	LiteralValue evaluate(Expr* expr, IEnvironment& environment) const;
 
 	// 평가된 LiteralValue를 print가 출력할 문자열로 바꾼다(숫자는 5.0 -> "5" 처럼 포맷).
 	std::string stringify(const LiteralValue& value) const;
 
 	// evaluate()의 Stmt 버전. 값을 만들지 않고 부수효과(출력, 변수 정의/대입, 제어 흐름)를
 	// 일으킨다. BlockStmt/ForStmt에서 재귀 호출 시 새 Environment를 만들어 스코프를 연다.
-	void executeStmt(Stmt* stmt, Environment& environment) const;
+	void executeStmt(Stmt* stmt, IEnvironment& environment) const;
 
 	// klass의 methods 목록에서 name을 찾아 반환한다. 없으면 nullptr.
 	static FunctionDeclStmt* findMethod(ClassDeclStmt* klass, const std::string& name);

@@ -16,6 +16,13 @@ namespace
 	const std::string KEYWORD_ELSE = "else";
 	const std::string KEYWORD_FOR = "for";
 	const std::string KEYWORD_PRINT = "print";
+	const std::string KEYWORD_IMPORT = "import";
+	const std::string KEYWORD_ALIAS = "alias";
+	const std::string KEYWORD_FUNC = "Func";
+	const std::string KEYWORD_RETURN = "return";
+  const std::string KEYWORD_CLASS = "Class";
+	const std::string KEYWORD_THIS = "This";
+
 
 	Token makeSimpleToken(TokenType type, const std::string& origin)
 	{
@@ -32,8 +39,12 @@ namespace
 		if (origin == KEYWORD_ELSE) return makeSimpleToken(TokenType::ELSE, origin);
 		if (origin == KEYWORD_FOR) return makeSimpleToken(TokenType::FOR, origin);
 		if (origin == KEYWORD_PRINT) return makeSimpleToken(TokenType::PRINT, origin);
-		if (origin == "Class") return makeSimpleToken(TokenType::CLASS, origin);
-		if (origin == "This")  return makeSimpleToken(TokenType::THIS,  origin);
+		if (origin == KEYWORD_CLASS) return makeSimpleToken(TokenType::CLASS, origin);
+		if (origin == KEYWORD_THIS)  return makeSimpleToken(TokenType::THIS,  origin);
+		if (origin == KEYWORD_IMPORT) return makeSimpleToken(TokenType::IMPORT, origin);
+		if (origin == KEYWORD_ALIAS) return makeSimpleToken(TokenType::ALIAS, origin);
+		if (origin == KEYWORD_FUNC) return makeSimpleToken(TokenType::FUNC, origin);
+		if (origin == KEYWORD_RETURN) return makeSimpleToken(TokenType::RETURN, origin);
 		return std::nullopt;
 	}
 
@@ -108,10 +119,10 @@ namespace
 			case TokenType::LEFT_BRACE: return parseBlockStatement();
 			case TokenType::IF: return parseIfStatement();
 			case TokenType::FOR: return parseForStatement();
-			case TokenType::FUNC: throw std::runtime_error("Func statement not yet implemented (Phase 1: Lee)."); // TODO(Lee)
+			case TokenType::FUNC: return parseFunctionDeclStatement();
 			case TokenType::RETURN: throw std::runtime_error("Return statement not yet implemented (Phase 1: Lee)."); // TODO(Lee)
 			case TokenType::CLASS: return parseClassStatement();
-			case TokenType::IMPORT: throw std::runtime_error("Import statement not yet implemented (Ryu)."); // TODO(Ryu)
+			case TokenType::IMPORT: return parseImportStatement();
 			default: return parseExpressionStatement();
 			}
 		}
@@ -160,6 +171,17 @@ namespace
 			}
 			expectAndAdvance(TokenType::RIGHT_BRACE, "Expect '}' after method body.");
 			return method;
+		// "import "경로" alias 별칭 ;" 을 읽어 ImportStmt를 만든다.
+		// 최소 구현: 문법이 올바른지만 검사한다(순환 import, 스코프 규칙 등은 다루지 않음).
+		Stmt* parseImportStatement()
+		{
+			getTokenAndAdvance(); // import
+			auto* stmt = new ImportStmt();
+			stmt->path = expectAndAdvance(TokenType::STRING, "Expect string literal after 'import'.");
+			expectAndAdvance(TokenType::ALIAS, "Expect 'alias' after import path.");
+			stmt->alias = expectAndAdvance(TokenType::IDENTIFIER, "Expect alias name after 'alias'.");
+			expectAndAdvance(TokenType::SEMICOLON, "Expect ';' after import statement.");
+			return stmt;
 		}
 
 		// "var 이름 (= 초깃값)? ;" 을 읽어 VarDeclStmt를 만든다
@@ -185,6 +207,33 @@ namespace
 			auto* stmt = new ExpressionStmt();
 			stmt->expression = parseExpression();
 			expectAndAdvance(TokenType::SEMICOLON, "Expect ';' after value.");
+			return stmt;
+		}
+
+		// "Func 이름 ( 파라미터,* ) { 문장* }" 을 읽어 FunctionDeclStmt를 만든다
+		Stmt* parseFunctionDeclStatement()
+		{
+			getTokenAndAdvance(); // Func
+			auto* stmt = new FunctionDeclStmt();
+			stmt->name = expectAndAdvance(TokenType::IDENTIFIER, "Expect function name.");
+
+			expectAndAdvance(TokenType::LEFT_PAREN, "Expect '(' after function name.");
+			if (getCurrentToken().type != TokenType::RIGHT_PAREN)
+			{
+				stmt->params.push_back(expectAndAdvance(TokenType::IDENTIFIER, "Expect parameter name."));
+				while (getCurrentToken().type == TokenType::COMMA)
+				{
+					getTokenAndAdvance(); // ,
+					stmt->params.push_back(expectAndAdvance(TokenType::IDENTIFIER, "Expect parameter name."));
+				}
+			}
+			expectAndAdvance(TokenType::RIGHT_PAREN, "Expect ')' after parameters.");
+
+			expectAndAdvance(TokenType::LEFT_BRACE, "Expect '{' before function body.");
+			while (getCurrentToken().type != TokenType::RIGHT_BRACE && getCurrentToken().type != TokenType::END_OF_FILE)
+				stmt->body.push_back(parseStatement());
+			expectAndAdvance(TokenType::RIGHT_BRACE, "Expect '}' after function body.");
+
 			return stmt;
 		}
 

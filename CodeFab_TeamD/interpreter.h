@@ -14,9 +14,11 @@
 #include <string>
 #include "assembler.h"
 #include "checker.h"
+#include "constant_folding.h"
 #include "environment.h"
 #include "executor.h"
 #include "io.h"
+#include "resolver.h"
 
 class Interpreter
 {
@@ -25,15 +27,18 @@ public:
 	explicit Interpreter(IOutputWriter& output) : executor(output) {}
 
 	// 주어진 environment(컨텍스트)를 유지하며 실행 (DfineShell 등 여러 줄에 걸친 세션용)
-	void run(const std::string& source, Environment& environment) const;
+	void run(const std::string& source, IEnvironment& environment) const;
 
 	// 매번 새 global Environment로 한 번만 실행하는 호출자를 위한 진입점.
 	void run(const std::string& source) const;
 
 private:
-	// Facade가 감싸는 세 Unit. 이 셋을 직접 조합하는 코드가 이 클래스 밖으로 새어나가지
-	// 않게 하는 것이 Facade 패턴의 핵심이다.
+	// Facade가 감싸는 Unit들. 이들을 직접 조합하는 코드가 이 클래스 밖으로 새어나가지
+	// 않게 하는 것이 Facade 패턴의 핵심이다. ConstantFolder/Resolver는 Checker/Executor
+	// 이전에 실행되는 실행 전 최적화 패스다(리터럴 폴딩 / 정적 바인딩 distance 계산).
 	Assembler assembler;
+	ConstantFolder constantFolder;
+	Resolver resolver;
 	Checker checker;
 	Executor executor;
 };
