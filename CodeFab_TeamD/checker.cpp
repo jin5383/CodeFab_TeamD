@@ -34,18 +34,18 @@ bool Checker::isNameDeclared(const std::string& name, const ScopeStack& scopes) 
 	return false;
 }
 
-CheckerErrno Checker::checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes, int loopDepth) const
+CheckerErrno Checker::checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes, int loopDepth, bool insideFunction) const
 {
 	for (Stmt* stmt : statements)
 	{
-		CheckerErrno result = checkStmt(stmt, scopes, loopDepth);
+		CheckerErrno result = checkStmt(stmt, scopes, loopDepth, insideFunction);
 		if (result != CheckerErrno::success)
 			return result;
 	}
 	return CheckerErrno::success;
 }
 
-CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, int loopDepth) const
+CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, int loopDepth, bool insideFunction) const
 {
 	if (!stmt)
 		return CheckerErrno::success;
@@ -67,38 +67,49 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, int loopDepth) c
 	if (auto* block = dynamic_cast<BlockStmt*>(stmt))
 	{
 		scopes.push_back({});
-		CheckerErrno result = checkStmts(block->statements, scopes, loopDepth);
+		CheckerErrno result = checkStmts(block->statements, scopes, loopDepth, insideFunction);
 		scopes.pop_back();
 		return result;
 	}
 
 	if (auto* ifStmt = dynamic_cast<IfStmt*>(stmt))
 	{
-		CheckerErrno result = checkStmt(ifStmt->thenBranch, scopes, loopDepth);
+		CheckerErrno result = checkStmt(ifStmt->thenBranch, scopes, loopDepth, insideFunction);
 		if (result != CheckerErrno::success)
 			return result;
-		return checkStmt(ifStmt->elseBranch, scopes, loopDepth);
+		return checkStmt(ifStmt->elseBranch, scopes, loopDepth, insideFunction);
 	}
 
 	if (auto* forStmt = dynamic_cast<ForStmt*>(stmt))
 	{
 		scopes.push_back({});
-		CheckerErrno result = checkStmt(forStmt->init, scopes, loopDepth);
+		CheckerErrno result = checkStmt(forStmt->init, scopes, loopDepth, insideFunction);
 		if (result == CheckerErrno::success)
-			result = checkStmt(forStmt->body, scopes, loopDepth + 1);
+			result = checkStmt(forStmt->body, scopes, loopDepth + 1, insideFunction);
 		scopes.pop_back();
 		return result;
 	}
 
 	if (auto* funcDecl = dynamic_cast<FunctionDeclStmt*>(stmt))
 	{
-		// TODO(Lee): 함수 선언 정적 검사(파라미터 중복, 인자 개수 등) - Phase 1에서 구현
-		return CheckerErrno::success;
+		scopes.push_back({});
+		for (const Token& param : funcDecl->params)
+		{
+			if (!scopes.back().insert(param.origin).second)
+			{
+				scopes.pop_back();
+				return CheckerErrno::duplicateParameterName;
+			}
+		}
+		CheckerErrno result = checkStmts(funcDecl->body, scopes, 0, true);
+		scopes.pop_back();
+		return result;
 	}
 
 	if (auto* returnStmt = dynamic_cast<ReturnStmt*>(stmt))
 	{
-		// TODO(Lee): 함수 밖 return 검사 - Phase 1에서 구현
+		if (!insideFunction)
+			return CheckerErrno::returnOutsideFunction;
 		return CheckerErrno::success;
 	}
 

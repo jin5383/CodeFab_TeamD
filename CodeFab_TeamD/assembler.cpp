@@ -128,7 +128,7 @@ namespace
 			case TokenType::IF: return parseIfStatement();
 			case TokenType::FOR: return parseForStatement();
 			case TokenType::FUNC: return parseFunctionDeclStatement();
-			case TokenType::RETURN: throw std::runtime_error("Return statement not yet implemented (Phase 1: Lee)."); // TODO(Lee)
+			case TokenType::RETURN: return parseReturnStatement();
 			case TokenType::CLASS: return parseClassStatement();
 			case TokenType::IMPORT: return parseImportStatement();
 			default: return parseExpressionStatement();
@@ -244,6 +244,17 @@ namespace
 				stmt->body.push_back(parseStatement());
 			expectAndAdvance(TokenType::RIGHT_BRACE, "Expect '}' after function body.");
 
+			return stmt;
+		}
+
+		// "return 식? ;" 을 읽어 ReturnStmt를 만든다. 식이 생략되면(값 없는 return;) value는 nullptr
+		Stmt* parseReturnStatement()
+		{
+			getTokenAndAdvance(); // return
+			auto* stmt = new ReturnStmt();
+			if (getCurrentToken().type != TokenType::SEMICOLON)
+				stmt->value = parseExpression();
+			expectAndAdvance(TokenType::SEMICOLON, "Expect ';' after return value.");
 			return stmt;
 		}
 
@@ -427,7 +438,7 @@ namespace
 			return parsePostfixExpr();
 		}
 
-		// Lee(CallExpr/LEFT_PAREN), Park(GetExpr/DOT)이 각자 이 함수 안에 분기를 추가한다 (TODO)
+		// Lee(CallExpr/LEFT_PAREN), Park(GetExpr/DOT) 분기 모두 구현 완료 — 체이닝(a.b(x).c 등)까지 지원한다
 		Expr* parsePostfixExpr()
 		{
 			Expr* expr = parsePrimary();

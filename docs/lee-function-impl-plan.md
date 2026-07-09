@@ -40,9 +40,10 @@
 
 1. `Func name(params) { body }` 선언 파싱 → `parseFunctionDeclStatement()` 신설,
    `assembler.cpp:107`의 TODO 교체.
-2. `name(args, ...)` 호출 파싱 → `parsePrimary()`에 postfix 콜 처리 추가(식별자 뒤 `(`면
-   `CallExpr` 생성). 인자 구분자 `COMMA` 토큰화 필요(현재 tokenizer에 없음 —
-   `scanSymbolToken`에 `,` 추가).
+2. (완료) `name(args, ...)` 호출 파싱 → `parsePostfixExpr()`에 postfix 콜 처리 추가(`(`면
+   `CallExpr` 생성). Park의 `GetExpr`(`.`) 분기와 같은 함수에 병합되어 있다(`assembler.cpp`
+   `parsePostfixExpr`, 옛 `f07f6f7c`의 별도 `parseCallExpr()`는 이 병합 버전으로 대체됨).
+   인자 구분자 `COMMA` 토큰화도 완료.
 3. `return`/`return expr;` 파싱 → `parseReturnStatement()`, `assembler.cpp:108`의 TODO 교체.
 4. tokenizer에 `func`/`return` 키워드 스캔 추가(`scanKeywordToken`에 등록 — 현재 미등록이라
    지금은 IDENTIFIER로 잡힘).

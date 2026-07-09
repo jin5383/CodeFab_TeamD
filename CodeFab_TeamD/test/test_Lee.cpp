@@ -496,3 +496,93 @@ TEST(AssemblerUnitTest, FunctionDeclWithTwoParams_BuildsParamList)
 	EXPECT_EQ(funcDecl->params[0].origin, "a");
 	EXPECT_EQ(funcDecl->params[1].origin, "b");
 }
+
+// Assembler_Construct_Unit: "return 식;" / "return;" 이 각각 값 있는/없는 ReturnStmt로
+// 파싱되어야 한다(docs/scenarios/lee-function-scenarios.md return 시나리오).
+TEST(AssemblerUnitTest, ReturnStatementParsesValueAndNoValueForms)
+{
+	Program withValue = Assembler().assemble("Func f() { return 1 + 2; }");
+	auto* funcDecl = dynamic_cast<FunctionDeclStmt*>(withValue.statements[0]);
+	ASSERT_NE(funcDecl, nullptr);
+	ASSERT_EQ(funcDecl->body.size(), 1u);
+	auto* returnStmt = dynamic_cast<ReturnStmt*>(funcDecl->body[0]);
+	ASSERT_NE(returnStmt, nullptr);
+	EXPECT_NE(returnStmt->value, nullptr);
+
+	Program noValue = Assembler().assemble("Func g() { return; }");
+	auto* funcDecl2 = dynamic_cast<FunctionDeclStmt*>(noValue.statements[0]);
+	ASSERT_NE(funcDecl2, nullptr);
+	ASSERT_EQ(funcDecl2->body.size(), 1u);
+	auto* returnStmt2 = dynamic_cast<ReturnStmt*>(funcDecl2->body[0]);
+	ASSERT_NE(returnStmt2, nullptr);
+	EXPECT_EQ(returnStmt2->value, nullptr);
+}
+
+// Assembler_Construct_Unit: "add(3, 7);" -> ExpressionStmt{ CallExpr{ callee: VariableExpr(add),
+// arguments: [3, 7] } } (docs/scenarios/lee-function-scenarios.md 선언+호출 시나리오)
+TEST(AssemblerUnitTest, FunctionCallWithTwoArguments_BuildsCallExprTree)
+{
+	Program program = Assembler().assemble("add(3, 7);");
+
+	ASSERT_EQ(program.statements.size(), 1u);
+	auto* exprStmt = dynamic_cast<ExpressionStmt*>(program.statements[0]);
+	ASSERT_NE(exprStmt, nullptr);
+
+	auto* call = dynamic_cast<CallExpr*>(exprStmt->expression);
+	ASSERT_NE(call, nullptr);
+
+	auto* callee = dynamic_cast<VariableExpr*>(call->callee);
+	ASSERT_NE(callee, nullptr);
+	EXPECT_EQ(callee->name.origin, "add");
+
+	ASSERT_EQ(call->arguments.size(), 2u);
+	EXPECT_DOUBLE_EQ(std::get<double>(dynamic_cast<LiteralExpr*>(call->arguments[0])->value), 3.0);
+	EXPECT_DOUBLE_EQ(std::get<double>(dynamic_cast<LiteralExpr*>(call->arguments[1])->value), 7.0);
+}
+
+// Checker unit: 최상위(함수 밖)에서 return 사용 -> returnOutsideFunction 에러
+TEST_F(CheckerUnitTest, ReturnOutsideFunction_ReportsError)
+{
+	auto* returnStmt = new ReturnStmt();
+	returnStmt->value = makeNumberLiteral(1.0);
+
+	Program program;
+	program.statements.push_back(returnStmt);
+
+	EXPECT_EQ(CheckerErrno::returnOutsideFunction, Checker().check(program));
+}
+
+// Checker unit: 함수 안에서 return 사용 -> 에러 없음
+TEST_F(CheckerUnitTest, ReturnInsideFunction_NoError)
+{
+	auto* returnStmt = new ReturnStmt();
+	returnStmt->value = makeNumberLiteral(1.0);
+
+	auto* funcDecl = new FunctionDeclStmt();
+	funcDecl->name = identifierToken("f");
+	funcDecl->body.push_back(returnStmt);
+
+	Program program;
+	program.statements.push_back(funcDecl);
+
+	EXPECT_EQ(CheckerErrno::success, Checker().check(program));
+}
+
+// Checker unit: "Func foo(a, a) { return a; }" 처럼 파라미터 이름이 중복되면
+// duplicateParameterName 에러
+TEST_F(CheckerUnitTest, DuplicateParameterName_ReportsError)
+{
+	auto* returnStmt = new ReturnStmt();
+	returnStmt->value = makeVariable("a");
+
+	auto* funcDecl = new FunctionDeclStmt();
+	funcDecl->name = identifierToken("foo");
+	funcDecl->params.push_back(identifierToken("a"));
+	funcDecl->params.push_back(identifierToken("a"));
+	funcDecl->body.push_back(returnStmt);
+
+	Program program;
+	program.statements.push_back(funcDecl);
+
+	EXPECT_EQ(CheckerErrno::duplicateParameterName, Checker().check(program));
+}
