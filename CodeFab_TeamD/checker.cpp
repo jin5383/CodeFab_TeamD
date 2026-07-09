@@ -54,6 +54,58 @@ CheckerErrno Checker::checkCallArity(Expr* expr, const FunctionArities& function
 	return CheckerErrno::success;
 }
 
+// exprReferencesName과 같은 재귀 구조로 표현식 트리를 훑으며, 그 안에 등장하는 모든
+// CallExpr(호출 인자 안에 중첩된 것 포함)의 인자 개수를 검사한다. checkCallArity는 expr
+// 자신이 CallExpr일 때만 판단하므로, "그 외 자리에 나타난 CallExpr까지 재귀적으로 찾는" 것은
+// 이 함수의 책임이다.
+CheckerErrno Checker::checkExprCallArity(Expr* expr, const FunctionArities& functionArities) const
+{
+	if (!expr)
+		return CheckerErrno::success;
+
+	CheckerErrno result = checkCallArity(expr, functionArities);
+	if (result != CheckerErrno::success)
+		return result;
+
+	if (auto* call = dynamic_cast<CallExpr*>(expr))
+	{
+		for (Expr* argument : call->arguments)
+		{
+			result = checkExprCallArity(argument, functionArities);
+			if (result != CheckerErrno::success)
+				return result;
+		}
+		return CheckerErrno::success;
+	}
+
+	if (auto* assign = dynamic_cast<AssignExpr*>(expr))
+		return checkExprCallArity(assign->value, functionArities);
+
+	if (auto* binary = dynamic_cast<BinaryExpr*>(expr))
+	{
+		result = checkExprCallArity(binary->left, functionArities);
+		if (result != CheckerErrno::success)
+			return result;
+		return checkExprCallArity(binary->right, functionArities);
+	}
+
+	if (auto* unary = dynamic_cast<UnaryExpr*>(expr))
+		return checkExprCallArity(unary->right, functionArities);
+
+	if (auto* logical = dynamic_cast<LogicalExpr*>(expr))
+	{
+		result = checkExprCallArity(logical->left, functionArities);
+		if (result != CheckerErrno::success)
+			return result;
+		return checkExprCallArity(logical->right, functionArities);
+	}
+
+	if (auto* grouping = dynamic_cast<GroupingExpr*>(expr))
+		return checkExprCallArity(grouping->expression, functionArities);
+
+	return CheckerErrno::success;
+}
+
 CheckerErrno Checker::checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes, CheckContext ctx) const
 {
 	for (Stmt* stmt : statements)
@@ -80,12 +132,19 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, CheckContext ctx
 		if (varDecl->initializer && exprReferencesName(varDecl->initializer, name) && !isNameDeclared(name, scopes))
 			return CheckerErrno::selfReferencingInitializer;
 
+		CheckerErrno result = checkExprCallArity(varDecl->initializer, ctx.functionArities);
+		if (result != CheckerErrno::success)
+			return result;
+
 		scopes.back().insert(name);
 		return CheckerErrno::success;
 	}
 
 	if (auto* exprStmt = dynamic_cast<ExpressionStmt*>(stmt))
-		return checkCallArity(exprStmt->expression, ctx.functionArities);
+		return checkExprCallArity(exprStmt->expression, ctx.functionArities);
+
+	if (auto* printStmt = dynamic_cast<PrintStmt*>(stmt))
+		return checkExprCallArity(printStmt->expression, ctx.functionArities);
 
 	if (auto* block = dynamic_cast<BlockStmt*>(stmt))
 	{
@@ -97,7 +156,10 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, CheckContext ctx
 
 	if (auto* ifStmt = dynamic_cast<IfStmt*>(stmt))
 	{
-		CheckerErrno result = checkStmt(ifStmt->thenBranch, scopes, ctx);
+		CheckerErrno result = checkExprCallArity(ifStmt->condition, ctx.functionArities);
+		if (result != CheckerErrno::success)
+			return result;
+		result = checkStmt(ifStmt->thenBranch, scopes, ctx);
 		if (result != CheckerErrno::success)
 			return result;
 		return checkStmt(ifStmt->elseBranch, scopes, ctx);
@@ -107,6 +169,10 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, CheckContext ctx
 	{
 		scopes.push_back({});
 		CheckerErrno result = checkStmt(forStmt->init, scopes, ctx);
+		if (result == CheckerErrno::success)
+			result = checkExprCallArity(forStmt->condition, ctx.functionArities);
+		if (result == CheckerErrno::success)
+			result = checkExprCallArity(forStmt->increment, ctx.functionArities);
 		if (result == CheckerErrno::success)
 		{
 			CheckContext bodyCtx = ctx;
@@ -142,7 +208,7 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, CheckContext ctx
 	{
 		if (!ctx.insideFunction)
 			return CheckerErrno::returnOutsideFunction;
-		return CheckerErrno::success;
+		return checkExprCallArity(returnStmt->value, ctx.functionArities);
 	}
 
 	if (auto* classDecl = dynamic_cast<ClassDeclStmt*>(stmt))

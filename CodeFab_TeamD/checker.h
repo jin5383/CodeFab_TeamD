@@ -76,6 +76,10 @@ private:
 	CheckerErrno checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes, CheckContext ctx) const;
 	CheckerErrno checkStmt(Stmt* stmt, ScopeStack& scopes, CheckContext ctx) const;
 	CheckerErrno checkCallArity(Expr* expr, const FunctionArities& functionArities) const;
+	// checkCallArity를 exprReferencesName과 같은 재귀 구조로 감싸, 표현식이 나타날 수 있는
+	// 모든 자리(대입 값, 이항/단항/논리 연산의 좌우항, 괄호 안, 호출 인자 등)에 중첩된
+	// CallExpr까지 훑는다(docs/lee-function-impl-plan.md 5절 후속 작업).
+	CheckerErrno checkExprCallArity(Expr* expr, const FunctionArities& functionArities) const;
 	bool isNameDeclared(const std::string& name, const ScopeStack& scopes) const;
 	bool exprReferencesName(Expr* expr, const std::string& name) const;
 };
