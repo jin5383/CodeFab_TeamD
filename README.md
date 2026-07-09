@@ -3,6 +3,18 @@
 간단한 인터프리터를 여러 Unit(Assembler / ConstantFolder / Resolver / Checker / Executor)으로 나누어
 TDD(Google Test)로 개발하는 프로젝트입니다.
 
+## 목차
+
+- [파이프라인 개요](#파이프라인-개요)
+- [기술 스택](#기술-스택)
+- [요구사항 문서](#요구사항-문서)
+- [프로젝트 구조](#프로젝트-구조)
+- [빌드 및 테스트 실행](#빌드-및-테스트-실행)
+- [Custom Language 사용 방법](#custom-language-사용-방법)
+- [개발 규칙](#개발-규칙)
+- [팀원](#팀원)
+- [제약 사항](#제약-사항)
+
 ## 파이프라인 개요
 
 ```
@@ -44,6 +56,12 @@ source code (string)
 호출부(`DfineShell`/`FileRunner`/`DebugShell`)는 각 Unit의 존재를 몰라도 됩니다.
 세부 Input/Output 계약은 [`docs/unit-io-spec.md`](docs/unit-io-spec.md)에 정의되어 있습니다.
 
+## 기술 스택
+
+- **언어/빌드**: C++ (Visual Studio, MSBuild), NuGet
+- **테스트**: GoogleTest / GoogleMock
+- **CI**: GitHub Actions ([`.github/workflows/coverage.yml`](.github/workflows/coverage.yml)) — PR마다 빌드/테스트를 실행하고 커버리지를 코멘트로 남김
+
 ## 요구사항 문서
 
 - 원본: [`CodeFab_Requirement.pdf`](CodeFab_Requirement.pdf)
@@ -84,6 +102,20 @@ source code (string)
 - 커밋 메시지: `[feature]` `[fix]` `[refactor]` `[test]` `[docs]` `[chore]` 중 하나의 Prefix 사용
 - 원격 Push/Merge 전 개인 브랜치에 최신 Master를 먼저 Merge
 - PR 작성 시 [`pull_request_template.md`](pull_request_template.md) 형식(제목/설명/Test 목록/체크리스트)을 따름
+
+## 팀원
+
+초기 기본 구현 모델에서는 Assembler/Checker/Executor 세 Unit을 5인이 나누어
+TDD로 구현했고, 이후 `additional` 단계에서 기능별로 다시 나누어 병행 개발했습니다(자세한 작업 분배는
+[`docs/additional-requirement-impl-spec.md`](docs/additional-requirement-impl-spec.md) 참고).
+
+| 담당 | 기초 Unit (`additional` 이전) | `additional` 기능 |
+|---|---|---|
+| Lee | Checker Unit | 함수(Function) |
+| Park | Assembler Unit | 클래스(Class) |
+| Hong | Executor Unit | 정적 배열(Array), `%`(모듈로) 연산자 |
+| Kwon | Environment(`IEnvironment` 인터페이스) | 실행 전 최적화(ConstantFolder/Resolver) |
+| Ryu | Executor Unit | import + 공장제어쉘(파일 모드/디버그 모드, 기존 REPL 유지) |
 
 ## 제약 사항
 
