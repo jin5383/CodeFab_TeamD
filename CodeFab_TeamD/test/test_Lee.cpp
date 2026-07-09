@@ -822,6 +822,6 @@ TEST(DfineShellIntegrationTest, ArgumentCountMismatchDetectedAcrossSeparateLines
 	DfineShell shell;
 	shell.run(in, out);
 
-	EXPECT_NE(out.str().find("Wrong number of arguments in function call."), std::string::npos)
+	EXPECT_NE(out.str().find("Argument count mismatch."), std::string::npos)
 		<< "actual output: " << out.str();
 }
