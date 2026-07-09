@@ -55,14 +55,16 @@ jobs:
         if: steps.build.outcome == 'success'
         shell: pwsh
         run: |
-          # 저장소 루트 폴더명 자체가 CodeFab_TeamD라서 "CodeFab_TeamD" 한 겹만 필터링하면
-          # packages\gmock.1.11.0\... 같은 서드파티 소스까지 부분일치로 걸려 커버리지가
-          # 희석된다(실제 프로덕션 소스는 CodeFab_TeamD\CodeFab_TeamD\*.cpp에 있음). 중첩된
-          # 두 번째 폴더까지 명시해 packages/를 확실히 배제한다.
+          # "CodeFab_TeamD\CodeFab_TeamD" 같은 경로 깊이에 의존한 --sources 패턴은
+          # GitHub Actions 러너의 체크아웃 경로(D:\a\<repo>\<repo>, owner/repo 이름이
+          # 기본으로 한 번 중복됨)에서는 그 중복 자체가 우연히 패턴과 일치해버려
+          # packages\gmock.1.11.0\...(서드파티 gtest/gmock 소스)까지 다시 포함되고
+          # 커버리지가 희석된다. 경로 깊이와 무관하게 packages를 이름으로 직접 제외한다.
           $openCppCoverage = "C:\Program Files\OpenCppCoverage\OpenCppCoverage.exe"
           & $openCppCoverage `
-            --sources "CodeFab_TeamD\CodeFab_TeamD" `
-            --excluded_sources "CodeFab_TeamD\CodeFab_TeamD\test" `
+            --sources "CodeFab_TeamD" `
+            --excluded_sources "packages" `
+            --excluded_sources "test" `
             --export_type cobertura:coverage.xml `
             -- "x64\Debug\CodeFab_TeamD.exe"
 
