@@ -213,6 +213,31 @@ TEST(ImportUnitTest, ImportFile_IfStatementInFile_Throws)
 	filesystem::remove(path);
 }
 
+TEST(ImportUnitTest, ImportFile_ClassDeclarationInFile_Throws)
+{
+	auto path = writeTempFile("nondecl_class",
+		"Class Robot { init(name) { This.name = name; } }");
+	ImportScope scope;
+
+	EXPECT_THROW(scope.importFile(path.string(), "m"), ImportError);
+
+	filesystem::remove(path);
+}
+
+TEST(ImportUnitTest, RealImportStatement_ClassDeclarationInFile_ThrowsAtExecution)
+{
+	auto path = writeTempFile("real_nondecl_class",
+		"Class Robot { init(name) { This.name = name; } }");
+
+	NullWriter writer;
+	Environment environment;
+	EXPECT_THROW(
+		Interpreter(writer).run("import \"" + path.string() + "\" alias A;", environment),
+		ImportError);
+
+	filesystem::remove(path);
+}
+
 TEST(ImportUnitTest, ImportStatement_TokenizesAsImportAliasDotTokens)
 {
 	vector<Token> tokens = Assembler().tokenize("import \"m.txt\" alias m; print m.value;");

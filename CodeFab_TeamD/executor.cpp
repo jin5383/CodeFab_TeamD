@@ -494,6 +494,20 @@ void Executor::executeStmt(Stmt* stmt, IEnvironment& environment, const StmtExec
 
 		const std::string source = readImportFileOrThrow(path);
 		Program moduleProgram = Assembler().assemble(source);
+
+		// import 대상 파일은 선언(다른 파일 import / 함수 선언 / 전역 변수 선언)만 허용한다
+		// (additional-requirement-impl-spec.md 3.5절). legacy ImportScope::importFile은 이미
+		// var/Func/import만 허용하도록 걸러내고 있었지만, 실제 프로덕션 경로인 이 실행부에는
+		// 같은 검사가 빠져 있었다 — Class 선언 등 그 외 구문이 조용히 통과하던 gap을 메운다.
+		for (Stmt* moduleStmt : moduleProgram.statements)
+		{
+			bool isAllowedDeclaration = dynamic_cast<VarDeclStmt*>(moduleStmt) != nullptr
+				|| dynamic_cast<FunctionDeclStmt*>(moduleStmt) != nullptr
+				|| dynamic_cast<ImportStmt*>(moduleStmt) != nullptr;
+			if (!isAllowedDeclaration)
+				throw ImportError(withLine("Import target file may only contain declarations: '" + path + "'.", importStmt->line));
+		}
+
 		if (Checker().check(moduleProgram) != CheckerErrno::success)
 			throw std::runtime_error(withLine("Import target file has a static error: '" + path + "'.", importStmt->line));
 
