@@ -1,6 +1,7 @@
 ﻿#include "debug_shell.h"
 #include "io.h"
 
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 
@@ -12,36 +13,11 @@ namespace
 	const std::string COMMAND_BREAK = "break";
 	const std::string COMMAND_REMOVE = "remove";
 	const std::string COMMAND_BREAKPOINTS = "Breakpoints";
+	const std::string COMMAND_WATCH = "watch";
+	const std::string COMMAND_UNWATCH = "unwatch";
+	const std::string COMMAND_WATCHES = "watches";
+	const std::string COMMAND_INSPECT = "inspect";
 	const std::string PREFIX_DEBUG = "[DEBUG] ";
-
-	// 파일 내용을 줄 단위로 쪼갠다 - 정지 메시지에 그 줄의 실제 소스 코드를 보여주기 위함.
-	std::vector<std::string> splitLines(const std::string& source)
-	{
-		std::vector<std::string> lines;
-		std::istringstream stream(source);
-		std::string line;
-		while (std::getline(stream, line))
-			lines.push_back(line);
-		return lines;
-	}
-
-	// 화면에 보여줄 소스 텍스트에서 앞뒤 공백/들여쓰기를 제거한다.
-	std::string trim(const std::string& text)
-	{
-		size_t begin = text.find_first_not_of(" \t\r\n");
-		if (begin == std::string::npos)
-			return "";
-		size_t end = text.find_last_not_of(" \t\r\n");
-		return text.substr(begin, end - begin + 1);
-	}
-
-	// line은 1-based. 범위를 벗어나면(구현 오차 등) 빈 문자열을 돌려준다.
-	std::string sourceTextAt(const std::vector<std::string>& sourceLines, int line)
-	{
-		if (line <= 0 || static_cast<size_t>(line) > sourceLines.size())
-			return "";
-		return trim(sourceLines[line - 1]);
-	}
 }
 
 int DebugShell::run(const std::string& path, std::istream& in, std::ostream& out)
@@ -79,7 +55,7 @@ int DebugShell::run(const std::string& path, std::istream& in, std::ostream& out
 	return 0;
 }
 
-void DebugShell::onStmt(const Stmt& stmt, IEnvironment&, int depth, std::istream& in, std::ostream& out,
+void DebugShell::onStmt(const Stmt& stmt, IEnvironment& env, int depth, std::istream& in, std::ostream& out,
 	const std::vector<std::string>& sourceLines)
 {
 	if (skipUntilDepth != -1)
@@ -107,13 +83,13 @@ void DebugShell::onStmt(const Stmt& stmt, IEnvironment&, int depth, std::istream
 		out << "> ";
 		if (!std::getline(in, commandLine))
 			return; // 입력 스트림이 예기치 않게 끝나면 조용히 리턴(무한루프 방지)
-		if (handleCommand(commandLine, depth, out))
+		if (handleCommand(commandLine, depth, env, out))
 			return;
-		// break/remove/Breakpoints 등 실행을 재개하지 않는 명령은 루프를 계속 돈다(정지 유지).
+		// break/remove/Breakpoints/watch류 등 실행을 재개하지 않는 명령은 루프를 계속 돈다(정지 유지).
 	}
 }
 
-bool DebugShell::handleCommand(const std::string& commandLine, int depth, std::ostream& out)
+bool DebugShell::handleCommand(const std::string& commandLine, int depth, IEnvironment& env, std::ostream& out)
 {
 	std::istringstream tokens(commandLine);
 	std::string command;
@@ -168,7 +144,125 @@ bool DebugShell::handleCommand(const std::string& commandLine, int depth, std::o
 		out << std::endl;
 		return false;
 	}
+	if (command == COMMAND_WATCH)
+	{
+		std::string name;
+		if (tokens >> name)
+		{
+			// 이름 중복은 무시 - 이미 감시 중이면 그대로 둔다.
+			if (std::find(watchedNames.begin(), watchedNames.end(), name) == watchedNames.end())
+				watchedNames.push_back(name);
+			out << PREFIX_DEBUG << name << " 감시 시작" << std::endl;
+		}
+		return false;
+	}
+	if (command == COMMAND_UNWATCH)
+	{
+		std::string name;
+		if (tokens >> name)
+		{
+			watchedNames.erase(std::remove(watchedNames.begin(), watchedNames.end(), name), watchedNames.end());
+			out << PREFIX_DEBUG << name << " 감시 해제" << std::endl;
+		}
+		return false;
+	}
+	if (command == COMMAND_WATCHES)
+	{
+		printWatches(env, out);
+		return false;
+	}
+	if (command == COMMAND_INSPECT)
+	{
+		printInspect(env, out);
+		return false;
+	}
 
 	out << PREFIX_DEBUG << "알 수 없는 명령어: " << command << std::endl;
 	return false;
+}
+
+void DebugShell::printWatches(IEnvironment& env, std::ostream& out) const
+{
+	// 매 정지 시점마다 현재 스코프 체인에서 다시 찾는다(고정 참조 캐시가 아님).
+	// 못 찾으면(스코프를 벗어났거나 아직 선언되지 않음) "값을 참조할 수 없습니다"를 출력한다.
+	for (const std::string& name : watchedNames)
+	{
+		LiteralValue value;
+		if (env.tryGetChain(name, value))
+			out << PREFIX_DEBUG << name << " = " << describeValue(value) << std::endl;
+		else
+			out << PREFIX_DEBUG << name << ": 값을 참조할 수 없습니다" << std::endl;
+	}
+}
+
+void DebugShell::printInspect(IEnvironment& env, std::ostream& out) const
+{
+	// entriesInThisScope()만 사용 - 현재(가장 안쪽) 스코프만, enclosing은 포함하지 않는다.
+	auto entries = env.entriesInThisScope();
+	if (entries.empty())
+	{
+		out << PREFIX_DEBUG << "현재 스코프에 변수가 없습니다" << std::endl;
+		return;
+	}
+	for (const auto& entry : entries)
+		out << PREFIX_DEBUG << entry.first << " = " << describeValue(entry.second) << std::endl;
+}
+
+std::string DebugShell::describeValue(const LiteralValue& value)
+{
+	if (std::holds_alternative<std::monostate>(value))
+		return "nil";
+	if (std::holds_alternative<bool>(value))
+		return std::get<bool>(value) ? "true" : "false";
+	if (std::holds_alternative<std::string>(value))
+		return std::get<std::string>(value);
+	if (std::holds_alternative<double>(value))
+	{
+		std::ostringstream out;
+		out << std::get<double>(value);
+		return out.str();
+	}
+	if (std::holds_alternative<std::shared_ptr<FunctionDeclStmt>>(value))
+		return "<fn " + std::get<std::shared_ptr<FunctionDeclStmt>>(value)->name.origin + ">";
+	if (std::holds_alternative<std::shared_ptr<ClassValue>>(value))
+		return "<class " + std::get<std::shared_ptr<ClassValue>>(value)->decl->name.origin + ">";
+	if (std::holds_alternative<std::shared_ptr<Instance>>(value))
+		return "<instance " + std::get<std::shared_ptr<Instance>>(value)->klass->name.origin + ">";
+
+	// 남은 경우는 배열(shared_ptr<ArrayValue>) - 원소도 재귀적으로 describeValue.
+	auto array = std::get<std::shared_ptr<ArrayValue>>(value);
+	std::string result = "[";
+	for (size_t i = 0; i < array->items.size(); ++i)
+	{
+		if (i > 0)
+			result += ", ";
+		result += describeValue(array->items[i]);
+	}
+	return result + "]";
+}
+
+std::vector<std::string> DebugShell::splitLines(const std::string& source)
+{
+	std::vector<std::string> lines;
+	std::istringstream stream(source);
+	std::string line;
+	while (std::getline(stream, line))
+		lines.push_back(line);
+	return lines;
+}
+
+std::string DebugShell::sourceTextAt(const std::vector<std::string>& sourceLines, int line)
+{
+	if (line <= 0 || static_cast<size_t>(line) > sourceLines.size())
+		return "";
+	return trim(sourceLines[line - 1]);
+}
+
+std::string DebugShell::trim(const std::string& text)
+{
+	size_t begin = text.find_first_not_of(" \t\r\n");
+	if (begin == std::string::npos)
+		return "";
+	size_t end = text.find_last_not_of(" \t\r\n");
+	return text.substr(begin, end - begin + 1);
 }

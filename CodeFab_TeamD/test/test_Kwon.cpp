@@ -568,7 +568,7 @@ protected:
 	}
 };
 
-// factory-control-shell-spec.md 1.2절: 정상 스크립트는 그대로 실행되고 성공 코드(0)를 반환한다.
+// 정상 스크립트는 그대로 실행되고 성공 코드(0)를 반환한다.
 TEST_F(FileRunnerTest, ValidScript_ExecutesAndReturnsSuccess)
 {
 	auto path = writeTempFile("valid", "print 1 + 2;");
@@ -631,7 +631,7 @@ TEST_F(FileRunnerTest, RuntimeError_StopsImmediatelyAfterPriorOutput)
 	std::filesystem::remove(path);
 }
 
-// factory-control-shell-spec.md 8.2절: REPL은 exit뿐 아니라 quit으로도 종료돼야 한다.
+// REPL은 exit뿐 아니라 quit으로도 종료돼야 한다.
 // quit 이후의 줄은 처리되지 않아야 하므로, 그 뒷줄의 출력이 없는지로 종료 여부를 확인한다.
 TEST(DfineShellTest, ExitCommand_StopsBeforeProcessingFollowingLines)
 {
@@ -688,7 +688,7 @@ namespace
 	};
 }
 
-// factory-control-shell-spec.md 1.2절: 런타임 에러 메시지에 줄 번호가 포함돼야 한다.
+// 런타임 에러 메시지에 줄 번호가 포함돼야 한다.
 TEST(InterpreterLineNumberTest, DivisionByZero_ErrorMessageIncludesLineNumber)
 {
 	SilentOutputWriter output;
@@ -940,6 +940,93 @@ TEST_F(DebugShellTest, UnexpectedEndOfInputStopsGracefullyAndStillFinishesProgra
 	EXPECT_EQ(exitCode, 0);
 	EXPECT_THAT(out.str(), HasSubstr("1"));
 	EXPECT_THAT(out.str(), HasSubstr("2"));
+
+	std::filesystem::remove(path);
+}
+
+// watch로 등록한 변수는 정지할 때마다 그 시점의 스코프 체인에서 다시 조회되어야 한다
+// (고정 참조가 아님).
+TEST_F(DebugShellTest, WatchesShowsCurrentValueOfWatchedVariable)
+{
+	auto path = writeTempFile("watch", "var a = 3;\nprint a;\n");
+	std::istringstream in("watch a\nwatches\ncontinue\n");
+	std::ostringstream out;
+
+	int exitCode = DebugShell().run(path.string(), in, out);
+
+	EXPECT_EQ(exitCode, 0);
+	EXPECT_THAT(out.str(), HasSubstr("a 감시 시작"));
+	// 소스 텍스트("var a = 3;")에도 "a = 3"이 등장하므로, watches가 실제로 출력하는
+	// "[DEBUG] a = 3" 형식으로 구체적으로 검사한다.
+	EXPECT_THAT(out.str(), HasSubstr("[DEBUG] a = 3"));
+
+	std::filesystem::remove(path);
+}
+
+// unwatch 이후에는 watches가 그 변수를 더 이상 보여주지 않아야 한다.
+TEST_F(DebugShellTest, UnwatchStopsShowingVariableInWatches)
+{
+	auto path = writeTempFile("unwatch", "var a = 3;\nprint a;\n");
+	std::istringstream in("watch a\nunwatch a\nwatches\ncontinue\n");
+	std::ostringstream out;
+
+	int exitCode = DebugShell().run(path.string(), in, out);
+
+	EXPECT_EQ(exitCode, 0);
+	EXPECT_THAT(out.str(), HasSubstr("a 감시 해제"));
+	// "a = 3"은 최초 정지 메시지의 소스 텍스트("var a = 3;")에도 등장하므로, watches가
+	// 실제로 출력하는 형식("[DEBUG] a =")으로 구체적으로 검사해야 오탐이 없다.
+	EXPECT_THAT(out.str(), Not(HasSubstr("[DEBUG] a =")));
+	EXPECT_THAT(out.str(), Not(HasSubstr("값을 참조할 수 없습니다")));
+
+	std::filesystem::remove(path);
+}
+
+// inspect는 entriesInThisScope()만 사용 - 현재(가장 안쪽) 스코프만 보여주고 enclosing(바깥
+// 스코프)의 변수는 포함하지 않아야 한다.
+TEST_F(DebugShellTest, InspectListsOnlyCurrentScopeVariables)
+{
+	auto path = writeTempFile("inspect", "var a = 1;\n{\nvar b = 2;\nprint b;\n}\n");
+	std::istringstream in("inspect\nstep\ninspect\ncontinue\n");
+	std::ostringstream out;
+
+	int exitCode = DebugShell().run(path.string(), in, out);
+
+	EXPECT_EQ(exitCode, 0);
+	// 최초 정지(line 1, var a=1 실행 직후, 최상위 스코프)에서만 "a = 1"이 보여야 한다.
+	// 블록 안(line 3, var b=2 실행 직후)에서 inspect를 다시 호출했을 때 "[DEBUG] a = 1"이
+	// 또 나오면 enclosing까지 잘못 포함한 것이다 - 그래서 총 1회만 나와야 한다.
+	// (참고: "a = 1"만으로 검사하면 최초 정지 메시지의 소스 텍스트("var a = 1;")와
+	// 겹쳐 오탐하므로, inspect가 실제로 출력하는 "[DEBUG] a = 1" 형식으로 검사한다.)
+	EXPECT_EQ(countOccurrences(out.str(), "[DEBUG] a = 1"), 1);
+	EXPECT_THAT(out.str(), HasSubstr("b = 2"));
+
+	std::filesystem::remove(path);
+}
+
+// for 반복문 몸통에서 선언된 변수를 watch하면, 그 블록을 벗어난 시점에는 "값을 참조할 수
+// 없습니다"가 나오고, 다음 반복에서 같은 이름이 다시 선언되면(재진입) 별도 조치 없이도
+// 다시 값이 보여야 한다(additional-requirement-impl-spec.md 3.6절 예시와 동일한 시나리오).
+TEST_F(DebugShellTest, WatchesReflectsVariableGoingOutOfScopeAndReappearingOnReentry)
+{
+	auto path = writeTempFile("scope",
+		"for (var i = 0; i < 2; i = i + 1) {\nvar x = i;\nprint x;\n}\nprint \"done\";\n");
+	// 정지 순서: (1)for 초기화 -> (2)1회차 var x=i -> (3)1회차 print x -> (4)블록 종료(x 스코프 밖)
+	// -> (5)2회차 var x=i(재선언). (5) 이후로는 continue로 나머지를 조용히 끝까지 실행한다.
+	std::istringstream in(
+		"step\n"          // (1) -> (2)
+		"watch x\nwatches\nstep\n"   // (2)에서 watch 등록, x=0 확인 -> (3)
+		"watches\nstep\n"            // (3)에서도 x=0 유지 확인 -> (4)
+		"watches\nstep\n"            // (4) 블록 종료 지점: 값을 참조할 수 없습니다 -> (5)
+		"watches\ncontinue\n");      // (5) 재선언된 x=1 확인 -> 끝까지 실행
+	std::ostringstream out;
+
+	int exitCode = DebugShell().run(path.string(), in, out);
+
+	EXPECT_EQ(exitCode, 0);
+	EXPECT_EQ(countOccurrences(out.str(), "x = 0"), 2); // (2), (3)에서 각각 한 번
+	EXPECT_THAT(out.str(), HasSubstr("x: 값을 참조할 수 없습니다")); // (4)
+	EXPECT_THAT(out.str(), HasSubstr("x = 1")); // (5) 재진입 후 재조회
 
 	std::filesystem::remove(path);
 }

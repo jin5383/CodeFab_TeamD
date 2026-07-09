@@ -11,7 +11,7 @@ int main(int argc, char** argv)
 	InitGoogleMock(&argc, argv);
 	return RUN_ALL_TESTS();
 #else
-	// factory-control-shell-spec.md 2.1절: 인자 없음 -> REPL, "run <파일>" -> 파일 모드.
+	// 인자 없음 -> REPL, "run <파일>" -> 파일 모드.
 	// "debug <파일>"(디버그 모드)은 이번 범위에서 제외.
 	if (argc <= 1)
 	{
