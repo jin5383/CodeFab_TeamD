@@ -13,6 +13,13 @@ inline std::string withLine(const std::string& message, int line)
 	return message + " [line " + std::to_string(line) + "]";
 }
 
+// 함수/메서드/생성자 호출의 인자 개수가 선언과 다를 때 Executor 여러 곳(함수 호출,
+// 클래스 인스턴스화, 메서드 호출)에서 공통으로 던지는 런타임 에러 메시지.
+inline std::string formatArityMismatch(size_t expected, size_t got)
+{
+	return "Expected " + std::to_string(expected) + " arguments but got " + std::to_string(got) + ".";
+}
+
 // CheckerErrno는 그 자체로는 사람이 읽을 수 없으므로, Interpreter가 체크 실패를 예외로
 // 알릴 때 이 함수로 변환한다.
 inline std::string describeCheckerError(CheckerErrno errorCode)
