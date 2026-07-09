@@ -1,6 +1,7 @@
 ﻿#include <gtest/gtest.h>
 #include <exception>
 #include "../executor.h"
+#include "../assembler.h"
 
 using namespace std;
 
@@ -674,5 +675,65 @@ TEST_F(ExecutorTest, DivisionByZeroThrowsRuntimeError)
 	catch (const std::exception& e)
 	{
 		EXPECT_STREQ(e.what(), "Division by zero.");
+	}
+}
+
+// var arr = Array(3); 가 입력되면 -> Environment에 저장된 "arr"이 크기 3짜리 배열이고,
+// 모든 원소가 아직 값이 없는 상태(monostate, 스펙의 "null")여야 한다.
+TEST_F(ExecutorTest, ArrayDeclaration)
+{
+	Program parsedProgram = Assembler().assemble("var arr = Array(3);");
+
+	Environment environment;
+	executor.execute(parsedProgram, environment);
+
+	LiteralValue arrValue = environment.get(identifier("arr"));
+	ASSERT_TRUE(std::holds_alternative<std::shared_ptr<ArrayValue>>(arrValue));
+
+	auto array = std::get<std::shared_ptr<ArrayValue>>(arrValue);
+	ASSERT_EQ(array->items.size(), 3u);
+	for (const auto& item : array->items)
+		EXPECT_TRUE(std::holds_alternative<std::monostate>(item));
+}
+
+// var arr = Array(-1); 가 입력되면 -> 구문 에러.
+TEST(AssemblerSyntaxErrorTest, ArraySizeNegativeLiteralReportsError)
+{
+	try
+	{
+		Assembler().assemble("var arr = Array(-1);");
+		FAIL() << "Expected a syntax error to be thrown";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Array size must be an integer literal.");
+	}
+}
+
+// var arr = Array(3.0); 가 입력되면 -> 구문 에러.
+TEST(AssemblerSyntaxErrorTest, ArraySizeWholeNumberWithDecimalPointReportsError)
+{
+	try
+	{
+		Assembler().assemble("var arr = Array(3.0);");
+		FAIL() << "Expected a syntax error to be thrown";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Array size must be an integer literal.");
+	}
+}
+
+// var arr = Array(ABC); 가 입력되면 -> 구문 에러.
+TEST(AssemblerSyntaxErrorTest, ArraySizeIdentifierReportsError)
+{
+	try
+	{
+		Assembler().assemble("var arr = Array(ABC);");
+		FAIL() << "Expected a syntax error to be thrown";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Array size must be an integer literal.");
 	}
 }
