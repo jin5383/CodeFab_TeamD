@@ -64,6 +64,7 @@ namespace
 		case '-': return makeSimpleToken(TokenType::MINUS, "-");
 		case '*': return makeSimpleToken(TokenType::STAR, "*");
 		case '/': return makeSimpleToken(TokenType::SLASH, "/");
+		case '%': return makeSimpleToken(TokenType::PERCENT, "%");
 		case '(': return makeSimpleToken(TokenType::LEFT_PAREN, "(");
 		case ')': return makeSimpleToken(TokenType::RIGHT_PAREN, ")");
 		case '<': return makeSimpleToken(TokenType::LESS, "<");
@@ -435,12 +436,13 @@ namespace
 			return left;
 		}
 
-		// *, / 를 좌결합으로 묶는다. parseAddSubExpr보다 먼저 호출되어 우선순위가 더 높게
+		// *, /, % 를 좌결합으로 묶는다. parseAddSubExpr보다 먼저 호출되어 우선순위가 더 높게
 		Expr* parseMulDivExpr()
 		{
 			Expr* left = parseUnaryExpr();
 
-			while (getCurrentToken().type == TokenType::STAR || getCurrentToken().type == TokenType::SLASH)
+			while (getCurrentToken().type == TokenType::STAR || getCurrentToken().type == TokenType::SLASH
+				|| getCurrentToken().type == TokenType::PERCENT)
 			{
 				Token op = getTokenAndAdvance();
 				Expr* right = parseUnaryExpr();

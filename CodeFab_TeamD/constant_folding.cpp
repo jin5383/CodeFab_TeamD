@@ -1,5 +1,7 @@
 #include "constant_folding.h"
 
+#include <cmath>
+
 void ConstantFolder::fold(Program& program) const
 {
 	for (Stmt* stmt : program.statements)
@@ -115,6 +117,12 @@ Expr* ConstantFolder::foldBinary(BinaryExpr* binary) const
 		if (right == 0)
 			return binary;
 		result = left / right;
+		break;
+	case TokenType::PERCENT:
+		// SLASH와 동일한 이유로 0으로 나누는 경우는 폴딩하지 않고 그대로 둔다.
+		if (right == 0)
+			return binary;
+		result = std::fmod(left, right);
 		break;
 	case TokenType::LESS: result = left < right; break;
 	case TokenType::GREATER: result = left > right; break;
