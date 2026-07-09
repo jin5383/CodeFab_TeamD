@@ -42,6 +42,12 @@ private:
 	// Lox류 언어의 "truthy" 규칙: bool은 그 값 그대로, 그 외에는 monostate(값 없음)만 false.
 	bool isTruthy(const LiteralValue& value) const;
 
+	// LiteralValue가 배열(shared_ptr<ArrayValue>)이 아니면 런타임 에러.
+	std::shared_ptr<ArrayValue> asArray(const LiteralValue& value) const;
+
+	// 인덱스 값이 숫자가 아니거나 정수가 아니거나 범위를 벗어나면 런타임 에러.
+	size_t asArrayIndex(const LiteralValue& value, size_t arraySize) const;
+
 	// Interpreter 패턴의 핵심 재귀 함수. Expr 트리를 자식 -> 부모 순(post-order)으로
 	// 내려가며 실제 값을 계산한다. Expr 서브타입이 하나 늘어나면 이 함수에 분기가 하나 는다.
 	LiteralValue evaluate(Expr* expr, IEnvironment& environment) const;
