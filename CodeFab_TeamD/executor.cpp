@@ -196,7 +196,8 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 
 	if (auto* arrayExpr = dynamic_cast<ArrayExpr*>(expr))
 	{
-		double sizeValue = asNumber(evaluate(arrayExpr->size, environment));
+		// ArrayExpr 자체는 Token을 갖지 않아 line 정보가 없다(0 = 미상, ast.h Stmt::line 관례와 동일).
+		double sizeValue = asNumber(evaluate(arrayExpr->size, environment), 0);
 		if (sizeValue < 0 || sizeValue != static_cast<long long>(sizeValue))
 			throw std::runtime_error("Array size must be a non-negative integer.");
 
