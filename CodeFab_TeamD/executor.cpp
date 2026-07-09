@@ -586,7 +586,20 @@ LiteralValue Executor::callMethod(FunctionDeclStmt* method, std::shared_ptr<Inst
 	}
 	for (size_t i = 0; i < method->params.size(); ++i)
 		methodEnv.define(method->params[i].origin, evaluate(args[i], callerEnv));
-	for (Stmt* stmt : method->body)
-		executeStmt(stmt, methodEnv);
+
+	try
+	{
+		for (Stmt* stmt : method->body)
+			executeStmt(stmt, methodEnv);
+	}
+	catch (const ReturnSignal& signal)
+	{
+		// init은 인스턴스를 초기화하는 생성자 역할이라 값을 반환하는 return을 허용하지 않는다
+		// (docs/additional-requirement-impl-spec.md 3.2.1 — return;은 초기화를 조기 종료하는
+		// 용도로 허용, 값 있는 return만 금지).
+		if (method->name.origin == "init" && !std::holds_alternative<std::monostate>(signal.value))
+			throw std::runtime_error("Can't return a value from 'init'.");
+		return signal.value;
+	}
 	return LiteralValue{};
 }

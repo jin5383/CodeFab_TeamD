@@ -106,6 +106,40 @@ CheckerErrno Checker::checkExprCallArity(Expr* expr, const FunctionArities& func
 	return CheckerErrno::success;
 }
 
+// 최상위 문장에서 (클래스 이름 -> superclass 이름) 관계만 모아, 각 클래스에서 그 체인을
+// 따라가며 이미 지나온 이름을 다시 만나면 순환으로 판단한다. Class A : A(1단계)는 checkStmt의
+// classDecl 분기가 selfInheritance로 먼저 잡으므로, 여기서는 2단계 이상의 순환만 실질적으로 걸린다.
+CheckerErrno Checker::checkClassInheritanceCycles(const std::vector<Stmt*>& statements) const
+{
+	std::unordered_map<std::string, std::string> superclassOf;
+	for (Stmt* stmt : statements)
+		if (auto* classDecl = dynamic_cast<ClassDeclStmt*>(stmt))
+			if (classDecl->superclass != nullptr)
+				superclassOf[classDecl->name.origin] = classDecl->superclass->origin;
+
+	for (const auto& [className, _] : superclassOf)
+	{
+		std::set<std::string> visited;
+		std::string current = className;
+		while (true)
+		{
+			if (!visited.insert(current).second)
+			{
+				// visited.size() == 1이면 Class A : A(자기 자신 하나만 거쳐 바로 반복) —
+				// 이 경우는 checkStmt의 selfInheritance 분기가 더 명확한 코드로 잡으므로 여기서는 건너뛴다.
+				if (visited.size() == 1)
+					break;
+				return CheckerErrno::circularInheritance;
+			}
+			auto it = superclassOf.find(current);
+			if (it == superclassOf.end())
+				break; // 체인 끝(부모 없음, 또는 이 프로그램에 없는 이름 — 5절 케이스는 Executor가 처리)
+			current = it->second;
+		}
+	}
+	return CheckerErrno::success;
+}
+
 CheckerErrno Checker::checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes, CheckContext ctx) const
 {
 	for (Stmt* stmt : statements)
@@ -213,6 +247,8 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, CheckContext ctx
 
 	if (auto* classDecl = dynamic_cast<ClassDeclStmt*>(stmt))
 	{
+		if (classDecl->superclass != nullptr && classDecl->superclass->origin == classDecl->name.origin)
+			return CheckerErrno::selfInheritance;
 		return CheckerErrno::success;
 	}
 
@@ -228,6 +264,10 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, CheckContext ctx
 
 CheckerErrno Checker::check(const Program& program, FunctionArities& functionArities) const
 {
+	CheckerErrno cycleResult = checkClassInheritanceCycles(program.statements);
+	if (cycleResult != CheckerErrno::success)
+		return cycleResult;
+
 	ScopeStack scopes(1);
 	return checkStmts(program.statements, scopes, CheckContext{ 0, false, functionArities });
 }
