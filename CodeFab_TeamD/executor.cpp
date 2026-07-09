@@ -1,6 +1,7 @@
 ﻿#include "executor.h"
 
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -157,6 +158,11 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 
 	if (auto* call = dynamic_cast<CallExpr*>(expr))
 	{
+		// moduleHome이 설정되면 callee가 "module.func(...)" 형태였다는 뜻이며, 콜 프레임의
+		// enclosing을 module 자신(ModuleEnvironment)으로 잡아야 재귀 등 자기 참조 호출이
+		// module 스코프에 정의된 이름을 다시 찾을 수 있다(root()는 호출부의 전역만 본다).
+		std::shared_ptr<Instance> moduleHome;
+
 		// 메서드 호출: r.move(5) — callee가 GetExpr이고 object가 Instance인 경우
 		if (auto* getExpr = dynamic_cast<GetExpr*>(call->callee))
 		{
@@ -164,11 +170,15 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 			if (std::holds_alternative<std::shared_ptr<Instance>>(object))
 			{
 				auto inst = std::get<std::shared_ptr<Instance>>(object);
-				FunctionDeclStmt* method = findMethod(inst->klass, getExpr->name.origin);
-				if (method == nullptr)
-					throw std::runtime_error("Undefined method '" + getExpr->name.origin + "'.");
-				ClassDeclStmt* owner = findMethodOwner(inst->klass, getExpr->name.origin);
-				return callMethod(method, inst, call->arguments, environment, owner);
+				if (inst->klass != nullptr)
+				{
+					FunctionDeclStmt* method = findMethod(inst->klass, getExpr->name.origin);
+					if (method == nullptr)
+						throw std::runtime_error("Undefined method '" + getExpr->name.origin + "'.");
+					ClassDeclStmt* owner = findMethodOwner(inst->klass, getExpr->name.origin);
+					return callMethod(method, inst, call->arguments, environment, owner);
+				}
+				moduleHome = inst;
 			}
 		}
 
@@ -234,7 +244,23 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 		// environment는 인터페이스(IEnvironment&)지만, 실행 중 실제로 전달되는 것은 항상
 		// 구체 Environment 체인이므로(Kwon의 gmock Test Double은 함수 호출과 함께 쓰이지
 		// 않는다) root()를 쓰기 위해 다시 Environment&로 캐스팅한다.
-		Environment callEnvironment(&dynamic_cast<Environment&>(environment).root());
+		//
+		// module.func(...) 형태로 호출된 경우는 예외다 — 그 함수의 "전역"은 호출부의 전역이
+		// 아니라 module 자신의 스코프이므로(module 안에서 재귀호출된 함수는 module 안에
+		// 정의된 이름만 다시 찾을 수 있어야 한다), moduleHome을 감싸는 ModuleEnvironment를
+		// enclosing으로 대신 사용한다.
+		std::optional<ModuleEnvironment> moduleEnvironment;
+		IEnvironment* callFrameEnclosing;
+		if (moduleHome)
+		{
+			moduleEnvironment.emplace(moduleHome);
+			callFrameEnclosing = &*moduleEnvironment;
+		}
+		else
+		{
+			callFrameEnclosing = &dynamic_cast<Environment&>(environment).root();
+		}
+		Environment callEnvironment(callFrameEnclosing);
 		for (size_t i = 0; i < function->params.size(); ++i)
 			callEnvironment.define(function->params[i].origin, evaluate(call->arguments[i], environment));
 

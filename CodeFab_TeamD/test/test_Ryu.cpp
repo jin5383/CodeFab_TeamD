@@ -340,3 +340,115 @@ TEST(ImportUnitTest, NestedImportChainedMemberAccess_BA_B_LocalAllResolveIndepen
 	filesystem::remove("A.txt");
 	filesystem::remove("B.txt");
 }
+
+TEST(ImportUnitTest, ImportedFunctionAndLocalSameNameFunction_ResolveIndependently)
+{
+	{
+		ofstream fileA("A.txt");
+		fileA << "Func add(a, b) {\n";
+		fileA << "return a + b;\n";
+		fileA << "}\n";
+	}
+
+	StringWriter writer;
+	Interpreter(writer).run(
+		"import \"A.txt\" alias A;"
+		"Func add(a, b) { return 100 * (a + b); }"
+		"var a1 = A.add(2, 1);"
+		"var a2 = add(2, 1);"
+		"print a1;"
+		"print a2;");
+
+	EXPECT_EQ(writer.output, "3\n300\n");
+
+	filesystem::remove("A.txt");
+}
+
+TEST(ImportUnitTest, NestedImportedFunctionCallsThroughModuleChain_ComputesExpectedSums)
+{
+	{
+		ofstream file1("sum1.txt");
+		file1 << "Func add(a, b) {\n";
+		file1 << "return a + b;\n";
+		file1 << "}\n";
+	}
+	{
+		ofstream file2("sum2.txt");
+		file2 << "import \"sum1.txt\" alias sum1;\n";
+		file2 << "Func add(a, b) {\n";
+		file2 << "return a + b;\n";
+		file2 << "}\n";
+	}
+
+	StringWriter writer;
+	Interpreter(writer).run(
+		"import \"sum2.txt\" alias sum2;"
+		"Func add(a, b) { return a + b; }"
+		"var a1 = sum2.sum1.add(10, 1);"
+		"var a2 = sum2.add(20, 2);"
+		"var a3 = add(30, 3);"
+		"print a1;"
+		"print a2;"
+		"print a3;");
+
+	EXPECT_EQ(writer.output, "11\n22\n33\n");
+
+	filesystem::remove("sum1.txt");
+	filesystem::remove("sum2.txt");
+}
+
+
+TEST(ImportUnitTest, ImportedRecursiveFactorialCalledQualified_ComputesOneTwenty)
+{
+	{
+		ofstream fileA("A.txt");
+		fileA << "Func fact(n) {\n";
+		fileA << "if (n < 2) return 1;\n";
+		fileA << "return n * fact(n - 1);\n";
+		fileA << "}\n";
+	}
+
+	StringWriter writer;
+	Interpreter(writer).run(
+		"import \"A.txt\" alias A;"
+		"print A.fact(5);");
+
+	EXPECT_EQ(writer.output, "120\n");
+
+	filesystem::remove("A.txt");
+}
+
+TEST(ImportUnitTest, ThreeIndependentFactVariants_NestedImportAndLocalShadowingAllResolveCorrectly)
+{
+	{
+		ofstream fileA("A.txt");
+		fileA << "Func fact(n) {\n";
+		fileA << "if (n < 2) return 1;\n";
+		fileA << "return n * fact(n - 1);\n";
+		fileA << "}\n";
+	}
+	{
+		ofstream fileB("B.txt");
+		fileB << "import \"A.txt\" alias A;\n";
+		fileB << "Func fact(n) {\n";
+		fileB << "if (n < 2) return 1;\n";
+		fileB << "return n + fact(n - 1);\n";
+		fileB << "}\n";
+	}
+
+	StringWriter writer;
+	Interpreter(writer).run(
+		"import \"B.txt\" alias B;"
+		"Func fact(n) { if (n < 2) return 3; return 3 * n + fact(n - 1); }"
+		"print B.A.fact(5);"
+		"print B.fact(10);"
+		"print fact(10);");
+
+	EXPECT_EQ(writer.output, "120\n55\n165\n");
+
+	filesystem::remove("A.txt");
+	filesystem::remove("B.txt");
+}
+
+
+
