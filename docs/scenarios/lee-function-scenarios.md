@@ -50,6 +50,20 @@ Func foo(a, b, c) { return a; }
 foo(1, 2);
 ```
 
+```
+// 호출부 인자 개수 불일치 — ExpressionStmt 최상위가 아니라 var 초기화식 안에 중첩된 경우
+// 기대: argumentCountMismatch 에러 (5절 후속 작업으로 checkCallArity 정적 검사 범위 확대)
+Func foo(a, b, c) { return a; }
+var x = foo(1, 2);
+```
+
+```
+// 호출부 인자 개수 불일치 — print 표현식 안에 중첩된 경우
+// 기대: argumentCountMismatch 에러 (5절 후속 작업)
+Func foo(a, b, c) { return a; }
+print foo(1, 2);
+```
+
 **2) 실행중 발생하는 런타임 에러**
 
 ```
