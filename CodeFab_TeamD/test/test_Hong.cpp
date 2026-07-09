@@ -32,6 +32,7 @@ protected:
 		case TokenType::MINUS: return "-";
 		case TokenType::STAR: return "*";
 		case TokenType::SLASH: return "/";
+		case TokenType::PERCENT: return "%";
 		case TokenType::LESS: return "<";
 		case TokenType::GREATER: return ">";
 		default: return "";
@@ -170,6 +171,68 @@ TEST_F(ExecutorTest, PrintDivisionIsLeftAssociativeOutputsTwo)
 	executor.execute(program);
 
 	EXPECT_EQ(writer.output, "2\n");
+}
+
+// print 7 % 3; -> stdout "1"
+TEST_F(ExecutorTest, PrintModuloOutputsRemainder)
+{
+	vector<LiteralExpr> literals(2);
+	literals[0].value = 7.0;
+	literals[1].value = 3.0;
+
+	BinaryExpr modulo = makeBinary(TokenType::PERCENT, &literals[0], &literals[1]);
+
+	printStmt.expression = &modulo;
+	program.statements = { &printStmt };
+
+	executor.execute(program);
+
+	EXPECT_EQ(writer.output, "1\n");
+}
+
+// print 10 % 6 % 3; -> (10 % 6) % 3 = 4 % 3 = 1 (좌결합)
+TEST_F(ExecutorTest, PrintModuloIsLeftAssociativeOutputsOne)
+{
+	vector<LiteralExpr> literals(3);
+	literals[0].value = 10.0;
+	literals[1].value = 6.0;
+	literals[2].value = 3.0;
+
+	BinaryExpr leftModulo = makeBinary(TokenType::PERCENT, &literals[0], &literals[1]);
+	BinaryExpr modulo = makeBinary(TokenType::PERCENT, &leftModulo, &literals[2]);
+
+	printStmt.expression = &modulo;
+	program.statements = { &printStmt };
+
+	executor.execute(program);
+
+	EXPECT_EQ(writer.output, "1\n");
+}
+
+// print 2 + 3 % 2; -> % 가 + 보다 우선순위가 높으므로 2 + (3 % 2) = 3
+TEST_F(ExecutorTest, PrintModuloHasHigherPrecedenceThanAddition)
+{
+	Program parsedProgram = Assembler().assemble("print 2 + 3 % 2;");
+
+	executor.execute(parsedProgram);
+
+	EXPECT_EQ(writer.output, "3\n");
+}
+
+// print 5 % 0; 이 입력되면 -> 런타임 에러
+TEST_F(ExecutorTest, ModuloByZeroThrowsRuntimeError)
+{
+	Program parsedProgram = Assembler().assemble("print 5 % 0;");
+
+	try
+	{
+		executor.execute(parsedProgram);
+		FAIL() << "Expected a runtime error to be thrown";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_THAT(e.what(), HasSubstr("Modulo by zero."));
+	}
 }
 
 // 테스트 스크립트.md 1-5) print -3 + 2; -> stdout "-1"
