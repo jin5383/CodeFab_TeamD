@@ -12,6 +12,7 @@
 // 여러 Program에 대해 반복 호출해도 이전 호출의 잔여 상태가 남지 않는다.
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include "ast.h"
 
@@ -45,9 +46,15 @@ public:
 
 private:
 	using ScopeStack = std::vector<std::set<std::string>>;
+	// Lee/Park 공용: 함수/(향후) 클래스 이름 -> 정적으로 알려진 인자 개수(arity).
+	// 호출부의 인자 개수를 정적으로 판단 가능한 경우에만 검사하기 위한 보조 정보(3.1절).
+	using FunctionArities = std::unordered_map<std::string, size_t>;
 
-	CheckerErrno checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes, int loopDepth, bool insideFunction = false) const;
-	CheckerErrno checkStmt(Stmt* stmt, ScopeStack& scopes, int loopDepth, bool insideFunction = false) const;
+	CheckerErrno checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes, int loopDepth,
+		FunctionArities& functionArities, bool insideFunction = false) const;
+	CheckerErrno checkStmt(Stmt* stmt, ScopeStack& scopes, int loopDepth, FunctionArities& functionArities,
+		bool insideFunction = false) const;
+	CheckerErrno checkCallArity(Expr* expr, const FunctionArities& functionArities) const;
 	bool isNameDeclared(const std::string& name, const ScopeStack& scopes) const;
 	bool exprReferencesName(Expr* expr, const std::string& name) const;
 };

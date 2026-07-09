@@ -123,10 +123,10 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 			}
 		}
 
-		LiteralValue callee = evaluate(call->callee, environment);
-		if (std::holds_alternative<std::shared_ptr<ClassValue>>(callee))
+		LiteralValue calleeValue = evaluate(call->callee, environment);
+		if (std::holds_alternative<std::shared_ptr<ClassValue>>(calleeValue))
 		{
-			auto cls = std::get<std::shared_ptr<ClassValue>>(callee);
+			auto& cls = std::get<std::shared_ptr<ClassValue>>(calleeValue);
 			auto instance = std::make_shared<Instance>();
 			instance->klass = cls->decl;
 			FunctionDeclStmt* initMethod = findMethod(cls->decl, "init");
@@ -137,7 +137,23 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 				                         std::to_string(call->arguments.size()) + ".");
 			return instance;
 		}
-		// TODO(Lee): 함수 호출 실행 - Phase 1에서 구현
+
+		auto function = std::get<std::shared_ptr<FunctionDeclStmt>>(calleeValue);
+
+		// 이 언어는 클로저(중첩 함수의 선언 시점 지역 스코프 캡처)를 지원하지 않으므로
+		// (docs/lee-function-impl-plan.md 0절), 콜 프레임의 enclosing은 전역으로 고정한다.
+		// 재귀 호출은 전역에 정의된 자기 이름을 다시 찾는 것으로 충분히 해결된다.
+		// environment는 인터페이스(IEnvironment&)지만, 실행 중 실제로 전달되는 것은 항상
+		// 구체 Environment 체인이므로(Kwon의 gmock Test Double은 함수 호출과 함께 쓰이지
+		// 않는다) root()를 쓰기 위해 다시 Environment&로 캐스팅한다.
+		Environment callEnvironment(&dynamic_cast<Environment&>(environment).root());
+		for (size_t i = 0; i < function->params.size(); ++i)
+			callEnvironment.define(function->params[i].origin, evaluate(call->arguments[i], environment));
+
+		for (Stmt* bodyStmt : function->body)
+			executeStmt(bodyStmt, callEnvironment);
+
+		// TODO(Lee): return 조기 종료로 실제 반환값을 전달하는 것은 다음 기능에서 구현
 		return LiteralValue{};
 	}
 
@@ -293,7 +309,10 @@ void Executor::executeStmt(Stmt* stmt, IEnvironment& environment) const
 	}
 	else if (auto* funcDecl = dynamic_cast<FunctionDeclStmt*>(stmt))
 	{
-		// TODO(Lee): 함수 선언 실행 - Phase 1에서 구현
+		// funcDecl은 AST 소유(Program이 들고 있는 원본 포인터)라 shared_ptr이 대신 delete하지
+		// 않도록 no-op deleter로 감싼다(LiteralValue variant가 shared_ptr<FunctionDeclStmt>를
+		// 요구하므로 형태만 맞춘 비소유 래핑).
+		environment.define(funcDecl->name.origin, std::shared_ptr<FunctionDeclStmt>(funcDecl, [](FunctionDeclStmt*) {}));
 	}
 	else if (auto* returnStmt = dynamic_cast<ReturnStmt*>(stmt))
 	{

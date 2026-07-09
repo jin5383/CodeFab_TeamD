@@ -2,8 +2,19 @@
 #include "../ast.h"
 #include "../checker.h"
 #include "../assembler.h"
+#include "../executor.h"
 #include <functional>
 #include <vector>
+
+// Lee 전용 Executor 테스트용 가짜 출력(test_Hong.cpp의 동명 클래스와는 별개 — 각자
+// test_<이름>.cpp 안에서 독립적으로 조립한다는 tdd-workflow-rule.md 2절 규칙을 따른다).
+class LeeFakeOutputWriter : public IOutputWriter
+{
+public:
+	void write(const std::string& text) override { output += text; }
+
+	std::string output;
+};
 
 class CheckerUnitTest : public ::testing::Test
 {
@@ -585,4 +596,97 @@ TEST_F(CheckerUnitTest, DuplicateParameterName_ReportsError)
 	program.statements.push_back(funcDecl);
 
 	EXPECT_EQ(CheckerErrno::duplicateParameterName, Checker().check(program));
+}
+
+// Checker unit: "Func foo(a, b, c) { return a; } foo(1, 2);" 처럼 정적으로 콜리가 함수
+// 선언임을 알 수 있는 호출부의 인자 개수가 다르면 argumentCountMismatch 에러
+TEST_F(CheckerUnitTest, CallArgumentCountMismatch_ReportsError)
+{
+	auto* returnStmt = new ReturnStmt();
+	returnStmt->value = makeVariable("a");
+
+	auto* funcDecl = new FunctionDeclStmt();
+	funcDecl->name = identifierToken("foo");
+	funcDecl->params.push_back(identifierToken("a"));
+	funcDecl->params.push_back(identifierToken("b"));
+	funcDecl->params.push_back(identifierToken("c"));
+	funcDecl->body.push_back(returnStmt);
+
+	auto* call = new CallExpr();
+	call->callee = makeVariable("foo");
+	call->arguments.push_back(makeNumberLiteral(1.0));
+	call->arguments.push_back(makeNumberLiteral(2.0));
+
+	auto* callStmt = new ExpressionStmt();
+	callStmt->expression = call;
+
+	Program program;
+	program.statements.push_back(funcDecl);
+	program.statements.push_back(callStmt);
+
+	EXPECT_EQ(CheckerErrno::argumentCountMismatch, Checker().check(program));
+}
+
+// Checker unit: 인자 개수가 일치하면 에러 없음 (회귀 방지)
+TEST_F(CheckerUnitTest, CallArgumentCountMatches_NoError)
+{
+	auto* returnStmt = new ReturnStmt();
+	returnStmt->value = makeVariable("a");
+
+	auto* funcDecl = new FunctionDeclStmt();
+	funcDecl->name = identifierToken("foo");
+	funcDecl->params.push_back(identifierToken("a"));
+	funcDecl->params.push_back(identifierToken("b"));
+	funcDecl->body.push_back(returnStmt);
+
+	auto* call = new CallExpr();
+	call->callee = makeVariable("foo");
+	call->arguments.push_back(makeNumberLiteral(1.0));
+	call->arguments.push_back(makeNumberLiteral(2.0));
+
+	auto* callStmt = new ExpressionStmt();
+	callStmt->expression = call;
+
+	Program program;
+	program.statements.push_back(funcDecl);
+	program.statements.push_back(callStmt);
+
+	EXPECT_EQ(CheckerErrno::success, Checker().check(program));
+}
+
+class LeeExecutorTest : public ::testing::Test
+{
+protected:
+	LeeFakeOutputWriter writer;
+	Executor executor{ writer };
+};
+
+// Executor unit: "Func greet() { return 1; }" 실행 시 environment에 함수 값이
+// 정의되어야 한다(docs/scenarios/lee-function-scenarios.md 선언+호출 시나리오의 전제 조건).
+TEST_F(LeeExecutorTest, FunctionDeclDefinesFunctionValueInEnvironment)
+{
+	Program program = Assembler().assemble("Func greet() { return 1; }");
+
+	Environment env;
+	executor.execute(program, env);
+
+	Token name{ TokenType::IDENTIFIER, "greet", std::monostate{} };
+	LiteralValue value = env.get(name);
+
+	ASSERT_TRUE(std::holds_alternative<std::shared_ptr<FunctionDeclStmt>>(value));
+	auto func = std::get<std::shared_ptr<FunctionDeclStmt>>(value);
+	ASSERT_NE(func, nullptr);
+	EXPECT_EQ(func->name.origin, "greet");
+}
+
+// Executor unit: 함수 호출이 인자를 파라미터에 바인딩하고 본문을 실행해야 한다.
+// return 값 자체는 다루지 않는다(다음 기능에서 검증) — 여기서는 호출 메커니즘만 확인.
+TEST_F(LeeExecutorTest, FunctionCallBindsArgumentAndExecutesBody)
+{
+	Program program = Assembler().assemble("Func printA(a) { print a; } printA(42);");
+
+	Environment env;
+	executor.execute(program, env);
+
+	EXPECT_EQ(writer.output, "42\n");
 }
