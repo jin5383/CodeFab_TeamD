@@ -285,6 +285,18 @@ void Executor::executeStmt(Stmt* stmt, IEnvironment& environment) const
 	}
 	else if (auto* importStmt = dynamic_cast<ImportStmt*>(stmt))
 	{
+		bool aliasAlreadyBound = true;
+		try
+		{
+			environment.get(importStmt->alias);
+		}
+		catch (const std::runtime_error&)
+		{
+			aliasAlreadyBound = false;
+		}
+		if (aliasAlreadyBound)
+			throw ImportError("Alias '" + importStmt->alias.origin + "' is already used in this scope.");
+
 		const std::string path = std::get<std::string>(importStmt->path.value);
 
 		for (const std::string& inProgress : importStack())

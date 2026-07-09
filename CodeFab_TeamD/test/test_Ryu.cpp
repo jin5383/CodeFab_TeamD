@@ -271,3 +271,34 @@ TEST(ImportUnitTest, ImportMissingFile_ThrowsAtExecution)
 	Environment environment;
 	EXPECT_THROW(Executor(writer).execute(program, environment), ImportError);
 }
+
+TEST(ImportUnitTest, SameAliasImportedTwice_ThrowsAtExecution)
+{
+	auto pathA = writeTempFile("aliasTwiceA", "var a = 1;");
+	auto pathB = writeTempFile("aliasTwiceB", "var b = 2;");
+
+	Program program = Assembler().assemble(
+		"import \"" + pathA.string() + "\" alias m; import \"" + pathB.string() + "\" alias m;");
+
+	EXPECT_EQ(Checker().check(program), CheckerErrno::success);
+
+	StringWriter writer;
+	Environment environment;
+	EXPECT_THROW(Executor(writer).execute(program, environment), ImportError);
+
+	filesystem::remove(pathA);
+	filesystem::remove(pathB);
+}
+
+TEST(ImportUnitTest, ImportedNameDoesNotLeakIntoLocalScope_LocalAndAliasedNameCoexist)
+{
+	auto path = writeTempFile("abc", "var i = 3;");
+
+	StringWriter writer;
+	Interpreter(writer).run(
+		"import \"" + path.string() + "\" alias ABC; var i = 5; print i; print ABC.i;");
+
+	EXPECT_EQ(writer.output, "5\n3\n");
+
+	filesystem::remove(path);
+}
