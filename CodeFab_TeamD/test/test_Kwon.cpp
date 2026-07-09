@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include "../ast.h"
 #include "../assembler.h"
+#include "../debug_shell.h"
 #include "../dfine_shell.h"
 #include "../environment.h"
 #include "../executor.h"
@@ -811,4 +812,134 @@ TEST(InterpreterCallbackTest, RunWithCallbackInvokesCallbackForEachTopLevelState
 	Interpreter(output).run("print 1;\nprint 2;\n", env, [&](const Stmt&, IEnvironment&, int) { ++callCount; });
 
 	EXPECT_EQ(callCount, 2);
+}
+
+class DebugShellTest : public ::testing::Test
+{
+protected:
+	std::filesystem::path writeTempFile(const std::string& hint, const std::string& content)
+	{
+		static int counter = 0;
+		auto path = std::filesystem::temp_directory_path() /
+			("codefab_debugshell_test_" + hint + "_" + std::to_string(++counter) + ".txt");
+		std::ofstream file(path);
+		file << content;
+		return path;
+	}
+
+	static int countOccurrences(const std::string& haystack, const std::string& needle)
+	{
+		int count = 0;
+		for (size_t pos = haystack.find(needle); pos != std::string::npos; pos = haystack.find(needle, pos + 1))
+			++count;
+		return count;
+	}
+};
+
+// step은 최상위뿐 아니라 블록 내부, 그리고 블록 자신이 끝난 시점까지 매번 멈춰야 한다.
+TEST_F(DebugShellTest, StepPausesAtTopLevelNestedAndCompoundStatement)
+{
+	auto path = writeTempFile("step", "print 1;\n{\nprint 2;\n}\n");
+	std::istringstream in("step\nstep\nstep\n");
+	std::ostringstream out;
+
+	int exitCode = DebugShell().run(path.string(), in, out);
+
+	EXPECT_EQ(exitCode, 0);
+	EXPECT_EQ(countOccurrences(out.str(), "> "), 3);
+	EXPECT_THAT(out.str(), HasSubstr("[DEBUG] 1번째 줄에서 정지"));
+	EXPECT_THAT(out.str(), HasSubstr("[DEBUG] 3번째 줄에서 정지"));
+	EXPECT_THAT(out.str(), HasSubstr("[DEBUG] 2번째 줄에서 정지"));
+
+	std::filesystem::remove(path);
+}
+
+// break로 설정한 줄에서 continue 시 정지하고, breakpoint가 없는 줄은 지나친다.
+TEST_F(DebugShellTest, BreakThenContinueStopsOnlyAtBreakpointLine)
+{
+	auto path = writeTempFile("break", "print 1;\nprint 2;\nprint 3;\n");
+	std::istringstream in("break 2\ncontinue\ncontinue\n");
+	std::ostringstream out;
+
+	int exitCode = DebugShell().run(path.string(), in, out);
+
+	EXPECT_EQ(exitCode, 0);
+	EXPECT_THAT(out.str(), HasSubstr("[DEBUG] 1번째 줄에서 정지 → print 1;")); // 최초 진입 시 무조건 정지(step 기본 모드)
+	EXPECT_THAT(out.str(), HasSubstr("[DEBUG] 2번째 줄에서 정지 (breakpoint) → print 2;")); // breakpoint
+	EXPECT_THAT(out.str(), Not(HasSubstr("3번째 줄에서 정지"))); // breakpoint 없음, continue 상태라 안 멈춤
+
+	std::filesystem::remove(path);
+}
+
+// remove로 breakpoint를 해제하면, 그 줄을 다시 지나가도 더 이상 멈추지 않는다
+// (for 반복문으로 같은 줄을 3번 지나가게 만들어 검증).
+TEST_F(DebugShellTest, RemoveStopsBreakpointFromPausingOnLaterIterations)
+{
+	auto path = writeTempFile("remove", "for (var i = 0; i < 3; i = i + 1) {\nprint i;\n}\n");
+	std::istringstream in("break 2\ncontinue\nremove 2\ncontinue\n");
+	std::ostringstream out;
+
+	int exitCode = DebugShell().run(path.string(), in, out);
+
+	EXPECT_EQ(exitCode, 0);
+	// "N번째 줄에서 정지"는 정지 세션 하나당 한 번씩만 찍힌다(입력한 명령 수와는 무관).
+	// 첫 진입(정적 정지) + breakpoint 1회 hit = 총 2번만 멈춰야 한다(2, 3회차는 remove 이후).
+	EXPECT_EQ(countOccurrences(out.str(), "번째 줄에서 정지"), 2);
+	EXPECT_EQ(countOccurrences(out.str(), "2번째 줄에서 정지"), 1);
+
+	std::filesystem::remove(path);
+}
+
+// next는 for 반복문 내부(중첩 statement)를 전부 건너뛰고, 반복문 자신이 끝난 시점에만
+// 한 번 멈춘다 - 다만 건너뛴 내부 문장들도 실제로는 실행돼야 한다(부수효과 확인).
+TEST_F(DebugShellTest, NextSkipsForLoopInternalsButStillExecutesThem)
+{
+	auto path = writeTempFile("next", "print \"start\";\nfor (var i = 0; i < 3; i = i + 1) {\nprint i;\n}\nprint \"done\";\n");
+	std::istringstream in("next\ncontinue\n");
+	std::ostringstream out;
+
+	int exitCode = DebugShell().run(path.string(), in, out);
+
+	EXPECT_EQ(exitCode, 0);
+	EXPECT_THAT(out.str(), HasSubstr("1번째 줄에서 정지")); // "start" 출력 시점(최초 정적 정지)
+	EXPECT_THAT(out.str(), HasSubstr("2번째 줄에서 정지")); // for 자신이 끝난 시점(next의 목표 depth)
+	EXPECT_THAT(out.str(), Not(HasSubstr("3번째 줄에서 정지"))); // 반복문 내부는 건너뜀(멈추지 않음)
+	EXPECT_THAT(out.str(), HasSubstr("start"));
+	EXPECT_THAT(out.str(), HasSubstr("0"));
+	EXPECT_THAT(out.str(), HasSubstr("done")); // 건너뛴 내부 문장들도 실제로는 실행됐음
+
+	std::filesystem::remove(path);
+}
+
+// Breakpoints 명령이 현재 설정된 줄 목록을 출력하는지 확인한다.
+TEST_F(DebugShellTest, BreakpointsCommandListsCurrentlySetLines)
+{
+	auto path = writeTempFile("list", "print 1;\n");
+	std::istringstream in("break 5\nbreak 10\nBreakpoints\ncontinue\n");
+	std::ostringstream out;
+
+	DebugShell().run(path.string(), in, out);
+
+	EXPECT_THAT(out.str(), HasSubstr("현재 breakpoint 목록:"));
+	EXPECT_THAT(out.str(), HasSubstr("5"));
+	EXPECT_THAT(out.str(), HasSubstr("10"));
+
+	std::filesystem::remove(path);
+}
+
+// 입력 스트림이 예기치 않게 끝나도(EOF) 무한루프 없이 정상 종료해야 한다(방어적 테스트).
+// 명령을 못 받아도 프로그램 자체는 끝까지 실행된다(부수효과는 그대로 남아야 함).
+TEST_F(DebugShellTest, UnexpectedEndOfInputStopsGracefullyAndStillFinishesProgram)
+{
+	auto path = writeTempFile("eof", "print 1;\nprint 2;\n");
+	std::istringstream in(""); // 명령 없이 바로 EOF
+	std::ostringstream out;
+
+	int exitCode = DebugShell().run(path.string(), in, out);
+
+	EXPECT_EQ(exitCode, 0);
+	EXPECT_THAT(out.str(), HasSubstr("1"));
+	EXPECT_THAT(out.str(), HasSubstr("2"));
+
+	std::filesystem::remove(path);
 }
