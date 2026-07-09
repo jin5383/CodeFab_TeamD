@@ -60,12 +60,23 @@ private:
 	// 일으킨다. BlockStmt/ForStmt에서 재귀 호출 시 새 Environment를 만들어 스코프를 연다.
 	void executeStmt(Stmt* stmt, IEnvironment& environment) const;
 
-	// klass의 methods 목록에서 name을 찾아 반환한다. 없으면 nullptr.
+	// klass의 methods 목록에서 name을 찾아 반환한다. 자신에게 없으면 resolvedSuperclass를 따라
+	// 조상 클래스까지 계속 탐색한다(메서드 상속). 어디에도 없으면 nullptr.
 	static FunctionDeclStmt* findMethod(ClassDeclStmt* klass, const std::string& name);
 
+	// findMethod와 동일하게 상속 체인을 탐색하되, 메서드를 찾은 그 클래스 자체를 반환한다.
+	// (오버라이딩된 메서드 본문 안에서 Super가 "그 클래스의 부모"를 가리키게 하려면 필요)
+	static ClassDeclStmt* findMethodOwner(ClassDeclStmt* klass, const std::string& name);
+
+	// klass 자신부터 resolvedSuperclass 체인을 따라가며 이름이 className과 일치하는 조상이 있는지 검사.
+	static bool isInstanceOf(ClassDeclStmt* klass, const std::string& className);
+
 	// method를 instance에 바인딩해 실행한다. this를 새 Environment에 정의하고 body를 실행.
+	// methodOwnerClass는 method가 실제로 선언된 클래스(오버라이딩 이전 원본) — method 본문 안에서
+	// Super.xxx(...)를 만나면 이 클래스의 resolvedSuperclass에서 xxx를 찾는다.
 	LiteralValue callMethod(FunctionDeclStmt* method, std::shared_ptr<Instance> instance,
-	                        const std::vector<Expr*>& args, IEnvironment& callerEnv) const;
+	                        const std::vector<Expr*>& args, IEnvironment& callerEnv,
+	                        ClassDeclStmt* methodOwnerClass) const;
 
 	// Strategy 패턴으로 주입된 출력 대상 (io.h 참고).
 	IOutputWriter& output;

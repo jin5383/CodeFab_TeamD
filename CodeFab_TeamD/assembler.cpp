@@ -23,6 +23,8 @@ namespace
 	const std::string KEYWORD_CLASS = "Class";
 	const std::string KEYWORD_THIS = "This";
 	const std::string KEYWORD_ARRAY = "Array";
+	const std::string KEYWORD_SUPER = "Super";
+	const std::string KEYWORD_INSTANCEOF = "instanceof";
 
 	Token makeSimpleToken(TokenType type, const std::string& origin)
 	{
@@ -46,6 +48,8 @@ namespace
 		if (origin == KEYWORD_RETURN) return makeSimpleToken(TokenType::RETURN, origin);
 		if (origin == KEYWORD_THIS)  return makeSimpleToken(TokenType::THIS,  origin);
 		if (origin == KEYWORD_ARRAY) return makeSimpleToken(TokenType::ARRAY, origin);
+		if (origin == KEYWORD_SUPER) return makeSimpleToken(TokenType::SUPER, origin);
+		if (origin == KEYWORD_INSTANCEOF) return makeSimpleToken(TokenType::INSTANCEOF, origin);
 		return std::nullopt;
 	}
 
@@ -70,6 +74,7 @@ namespace
 		case ',': return makeSimpleToken(TokenType::COMMA, ",");
 		case '[': return makeSimpleToken(TokenType::LEFT_BRACKET, "[");
 		case ']': return makeSimpleToken(TokenType::RIGHT_BRACKET, "]");
+		case ':': return makeSimpleToken(TokenType::COLON, ":");
 		default: return std::nullopt;
 		}
 	}
@@ -383,6 +388,16 @@ namespace
 		{
 			Expr* left = parseAddSubExpr();
 
+			// "식 instanceof ClassName" : instanceof는 좌항 하나만 받고 체이닝하지 않으므로 여기서 바로 반환
+			if (getCurrentToken().type == TokenType::INSTANCEOF)
+			{
+				getTokenAndAdvance(); // instanceof
+				auto* instanceOf = new InstanceOfExpr();
+				instanceOf->object = left;
+				instanceOf->className = expectAndAdvance(TokenType::IDENTIFIER, "Expect class name after 'instanceof'.");
+				return instanceOf;
+			}
+
 			while (getCurrentToken().type == TokenType::LESS || getCurrentToken().type == TokenType::GREATER)
 			{
 				Token op = getTokenAndAdvance();
@@ -536,6 +551,17 @@ namespace
 				auto* thisExpr = new ThisExpr();
 				thisExpr->keyword = getTokenAndAdvance();
 				return thisExpr;
+			}
+
+			// "Super . 메서드이름" 을 통째로 SuperExpr 하나로 읽는다(뒤에 오는 '(...)'는
+			// parsePostfixExpr의 CallExpr 분기가 처리하므로 여기서는 관여하지 않는다).
+			if (getCurrentToken().type == TokenType::SUPER)
+			{
+				auto* superExpr = new SuperExpr();
+				superExpr->keyword = getTokenAndAdvance(); // Super
+				expectAndAdvance(TokenType::DOT, "Expect '.' after 'Super'.");
+				superExpr->method = expectAndAdvance(TokenType::IDENTIFIER, "Expect superclass method name.");
+				return superExpr;
 			}
 
 			if (getCurrentToken().type == TokenType::IDENTIFIER)
