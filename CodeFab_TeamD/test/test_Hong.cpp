@@ -833,6 +833,73 @@ TEST_F(ExecutorTest, IndexAssignmentUnderflow)
 	}
 }
 
+// var arr = Array(3); arr["hello"] = 10; 가 입력되면(인덱스가 문자열 리터럴) -> 구문 에러
+TEST(AssemblerSyntaxErrorTest, ArrayIndexStringLiteralReportsError)
+{
+	try
+	{
+		Assembler().assemble(
+			"var arr = Array(3);"
+			"arr[\"hello\"] = 10;");
+		FAIL() << "Expected a syntax error to be thrown";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Array index must be an integer.");
+	}
+}
+
+// var arr = Array(3); arr[abc] = 10; 가 입력되면(abc는 미선언 변수) -> 런타임 에러
+TEST_F(ExecutorTest, IndexAssignmentWithUndefinedIdentifierIndex)
+{
+	Program parsedProgram = Assembler().assemble(
+		"var arr = Array(3);"
+		"arr[abc] = 10;");
+
+	try
+	{
+		executor.execute(parsedProgram);
+		FAIL() << "Expected a runtime error to be thrown";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_THAT(e.what(), HasSubstr("Undefined variable 'abc'."));
+	}
+}
+
+// var abc = 5; var arr = Array(5); arr[abc] = 10; 가 입력되면(유효 인덱스는 0~4, abc=5는 범위 밖) -> 런타임 에러
+TEST_F(ExecutorTest, IndexAssignmentWithVariableIndexOutOfRange)
+{
+	Program parsedProgram = Assembler().assemble(
+		"var abc = 5;"
+		"var arr = Array(5);"
+		"arr[abc] = 10;");
+
+	try
+	{
+		executor.execute(parsedProgram);
+		FAIL() << "Expected a runtime error to be thrown";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Array index out of range.");
+	}
+}
+
+// var abc = 5; var arr = Array(7); arr[abc] = 10; 가 입력되면(유효 인덱스는 0~6, abc=5는 범위 안) -> 정상 동작
+TEST_F(ExecutorTest, IndexAssignmentWithVariableIndexInRange)
+{
+	Program parsedProgram = Assembler().assemble(
+		"var abc = 5;"
+		"var arr = Array(7);"
+		"arr[abc] = 10;"
+		"print arr[abc];");
+
+	executor.execute(parsedProgram);
+
+	EXPECT_EQ(writer.output, "10\n");
+}
+
 // Array write and read
 TEST_F(ExecutorTest, ArrayValuesWriteAndRead)
 {
