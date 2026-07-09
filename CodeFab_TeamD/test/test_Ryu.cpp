@@ -28,6 +28,12 @@ namespace
 	{
 		void write(const string&) override {}
 	};
+
+	struct StringWriter : IOutputWriter
+	{
+		string output;
+		void write(const string& text) override { output += text; }
+	};
 }
 
 TEST(ImportUnitTest, ParseImportStatementText_ValidSyntax_ExtractsPathAndAlias)
@@ -205,4 +211,63 @@ TEST(ImportUnitTest, ImportFile_IfStatementInFile_Throws)
 	EXPECT_THROW(scope.importFile(path.string(), "m"), ImportError);
 
 	filesystem::remove(path);
+}
+
+TEST(ImportUnitTest, ImportStatement_TokenizesAsImportAliasDotTokens)
+{
+	vector<Token> tokens = Assembler().tokenize("import \"m.txt\" alias m; print m.value;");
+
+	ASSERT_GE(tokens.size(), static_cast<size_t>(10));
+	EXPECT_EQ(tokens[0].type, TokenType::IMPORT);
+	EXPECT_EQ(tokens[1].type, TokenType::STRING);
+	EXPECT_EQ(tokens[1].origin, "m.txt");
+	EXPECT_EQ(tokens[2].type, TokenType::ALIAS);
+	EXPECT_EQ(tokens[3].type, TokenType::IDENTIFIER);
+	EXPECT_EQ(tokens[3].origin, "m");
+	EXPECT_EQ(tokens[4].type, TokenType::SEMICOLON);
+	EXPECT_EQ(tokens[5].type, TokenType::PRINT);
+	EXPECT_EQ(tokens[6].type, TokenType::IDENTIFIER);
+	EXPECT_EQ(tokens[7].type, TokenType::DOT);
+	EXPECT_EQ(tokens[8].type, TokenType::IDENTIFIER);
+	EXPECT_EQ(tokens[8].origin, "value");
+	EXPECT_EQ(tokens[9].type, TokenType::SEMICOLON);
+}
+
+TEST(ImportUnitTest, ImportThenPrintMember_RunsEndToEndAndPrintsImportedValue)
+{
+	auto path = writeTempFile("member", "var value = 42;");
+
+	StringWriter writer;
+	Interpreter(writer).run("import \"" + path.string() + "\" alias m; print m.value;");
+
+	EXPECT_EQ(writer.output, "42\n");
+
+	filesystem::remove(path);
+}
+
+TEST(ImportUnitTest, ImportInsideForLoopBody_CheckerReportsImportInsideLoop)
+{
+	auto path = writeTempFile("loop_body", "var value = 1;");
+
+	Program program = Assembler().assemble(
+		"for (var j = 0; j < 1; j = j + 1) { import \"" + path.string() + "\" alias m; }");
+
+	EXPECT_EQ(Checker().check(program), CheckerErrno::importInsideLoop);
+
+	filesystem::remove(path);
+}
+
+TEST(ImportUnitTest, ImportMissingFile_ThrowsAtExecution)
+{
+	auto missing = filesystem::temp_directory_path() / "codefab_import_definitely_missing.txt";
+	filesystem::remove(missing);
+
+	Program program = Assembler().assemble(
+		"import \"" + missing.string() + "\" alias m; print m.value;");
+
+	EXPECT_EQ(Checker().check(program), CheckerErrno::success);
+
+	StringWriter writer;
+	Environment environment;
+	EXPECT_THROW(Executor(writer).execute(program, environment), ImportError);
 }

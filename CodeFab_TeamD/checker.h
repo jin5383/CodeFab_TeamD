@@ -46,8 +46,8 @@ public:
 private:
 	using ScopeStack = std::vector<std::set<std::string>>;
 
-	CheckerErrno checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes) const;
-	CheckerErrno checkStmt(Stmt* stmt, ScopeStack& scopes) const;
+	CheckerErrno checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes, int loopDepth) const;
+	CheckerErrno checkStmt(Stmt* stmt, ScopeStack& scopes, int loopDepth) const;
 	bool isNameDeclared(const std::string& name, const ScopeStack& scopes) const;
 	bool exprReferencesName(Expr* expr, const std::string& name) const;
 };
