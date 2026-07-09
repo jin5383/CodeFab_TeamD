@@ -761,3 +761,74 @@ TEST(ExecutorClassTest, UndefinedMethod_ThrowsRuntimeError)
 		EXPECT_THAT(e.what(), HasSubstr("Undefined method 'fly'"));
 	}
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Executor unit: 상속 / 오버라이딩 / Super / instanceof TC
+// ──────────────────────────────────────────────────────────────────────────────
+
+// 메서드 상속: SpeedRobot이 move를 재정의하지 않으면 Robot의 move가 그대로 호출되어야 한다.
+TEST(ExecutorClassTest, MethodInheritance_ChildInstanceCallsParentMethod)
+{
+	std::string result = runCode(
+		"Class Robot { "
+		"  move(dist) { print \"move\"; } "
+		"} "
+		"Class SpeedRobot : Robot { } "
+		"SpeedRobot().move(3);"
+	);
+	EXPECT_EQ(result, "move\n");
+}
+
+// 상속 선언 + 메서드 오버라이딩 + Super 호출:
+// Class Robot { move(dist) { print "move"; } }
+// Class SpeedRobot : Robot { move(dist) { Super.move(dist); print "Speeeed!"; } }
+// SpeedRobot().move(3);  →  "move\nSpeeeed!\n"
+TEST(ExecutorClassTest, MethodOverridingWithSuperCall_PrintsParentThenChildMessage)
+{
+	std::string result = runCode(
+		"Class Robot { "
+		"  move(dist) { print \"move\"; } "
+		"} "
+		"Class SpeedRobot : Robot { "
+		"  move(dist) { "
+		"    Super.move(dist); "
+		"    print \"Speeeed!\"; "
+		"  } "
+		"} "
+		"SpeedRobot().move(3);"
+	);
+	EXPECT_EQ(result, "move\nSpeeeed!\n");
+}
+
+// instanceof: 자식 인스턴스는 자기 자신 클래스와 부모 클래스 모두에 대해 true여야 한다.
+// Class Robot { init(name) { This.name = name; } }
+// Class SpeedRobot : Robot { init(name) { Super.init(name); } }
+// var w = SpeedRobot("Sam");
+// print (w instanceof SpeedRobot); print (w instanceof Robot);  →  "true\ntrue\n"
+TEST(ExecutorClassTest, InstanceOf_TrueForOwnClassAndAncestor)
+{
+	std::string result = runCode(
+		"Class Robot { "
+		"  init(name) { This.name = name; } "
+		"} "
+		"Class SpeedRobot : Robot { "
+		"  init(name) { Super.init(name); } "
+		"} "
+		"var w = SpeedRobot(\"Sam\"); "
+		"print (w instanceof SpeedRobot); "
+		"print (w instanceof Robot);"
+	);
+	EXPECT_EQ(result, "true\ntrue\n");
+}
+
+// instanceof: 관련 없는 클래스에 대해서는 false여야 한다.
+TEST(ExecutorClassTest, InstanceOf_FalseForUnrelatedClass)
+{
+	std::string result = runCode(
+		"Class Robot { } "
+		"Class Toaster { } "
+		"var r = Robot(); "
+		"print (r instanceof Toaster);"
+	);
+	EXPECT_EQ(result, "false\n");
+}
