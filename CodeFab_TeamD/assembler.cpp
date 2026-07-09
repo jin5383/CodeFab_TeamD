@@ -473,7 +473,7 @@ namespace
 			return parsePostfixExpr();
 		}
 
-		// Lee(CallExpr/LEFT_PAREN), Park(GetExpr/DOT), Hong(IndexGetExpr/LEFT_BRACKET) 분기
+		// CallExpr(LEFT_PAREN), GetExpr(DOT), IndexGetExpr(LEFT_BRACKET) 분기
 		// 모두 구현 완료 — 체이닝(a.b(x).c, arr[0] 등)까지 지원한다. 대입 좌변(arr[0] = v)으로
 		// 쓰일 경우엔 parseAssignmentExpr이 이 IndexGetExpr을 IndexSetExpr로 다시 감싼다.
 		Expr* parsePostfixExpr()
