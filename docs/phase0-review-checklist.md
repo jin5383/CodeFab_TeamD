@@ -98,25 +98,35 @@ Phase 1에서 각자 자기 값 타입 관련 로직을 짤 때, variant에 새 
 
 ## Ryu — Import & 공장제어쉘 검토 대상: `ImportStmt`, `Token::line`, `StmtExecutedCallback`, `TokenType::IMPORT/ALIAS`
 
-- [ ] `Token::line`을 `int`(기본값 `0`)로 추가한 것을 확인했다 — 토크나이저가 아직 이 값을 채우지 않으므로
-      실제로 줄 번호를 세는 로직은 본인 PR에서 추가해야 한다.
-- [ ] `executeAssembly(program, environment, onStmtExecuted = nullptr)` 시그니처와, `execute()` 루프에서
-      매 top-level Stmt 실행 후 콜백을 호출하도록 이미 연결해둔 부분을 확인했다. 콜백 시그니처가
-      `std::function<void(const Stmt&, Environment&)>`로 충분한지 확인했다(현재 최상위 Program.statements
-      단위로만 호출됨 — 함수 호출 내부까지는 3.6.1절대로 Function 병합 후 결정).
+- [X] `Token::line`을 `int`(기본값 `0`)로 추가한 것을 확인했다 — 구현 완료. 토크나이저가 실제로 줄 번호를 채우고,
+      `executor.cpp`의 여러 런타임 에러가 `withLine(..., token.line)`으로 줄 번호를 실어 던진다
+      (예: 순환 import, import 정적 에러, import 대상 파일의 선언 외 구문 에러 등).
+- [X] `import`가 실제로 구현되어 있다. `executor.cpp`의 `ImportStmt` 처리부가 매 top-level Stmt 실행 후
+      (뿐만 아니라 `BlockStmt`/`IfStmt`/`ForStmt` 내부 재귀 호출 지점에서도) `onStmtExecuted` 콜백을 호출하도록
+      연결되어 있고, `depth` 매개변수까지 추가되어 있다. import 문 자체는 alias 바인딩/순환 import 감지/
+      선언 외 구문 거부/중첩 import/alias 충돌까지 모두 동작한다(아래 세부 항목 참고).
 
 **[선택] 3.5.1 — import 대상 파일에서 "선언 외 구문" 처리**
-- [ ] A. 에러로 처리
+- [X] A. 에러로 처리 — **구현 완료.** `executor.cpp`의 `ImportStmt` 처리부가 `Assembler().assemble()`로 만든
+      `moduleProgram.statements`를 순회하며 `VarDeclStmt`/`FunctionDeclStmt`/`ImportStmt`가 아닌 문장이 있으면
+      `ImportError("Import target file may only contain declarations: ...")`를 던진다. 레거시
+      `ImportScope::isDeclarationStatementText`가 이미 하던 검사와 동일한 기준을 실제 프로덕션 import 경로
+      (`Interpreter::run()`이 쓰는 경로)에도 적용했다(`RealImportStatement_ClassDeclarationInFile_ThrowsAtExecution`
+      테스트로 검증됨). *(이전 리뷰 시점에는 프로덕션 경로에 이 검사가 빠져 있었으나 이후 커밋으로 수정됨)*
 - [ ] B. 무시(ignore)하고 넘어감
 - [ ] 기타: ___________________________
 
 **[선택] 3.5.1 — 같은 스코프 내 alias 이름 충돌**
-- [ ] A. 에러로 확정 (Phase 0의 `aliasNameConflict`는 이 방향 전제) *(권장)*
+- [X] A. 에러로 확정 (Phase 0의 `aliasNameConflict`는 이 방향 전제) *(권장)* — **구현 완료.**
+      `executor.cpp`의 `ImportStmt` 처리부가 import 실행 전에 `environment.get(alias)`를 시도해 이미
+      바인딩되어 있으면 `ImportError("Alias '...' is already used in this scope.")`를 던진다
+      (`SameAliasImportedTwice_ThrowsAtExecution` 테스트로 검증됨).
 - [ ] B. 나중에 import한 것이 덮어씀(에러 아님) → `aliasNameConflict` 에러 자체를 제거해야 함
 - [ ] 기타: ___________________________
 
 **[선택] `StmtExecutedCallback`이 호출되는 범위**
 - [ ] A. 지금처럼 최상위 `Program.statements` 단위로만 호출 (Phase 0 기본 구현) *(권장, 명세 3.6절 완화 방법과 일치)*
-- [ ] B. 블록/함수 내부 Stmt까지 재귀적으로 호출되도록 지금 바로 확장 필요 → `execute()` 내부 모든 지점에 콜백을
-      전달하는 리팩토링이 Phase 0에 포함되어야 함
+- [X] B. 블록/함수 내부 Stmt까지 재귀적으로 호출되도록 확장됨 — **구현 완료.** `executeStmt`가
+      `BlockStmt`/`IfStmt`/`ForStmt`의 내부 문장을 재귀 호출할 때마다 `onStmtExecuted`와 함께 `depth`를
+      전달하므로, 최상위 단위를 넘어 중첩 Stmt까지 콜백이 도달한다.
 - [ ] 기타: ___________________________
