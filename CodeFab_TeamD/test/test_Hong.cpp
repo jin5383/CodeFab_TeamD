@@ -830,3 +830,20 @@ TEST_F(ExecutorTest, IndexAssignmentUnderflow)
 		EXPECT_STREQ(e.what(), "Array index out of range.");
 	}
 }
+
+// Array write and read
+TEST_F(ExecutorTest, ArrayValuesWriteAndRead)
+{
+	Program parsedProgram = Assembler().assemble(
+		"var arr = Array(3);"
+		"arr[0] = 10;"
+		"arr[1] = 20;"
+		"arr[2] = 30;"
+		"print arr[0];"
+		"print arr[1];"
+		"print arr[2];");
+
+	executor.execute(parsedProgram);
+
+	EXPECT_EQ(writer.output, "10\n20\n30\n");
+}
