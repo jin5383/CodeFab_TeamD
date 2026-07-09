@@ -302,3 +302,41 @@ TEST(ImportUnitTest, ImportedNameDoesNotLeakIntoLocalScope_LocalAndAliasedNameCo
 
 	filesystem::remove(path);
 }
+
+TEST(ImportUnitTest, ImportPersistsAcrossSeparateInterpreterRunCallsWithSameContext)
+{
+	auto path = writeTempFile("persist", "var value = 99;");
+
+	StringWriter writer;
+	Environment environment;
+	Interpreter interpreter(writer);
+
+	interpreter.run("import \"" + path.string() + "\" alias m;", environment);
+	interpreter.run("print m.value;", environment);
+
+	EXPECT_EQ(writer.output, "99\n");
+
+	filesystem::remove(path);
+}
+
+TEST(ImportUnitTest, NestedImportChainedMemberAccess_BA_B_LocalAllResolveIndependently)
+{
+	{
+		ofstream fileA("A.txt");
+		fileA << "var a = 11;";
+	}
+	{
+		ofstream fileB("B.txt");
+		fileB << "import \"A.txt\" alias A;\n";
+		fileB << "var a = 22;";
+	}
+
+	StringWriter writer;
+	Interpreter(writer).run(
+		"import \"B.txt\" alias B; var a = 33; print B.A.a; print B.a; print a;");
+
+	EXPECT_EQ(writer.output, "11\n22\n33\n");
+
+	filesystem::remove("A.txt");
+	filesystem::remove("B.txt");
+}
