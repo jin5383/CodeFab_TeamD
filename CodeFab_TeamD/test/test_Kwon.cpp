@@ -680,6 +680,22 @@ TEST(AssemblerUnitTest, ParsedStatements_HaveCorrectLineNumbers)
 	EXPECT_EQ(program.statements[1]->line, 2);
 }
 
+// for문의 초기화절(init)은 parseStatement()를 거치지 않고 parseVarDeclStatement/
+// parseExpressionStatement를 직접 호출해 별도로 파싱되므로, 그 line이 제대로 대입되는지
+// 따로 확인해야 한다(실제로 대입이 빠져 항상 0으로 남아있던 버그가 있었다 - 디버그 모드에서
+// for문에 진입할 때 "0번째 줄에서 정지"처럼 잘못 표시됐다).
+TEST(AssemblerUnitTest, ParsedForStatementInit_HasCorrectLineNumber)
+{
+	Program program = Assembler().assemble("print 1;\nfor (var i = 0; i < 3; i = i + 1) { }\n");
+
+	ASSERT_THAT(program.statements, SizeIs(2));
+	auto* forStmt = dynamic_cast<ForStmt*>(program.statements[1]);
+	ASSERT_NE(forStmt, nullptr);
+	EXPECT_EQ(forStmt->line, 2);
+	ASSERT_NE(forStmt->init, nullptr);
+	EXPECT_EQ(forStmt->init->line, 2);
+}
+
 namespace
 {
 	struct SilentOutputWriter : IOutputWriter
@@ -798,8 +814,8 @@ TEST(ExecutorCallbackDepthTest, CallbackFiresForTopLevelNestedAndCompoundStmtWit
 
 	ASSERT_THAT(calls, SizeIs(3));
 	EXPECT_EQ(calls[0], std::make_pair(1, 0)); // print 1 (최상위)
-	EXPECT_EQ(calls[1], std::make_pair(3, 1)); // print 2 (블록 내부, depth 1)
-	EXPECT_EQ(calls[2], std::make_pair(2, 0)); // 블록 자신 (자식 다 끝난 뒤, 원래 depth로 복귀)
+	EXPECT_EQ(calls[1], std::make_pair(2, 0)); // 블록 자신 (자식으로 들어가기 전, preorder)
+	EXPECT_EQ(calls[2], std::make_pair(3, 1)); // print 2 (블록 내부, depth 1)
 }
 
 // Interpreter::run()의 콜백 오버로드가 Facade를 우회하지 않고도 그대로 전달되는지 확인한다.
@@ -949,7 +965,9 @@ TEST_F(DebugShellTest, UnexpectedEndOfInputStopsGracefullyAndStillFinishesProgra
 TEST_F(DebugShellTest, WatchesShowsCurrentValueOfWatchedVariable)
 {
 	auto path = writeTempFile("watch", "var a = 3;\nprint a;\n");
-	std::istringstream in("watch a\nwatches\ncontinue\n");
+	// 정지는 항상 "그 줄을 실행하기 전"이므로(preorder), 최초 정지 시점엔 아직 a가 정의되지
+	// 않았다. step으로 "var a=3;"을 실행한 뒤 다음 정지 지점(print a; 앞)에서 확인한다.
+	std::istringstream in("watch a\nstep\nwatches\ncontinue\n");
 	std::ostringstream out;
 
 	int exitCode = DebugShell().run(path.string(), in, out);
@@ -987,19 +1005,23 @@ TEST_F(DebugShellTest, UnwatchStopsShowingVariableInWatches)
 TEST_F(DebugShellTest, InspectListsOnlyCurrentScopeVariables)
 {
 	auto path = writeTempFile("inspect", "var a = 1;\n{\nvar b = 2;\nprint b;\n}\n");
-	std::istringstream in("inspect\nstep\ninspect\ncontinue\n");
+	// 정지는 항상 그 줄을 실행하기 전(preorder)이므로, 각 변수가 실제로 정의된 다음 정지
+	// 지점까지 step으로 이동해야 한다: (1)var a=1 앞 -> step -> (2)블록 앞(a=1 정의됨,
+	// 아직 최상위 스코프) -> step -> (3)var b=2 앞(b 아직 없음) -> step -> (4)print b 앞
+	// (b=2 정의됨, 현재 스코프 = 블록). (2)에서 inspect로 a=1을, (4)에서 inspect로 b=2만
+	// (a는 없이) 보이는지 확인한다.
+	std::istringstream in("step\ninspect\nstep\nstep\ninspect\ncontinue\n");
 	std::ostringstream out;
 
 	int exitCode = DebugShell().run(path.string(), in, out);
 
 	EXPECT_EQ(exitCode, 0);
-	// 최초 정지(line 1, var a=1 실행 직후, 최상위 스코프)에서만 "a = 1"이 보여야 한다.
-	// 블록 안(line 3, var b=2 실행 직후)에서 inspect를 다시 호출했을 때 "[DEBUG] a = 1"이
-	// 또 나오면 enclosing까지 잘못 포함한 것이다 - 그래서 총 1회만 나와야 한다.
-	// (참고: "a = 1"만으로 검사하면 최초 정지 메시지의 소스 텍스트("var a = 1;")와
+	// (2)에서 최상위 스코프의 a=1만 보여야 한다. (4)에서 inspect를 다시 호출했을 때
+	// "[DEBUG] a = 1"이 또 나오면 enclosing까지 잘못 포함한 것이다 - 그래서 총 1회만 나와야
+	// 한다.(참고: "a = 1"만으로 검사하면 최초 정지 메시지의 소스 텍스트("var a = 1;")와
 	// 겹쳐 오탐하므로, inspect가 실제로 출력하는 "[DEBUG] a = 1" 형식으로 검사한다.)
 	EXPECT_EQ(countOccurrences(out.str(), "[DEBUG] a = 1"), 1);
-	EXPECT_THAT(out.str(), HasSubstr("b = 2"));
+	EXPECT_THAT(out.str(), HasSubstr("[DEBUG] b = 2"));
 
 	std::filesystem::remove(path);
 }
@@ -1011,22 +1033,26 @@ TEST_F(DebugShellTest, WatchesReflectsVariableGoingOutOfScopeAndReappearingOnRee
 {
 	auto path = writeTempFile("scope",
 		"for (var i = 0; i < 2; i = i + 1) {\nvar x = i;\nprint x;\n}\nprint \"done\";\n");
-	// 정지 순서: (1)for 초기화 -> (2)1회차 var x=i -> (3)1회차 print x -> (4)블록 종료(x 스코프 밖)
-	// -> (5)2회차 var x=i(재선언). (5) 이후로는 continue로 나머지를 조용히 끝까지 실행한다.
+	// 정지는 항상 그 줄을 실행하기 전(preorder)이므로, "정의된 값"을 보려면 그 문장을 실행한
+	// 다음 정지 지점까지 step으로 이동해야 한다. 정지 순서:
+	// (1)for문 앞(아무것도 없음) -> (2)초기화절 앞(i 아직 없음) -> (3)1회차 블록 앞(i=0 정의됨,
+	// 아직 블록 밖) -> (4)1회차 var x=i 앞(x 아직 없음) -> (5)1회차 print x 앞(x=0 정의됨) ->
+	// (6)2회차 블록 앞(블록을 벗어나 x 스코프 밖, i=1) -> (7)2회차 var x=i 앞(x 아직 없음) ->
+	// (8)2회차 print x 앞(x=1 재정의됨). (8) 이후로는 continue로 나머지를 조용히 실행한다.
 	std::istringstream in(
-		"step\n"          // (1) -> (2)
-		"watch x\nwatches\nstep\n"   // (2)에서 watch 등록, x=0 확인 -> (3)
-		"watches\nstep\n"            // (3)에서도 x=0 유지 확인 -> (4)
-		"watches\nstep\n"            // (4) 블록 종료 지점: 값을 참조할 수 없습니다 -> (5)
-		"watches\ncontinue\n");      // (5) 재선언된 x=1 확인 -> 끝까지 실행
+		"step\nstep\nstep\nstep\n"  // (1) -> (2) -> (3) -> (4) -> (5)
+		"watch x\nwatches\nstep\n"  // (5)에서 watch 등록, x=0 확인 -> (6)
+		"watches\nstep\n"           // (6) 블록을 벗어난 지점: 값을 참조할 수 없습니다 -> (7)
+		"step\n"                    // (7)에서는 아직도 x가 없어 확인할 필요 없이 그냥 진행 -> (8)
+		"watches\ncontinue\n");     // (8) 재선언된 x=1 확인 -> 끝까지 실행
 	std::ostringstream out;
 
 	int exitCode = DebugShell().run(path.string(), in, out);
 
 	EXPECT_EQ(exitCode, 0);
-	EXPECT_EQ(countOccurrences(out.str(), "x = 0"), 2); // (2), (3)에서 각각 한 번
-	EXPECT_THAT(out.str(), HasSubstr("x: 값을 참조할 수 없습니다")); // (4)
-	EXPECT_THAT(out.str(), HasSubstr("x = 1")); // (5) 재진입 후 재조회
+	EXPECT_EQ(countOccurrences(out.str(), "x = 0"), 1); // (5)에서만
+	EXPECT_THAT(out.str(), HasSubstr("x: 값을 참조할 수 없습니다")); // (6)
+	EXPECT_THAT(out.str(), HasSubstr("x = 1")); // (8) 재진입 후 재조회
 
 	std::filesystem::remove(path);
 }

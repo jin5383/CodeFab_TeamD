@@ -68,6 +68,9 @@
     <ClCompile Include="test\test_Kwon.cpp">
       <Filter>test</Filter>
     </ClCompile>
+    <ClCompile Include="test\test_Kwon_IT.cpp">
+      <Filter>test</Filter>
+    </ClCompile>
     <ClCompile Include="test\test_Lee.cpp">
       <Filter>test</Filter>
     </ClCompile>

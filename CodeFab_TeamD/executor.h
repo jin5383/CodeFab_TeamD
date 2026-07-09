@@ -18,8 +18,10 @@
 #include "io.h"
 
 // depth: 최상위 Program.statements가 0, BlockStmt/IfStmt/ForStmt의 자식으로 내려갈 때마다 +1.
-// 복합 Stmt(Block/If/For) 자신도 자식들을 모두 실행한 뒤 이 콜백을 받는다 - 디버그 모드의
-// next(스텝 오버)가 "그 Stmt 전체가 끝난 시점"을 depth만으로 판별할 수 있게 하기 위함이다.
+// 이 콜백은 그 Stmt를 실행하기 전(preorder)에 불린다 - 디버그 모드가 "이 줄을 아직 실행하지
+// 않은 상태"에서 멈출 수 있어야 하기 때문이다. 복합 Stmt(Block/If/For) 자신도 자식으로
+// 진입하기 전에 자기 콜백을 먼저 받는다 - next(스텝 오버)는 "그 다음에 depth가 같거나
+// 낮아지는 콜백이 다시 올 때까지" 더 깊은(depth가 큰) 콜백을 건너뛰는 방식으로 구현한다.
 using StmtExecutedCallback = std::function<void(const Stmt&, IEnvironment&, int depth)>;
 
 class Executor
