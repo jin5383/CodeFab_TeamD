@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include "../ast.h"
 #include "../assembler.h"
+#include "../checker.h"
 #include "../executor.h"
 #include "../environment.h"
 #include "../io.h"
@@ -831,4 +832,152 @@ TEST(ExecutorClassTest, InstanceOf_FalseForUnrelatedClass)
 		"print (r instanceof Toaster);"
 	);
 	EXPECT_EQ(result, "false\n");
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Executor unit: Class 예외 케이스 TC
+// ──────────────────────────────────────────────────────────────────────────────
+
+// 클래스 외부에서 This 사용 → 런타임 오류(This를 바인딩해주는 메서드 스코프 자체가 없음)
+TEST(ExecutorClassTest, ThisOutsideClass_ThrowsRuntimeError)
+{
+	try
+	{
+		runCode("print This;");
+		FAIL() << "런타임 오류 예외가 발생해야 한다.";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_THAT(e.what(), HasSubstr("This"));
+	}
+}
+
+// init에서 값 있는 return 사용 → 런타임 오류
+// (버그 수정 전에는 ReturnSignal이 callMethod에서 잡히지 않아 처리되지 않은 예외로 크래시했음)
+TEST(ExecutorClassTest, ReturnValueInInit_ThrowsRuntimeError)
+{
+	try
+	{
+		runCode("Class Robot { init() { return 5; } } Robot();");
+		FAIL() << "런타임 오류 예외가 발생해야 한다.";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_THAT(e.what(), HasSubstr("Can't return a value from 'init'"));
+	}
+}
+
+// init에서 값 없는 return(return;)은 조기 종료 용도로 허용된다.
+TEST(ExecutorClassTest, BareReturnInInit_IsAllowed)
+{
+	std::string result = runCode(
+		"Class Robot { "
+		"  init(name) { This.name = name; return; } "
+		"} "
+		"var r = Robot(\"Sam\"); "
+		"print r.name;"
+	);
+	EXPECT_EQ(result, "Sam\n");
+}
+
+// 일반 메서드의 return도 이제 정상적으로 값을 돌려줘야 한다(같은 버그의 정상 경로).
+TEST(ExecutorClassTest, ReturnFromOrdinaryMethod_ReturnsValue)
+{
+	std::string result = runCode(
+		"Class Robot { "
+		"  getFive() { return 5; } "
+		"} "
+		"var r = Robot(); "
+		"print r.getFive();"
+	);
+	EXPECT_EQ(result, "5\n");
+}
+
+// 자기 자신 상속: Class Robot : Robot { } → 정적 오류(Checker)
+TEST(CheckerClassTest, SelfInheritance_ReportsError)
+{
+	Program program = Assembler().assemble("Class Robot : Robot { }");
+	EXPECT_EQ(Checker().check(program), CheckerErrno::selfInheritance);
+}
+
+// 서로 상속: Class A : B { } Class B : A { } → 정적 오류(Checker, 순환 상속)
+TEST(CheckerClassTest, MutualInheritance_ReportsCircularError)
+{
+	Program program = Assembler().assemble("Class A : B { } Class B : A { }");
+	EXPECT_EQ(Checker().check(program), CheckerErrno::circularInheritance);
+}
+
+// 클래스가 아닌 대상 상속: var x = 10; Class Robot : x { } → 런타임 오류
+TEST(ExecutorClassTest, InheritFromNonClass_ThrowsRuntimeError)
+{
+	try
+	{
+		runCode("var x = 10; Class Robot : x { }");
+		FAIL() << "런타임 오류 예외가 발생해야 한다.";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_THAT(e.what(), HasSubstr("Superclass must be a class"));
+	}
+}
+
+// 클래스 외부에서 Super 사용: Super.move(); → 런타임 오류(This가 없으므로 메서드 밖임이 드러남)
+TEST(ExecutorClassTest, SuperOutsideClass_ThrowsRuntimeError)
+{
+	try
+	{
+		runCode("Super.move();");
+		FAIL() << "런타임 오류 예외가 발생해야 한다.";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_THAT(e.what(), HasSubstr("This"));
+	}
+}
+
+// 부모 없는 클래스에서 Super 사용 → 런타임 오류
+TEST(ExecutorClassTest, SuperWithoutParent_ThrowsRuntimeError)
+{
+	try
+	{
+		runCode(
+			"Class Robot { "
+			"  move(dist) { Super.move(dist); } "
+			"} "
+			"Robot().move(3);"
+		);
+		FAIL() << "런타임 오류 예외가 발생해야 한다.";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_THAT(e.what(), HasSubstr("has no superclass"));
+	}
+}
+
+// 인스턴스가 아닌 대상의 필드 접근: var x = "hello"; x.field = 1; → 런타임 오류
+TEST(ExecutorClassTest, FieldAccessOnNonInstance_ThrowsRuntimeError)
+{
+	try
+	{
+		runCode("var x = \"hello\"; x.field = 1;");
+		FAIL() << "런타임 오류 예외가 발생해야 한다.";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_THAT(e.what(), HasSubstr("Only instances have fields"));
+	}
+}
+
+// 존재하지 않는 메서드 접근: r.notExist(); → 런타임 오류
+TEST(ExecutorClassTest, CallNonExistentMethod_ThrowsRuntimeError)
+{
+	try
+	{
+		runCode("Class Robot { } var r = Robot(); r.notExist();");
+		FAIL() << "런타임 오류 예외가 발생해야 한다.";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_THAT(e.what(), HasSubstr("Undefined method 'notExist'"));
+	}
 }
