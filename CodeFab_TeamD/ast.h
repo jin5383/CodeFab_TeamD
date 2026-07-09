@@ -180,6 +180,7 @@ struct ArrayExpr : Expr
 struct Stmt
 {
 	virtual ~Stmt() = default;
+	int line = 0; // Assembler가 문장의 첫 토큰 line으로 채운다. 0 = 미상(직접 조립한 테스트 트리 등)
 };
 
 struct ExpressionStmt : Stmt

@@ -36,7 +36,8 @@ public:
 
 private:
 	// LiteralValue(variant)를 double로 강제 변환. 숫자가 아니면 런타임 에러를 던진다.
-	double asNumber(const LiteralValue& value) const;
+	// line은 에러 메시지에 표시할 줄 번호(관련 연산자/토큰의 Token::line, 0이면 미상).
+	double asNumber(const LiteralValue& value, int line) const;
 
 	// Lox류 언어의 "truthy" 규칙: bool은 그 값 그대로, 그 외에는 monostate(값 없음)만 false.
 	bool isTruthy(const LiteralValue& value) const;
@@ -46,7 +47,8 @@ private:
 	LiteralValue evaluate(Expr* expr, IEnvironment& environment) const;
 
 	// 평가된 LiteralValue를 print가 출력할 문자열로 바꾼다(숫자는 5.0 -> "5" 처럼 포맷).
-	std::string stringify(const LiteralValue& value) const;
+	// line은 PrintStmt::line — 값이 숫자가 아닌데 숫자로 변환을 시도하는 예외 상황의 메시지에 쓰인다.
+	std::string stringify(const LiteralValue& value, int line) const;
 
 	// evaluate()의 Stmt 버전. 값을 만들지 않고 부수효과(출력, 변수 정의/대입, 제어 흐름)를
 	// 일으킨다. BlockStmt/ForStmt에서 재귀 호출 시 새 Environment를 만들어 스코프를 연다.

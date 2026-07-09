@@ -111,6 +111,15 @@ namespace
 		// 토큰 종류에 따라 var 선언/print/블록/if/for/표현식 문장으로 분기
 		Stmt* parseStatement()
 		{
+			int line = getCurrentToken().line;
+			Stmt* stmt = parseStatementBody();
+			if (stmt)
+				stmt->line = line;
+			return stmt;
+		}
+
+		Stmt* parseStatementBody()
+		{
 			switch (getCurrentToken().type)
 			{
 			case TokenType::VAR: return parseVarDeclStatement();
@@ -506,11 +515,21 @@ std::vector<Token> Assembler::tokenize(const std::string& source) const
 {
 	std::vector<Token> tokens;
 	size_t i = 0;
+	int line = 1;
 	while (i < source.size())
 	{
 		const char c = source[i];
 
-		// 1단계: 공백은 토큰 없이 SKIP
+		// 0단계: 개행은 토큰 없이 SKIP하되 줄 번호를 증가시킨다(런타임 에러 메시지/디버그
+		// 모드의 breakpoint에서 줄 번호를 쓰기 위함).
+		if (c == '\n')
+		{
+			++line;
+			++i;
+			continue;
+		}
+
+		// 1단계: 그 외 공백은 토큰 없이 SKIP
 		if (std::isspace(static_cast<unsigned char>(c)))
 		{
 			++i;
@@ -532,7 +551,7 @@ std::vector<Token> Assembler::tokenize(const std::string& source) const
 					++i;
 			}
 			const std::string origin = source.substr(start, i - start);
-			tokens.push_back(Token{ TokenType::NUMBER, origin, std::stod(origin) });
+			tokens.push_back(Token{ TokenType::NUMBER, origin, std::stod(origin), line });
 			continue;
 		}
 
@@ -543,10 +562,9 @@ std::vector<Token> Assembler::tokenize(const std::string& source) const
 			while (i < source.size() && std::isalnum(static_cast<unsigned char>(source[i])))
 				++i;
 			const std::string origin = source.substr(start, i - start);
-			if (const auto keyword = scanKeywordToken(origin))
-				tokens.push_back(*keyword);
-			else
-				tokens.push_back(makeSimpleToken(TokenType::IDENTIFIER, origin));
+			Token token = scanKeywordToken(origin).value_or(makeSimpleToken(TokenType::IDENTIFIER, origin));
+			token.line = line;
+			tokens.push_back(token);
 			continue;
 		}
 
@@ -559,18 +577,22 @@ std::vector<Token> Assembler::tokenize(const std::string& source) const
 			const std::string origin = source.substr(start, i - start);
 			if (i < source.size())
 				++i; // 닫는 "
-			tokens.push_back(Token{ TokenType::STRING, origin, origin });
+			tokens.push_back(Token{ TokenType::STRING, origin, origin, line });
 			continue;
 		}
 
 		// 5단계: 나머지는 한 글자짜리 연산자/구두점 토큰으로 처리
 		if (const auto symbol = scanSymbolToken(c))
-			tokens.push_back(*symbol);
+		{
+			Token token = *symbol;
+			token.line = line;
+			tokens.push_back(token);
+		}
 		++i;
 	}
 
 	// 6단계: 파서가 끝을 알 수 있도록 마지막에 END_OF_FILE 토큰 추가
-	tokens.push_back(makeSimpleToken(TokenType::END_OF_FILE, ""));
+	tokens.push_back(Token{ TokenType::END_OF_FILE, "", std::monostate{}, line });
 	return tokens;
 }
 

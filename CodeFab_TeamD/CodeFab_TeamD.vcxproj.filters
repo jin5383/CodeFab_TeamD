@@ -112,5 +112,8 @@
     <ClInclude Include="file_runner.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="error_format.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

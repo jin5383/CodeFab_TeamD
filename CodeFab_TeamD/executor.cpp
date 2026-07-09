@@ -6,6 +6,7 @@
 #include <vector>
 #include "assembler.h"
 #include "checker.h"
+#include "error_format.h"
 #include "import.h"
 
 namespace
@@ -32,14 +33,14 @@ namespace
 			auto it = module->fields.find(name.origin);
 			if (it != module->fields.end())
 				return it->second;
-			throw std::runtime_error("Undefined variable '" + name.origin + "'.");
+			throw std::runtime_error(withLine("Undefined variable '" + name.origin + "'.", name.line));
 		}
 
 		void assign(const Token& name, const LiteralValue& value) override
 		{
 			auto it = module->fields.find(name.origin);
 			if (it == module->fields.end())
-				throw std::runtime_error("Undefined variable '" + name.origin + "'.");
+				throw std::runtime_error(withLine("Undefined variable '" + name.origin + "'.", name.line));
 			it->second = value;
 		}
 
@@ -57,10 +58,10 @@ namespace
 	}
 }
 
-double Executor::asNumber(const LiteralValue& value) const
+double Executor::asNumber(const LiteralValue& value, int line) const
 {
 	if (!std::holds_alternative<double>(value))
-		throw std::runtime_error("Operand must be a number.");
+		throw std::runtime_error(withLine("Operand must be a number.", line));
 	return std::get<double>(value);
 }
 
@@ -103,7 +104,7 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 	if (auto* unary = dynamic_cast<UnaryExpr*>(expr))
 	{
 		if (unary->op.type == TokenType::MINUS)
-			return -asNumber(evaluate(unary->right, environment));
+			return -asNumber(evaluate(unary->right, environment), unary->op.line);
 	}
 
 	if (auto* call = dynamic_cast<CallExpr*>(expr))
@@ -144,11 +145,11 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 	{
 		LiteralValue object = evaluate(get->object, environment);
 		if (!std::holds_alternative<std::shared_ptr<Instance>>(object))
-			throw std::runtime_error("Only instances have properties.");
+			throw std::runtime_error(withLine("Only instances have properties.", get->name.line));
 		auto& inst = std::get<std::shared_ptr<Instance>>(object);
 		auto it = inst->fields.find(get->name.origin);
 		if (it == inst->fields.end())
-			throw std::runtime_error("Undefined property '" + get->name.origin + "'.");
+			throw std::runtime_error(withLine("Undefined property '" + get->name.origin + "'.", get->name.line));
 		return it->second;
 	}
 
@@ -156,7 +157,7 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 	{
 		LiteralValue object = evaluate(set->object, environment);
 		if (!std::holds_alternative<std::shared_ptr<Instance>>(object))
-			throw std::runtime_error("Only instances have fields.");
+			throw std::runtime_error(withLine("Only instances have fields.", set->name.line));
 		LiteralValue value = evaluate(set->value, environment);
 		std::get<std::shared_ptr<Instance>>(object)->fields[set->name.origin] = value;
 		return value;
@@ -211,22 +212,22 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 				return std::get<std::string>(left) + std::get<std::string>(right);
 			if (std::holds_alternative<double>(left) && std::holds_alternative<double>(right))
 				return std::get<double>(left) + std::get<double>(right);
-			throw std::runtime_error("Operands must be two numbers or two strings.");
+			throw std::runtime_error(withLine("Operands must be two numbers or two strings.", binary->op.line));
 		case TokenType::MINUS:
-			return asNumber(left) - asNumber(right);
+			return asNumber(left, binary->op.line) - asNumber(right, binary->op.line);
 		case TokenType::STAR:
-			return asNumber(left) * asNumber(right);
+			return asNumber(left, binary->op.line) * asNumber(right, binary->op.line);
 		case TokenType::SLASH:
 		{
-			double divisor = asNumber(right);
+			double divisor = asNumber(right, binary->op.line);
 			if (divisor == 0)
-				throw std::runtime_error("Division by zero.");
-			return asNumber(left) / divisor;
+				throw std::runtime_error(withLine("Division by zero.", binary->op.line));
+			return asNumber(left, binary->op.line) / divisor;
 		}
 		case TokenType::LESS:
-			return asNumber(left) < asNumber(right);
+			return asNumber(left, binary->op.line) < asNumber(right, binary->op.line);
 		case TokenType::GREATER:
-			return asNumber(left) > asNumber(right);
+			return asNumber(left, binary->op.line) > asNumber(right, binary->op.line);
 		default:
 			break;
 		}
@@ -235,7 +236,7 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 	return LiteralValue{};
 }
 
-std::string Executor::stringify(const LiteralValue& value) const
+std::string Executor::stringify(const LiteralValue& value, int line) const
 {
 	if (std::holds_alternative<bool>(value))
 		return std::get<bool>(value) ? "true" : "false";
@@ -243,7 +244,7 @@ std::string Executor::stringify(const LiteralValue& value) const
 		return std::get<std::string>(value);
 
 	std::ostringstream out;
-	out << asNumber(value);
+	out << asNumber(value, line);
 	return out.str();
 }
 
@@ -251,7 +252,7 @@ void Executor::executeStmt(Stmt* stmt, IEnvironment& environment) const
 {
 	if (auto* printStmt = dynamic_cast<PrintStmt*>(stmt))
 	{
-		output.write(stringify(evaluate(printStmt->expression, environment)) + "\n");
+		output.write(stringify(evaluate(printStmt->expression, environment), printStmt->line) + "\n");
 	}
 	else if (auto* exprStmt = dynamic_cast<ExpressionStmt*>(stmt))
 	{
@@ -322,12 +323,12 @@ void Executor::executeStmt(Stmt* stmt, IEnvironment& environment) const
 
 		for (const std::string& inProgress : importStack())
 			if (inProgress == path)
-				throw std::runtime_error("Circular import detected for '" + path + "'.");
+				throw std::runtime_error(withLine("Circular import detected for '" + path + "'.", importStmt->line));
 
 		const std::string source = readImportFileOrThrow(path);
 		Program moduleProgram = Assembler().assemble(source);
 		if (Checker().check(moduleProgram) != CheckerErrno::success)
-			throw std::runtime_error("Import target file has a static error: '" + path + "'.");
+			throw std::runtime_error(withLine("Import target file has a static error: '" + path + "'.", importStmt->line));
 
 		auto module = std::make_shared<Instance>();
 		ModuleEnvironment moduleEnv(module);
