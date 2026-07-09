@@ -56,6 +56,9 @@
     <ClCompile Include="constant_folding.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="file_runner.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
     <ClCompile Include="test\test_Ryu.cpp">
       <Filter>test</Filter>
     </ClCompile>
@@ -104,6 +107,9 @@
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="constant_folding.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="file_runner.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>

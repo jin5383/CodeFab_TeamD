@@ -5,6 +5,7 @@
 namespace
 {
 	constexpr const char* EXIT_COMMAND = "exit";
+	constexpr const char* QUIT_COMMAND = "quit";
 
 	// 앞뒤 공백을 제거한다
 	std::string trim(const std::string& line)
@@ -42,7 +43,8 @@ namespace
 
 bool DfineShell::isExitLine(const std::string& line)
 {
-	return trim(line) == EXIT_COMMAND;
+	std::string trimmed = trim(line);
+	return trimmed == EXIT_COMMAND || trimmed == QUIT_COMMAND;
 }
 
 void DfineShell::runLine(const std::string& line, std::ostream& out)
@@ -60,7 +62,7 @@ void DfineShell::runLine(const std::string& line, std::ostream& out)
 
 void DfineShell::run(std::istream& in, std::ostream& out)
 {
-	out << "exit 입력하면 종료됨." << std::endl;
+	out << "exit 또는 quit 입력하면 종료됨." << std::endl;
 	out << ">> ";
 
 	std::string pending;
