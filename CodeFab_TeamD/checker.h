@@ -59,10 +59,22 @@ public:
 private:
 	using ScopeStack = std::vector<std::set<std::string>>;
 
-	CheckerErrno checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes, int loopDepth,
-		FunctionArities& functionArities, bool insideFunction = false) const;
-	CheckerErrno checkStmt(Stmt* stmt, ScopeStack& scopes, int loopDepth, FunctionArities& functionArities,
-		bool insideFunction = false) const;
+	// checkStmt/checkStmts를 타고 내려가는 동안 필요한 상태를 한데 묶은 것.
+	// loopDepth(몇 겹의 for문 안인지)와 insideFunction(함수 몸통 안인지)은 서로 무관한
+	// 축이라(함수 안의 for문, for문 안의 함수 둘 다 가능) 하나로 합칠 수 없지만, 값 몇 개를
+	// 매 재귀 호출마다 개별 매개변수로 나열하는 대신 구조체 하나로 넘겨 시그니처가
+	// 계속 늘어나는 것을 막는다. 값으로 전달하므로 하위 호출에서 loopDepth/insideFunction을
+	// 바꿔도(복사본 수정) 형제 문장 검사에는 영향이 없고, functionArities는 참조라 여전히
+	// 하나의 맵을 공유한다.
+	struct CheckContext
+	{
+		int loopDepth = 0;
+		bool insideFunction = false;
+		FunctionArities& functionArities;
+	};
+
+	CheckerErrno checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes, CheckContext ctx) const;
+	CheckerErrno checkStmt(Stmt* stmt, ScopeStack& scopes, CheckContext ctx) const;
 	CheckerErrno checkCallArity(Expr* expr, const FunctionArities& functionArities) const;
 	bool isNameDeclared(const std::string& name, const ScopeStack& scopes) const;
 	bool exprReferencesName(Expr* expr, const std::string& name) const;
