@@ -57,7 +57,7 @@ private:
 
 	// method를 instance에 바인딩해 실행한다. this를 새 Environment에 정의하고 body를 실행.
 	LiteralValue callMethod(FunctionDeclStmt* method, std::shared_ptr<Instance> instance,
-	                        const std::vector<Expr*>& args, Environment& callerEnv) const;
+	                        const std::vector<Expr*>& args, IEnvironment& callerEnv) const;
 
 	// Strategy 패턴으로 주입된 출력 대상 (io.h 참고).
 	IOutputWriter& output;

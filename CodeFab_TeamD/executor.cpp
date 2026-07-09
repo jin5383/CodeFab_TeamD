@@ -362,7 +362,7 @@ FunctionDeclStmt* Executor::findMethod(ClassDeclStmt* klass, const std::string& 
 }
 
 LiteralValue Executor::callMethod(FunctionDeclStmt* method, std::shared_ptr<Instance> instance,
-                                  const std::vector<Expr*>& args, Environment& callerEnv) const
+                                  const std::vector<Expr*>& args, IEnvironment& callerEnv) const
 {
 	if (method->params.size() != args.size())
 		throw std::runtime_error("Expected " + std::to_string(method->params.size()) +
