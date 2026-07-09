@@ -28,7 +28,7 @@
 enum class TokenType
 {
 	LEFT_PAREN, RIGHT_PAREN, LEFT_BRACE, RIGHT_BRACE,
-	LEFT_BRACKET, RIGHT_BRACKET, // Hong: 정적 배열 arr[i]
+	LEFT_BRACKET, RIGHT_BRACKET, ARRAY,
 	SEMICOLON, PLUS, MINUS, STAR, SLASH, EQUAL,
 	GREATER, LESS, BANG,
 	DOT, COLON, // Park: r.field / Class A : B
@@ -49,7 +49,7 @@ struct ArrayValue;
 using LiteralValue = std::variant<std::monostate, double, std::string, bool,
 	std::shared_ptr<FunctionDeclStmt>, std::shared_ptr<ClassValue>, std::shared_ptr<Instance>, std::shared_ptr<ArrayValue>>;
 
-// Hong: 배열 값. std::vector<LiteralValue>를 variant 안에 직접 넣으면 자기 참조 별칭이 되어
+// 배열 값. std::vector<LiteralValue>를 variant 안에 직접 넣으면 자기 참조 별칭이 되어
 // 컴파일이 불가능하므로, shared_ptr로 감싸는 래퍼 구조체를 하나 둔다(명세의 shared_ptr<vector<LiteralValue>>와 동등).
 struct ArrayValue
 {

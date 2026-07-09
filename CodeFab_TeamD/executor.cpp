@@ -83,6 +83,26 @@ bool Executor::isTruthy(const LiteralValue& value) const
 	return !std::holds_alternative<std::monostate>(value);
 }
 
+// LiteralValue가 배열이 아니면 "[]"를 쓸 수 없다는 런타임 에러를 던진다.
+std::shared_ptr<ArrayValue> Executor::asArray(const LiteralValue& value) const
+{
+	if (!std::holds_alternative<std::shared_ptr<ArrayValue>>(value))
+		throw std::runtime_error("Only arrays support '[]' access.");
+	return std::get<std::shared_ptr<ArrayValue>>(value);
+}
+
+// 인덱스 값이 숫자가 아니거나 정수가 아니거나 범위를 벗어나면 런타임 에러.
+size_t Executor::asArrayIndex(const LiteralValue& value, size_t arraySize) const
+{
+	double indexValue = asNumber(value, 0);
+	bool isIntegerInRange = indexValue >= 0
+		&& indexValue == static_cast<long long>(indexValue)
+		&& static_cast<size_t>(indexValue) < arraySize;
+	if (!isIntegerInRange)
+		throw std::runtime_error("Array index out of range.");
+	return static_cast<size_t>(indexValue);
+}
+
 // Interpreter 패턴: 각 if는 "이 노드가 무슨 문법 규칙인가"를 판별해 그 규칙에 맞는
 // 해석 방법을 적용한다. 재귀 호출(evaluate(binary->left, ...) 등)이 트리를 파고든다.
 LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
@@ -231,20 +251,30 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 
 	if (auto* indexGet = dynamic_cast<IndexGetExpr*>(expr))
 	{
-		// TODO(Hong): 배열 인덱스 읽기
-		return LiteralValue{};
+		auto array = asArray(evaluate(indexGet->array, environment));
+		size_t index = asArrayIndex(evaluate(indexGet->index, environment), array->items.size());
+		return array->items[index];
 	}
 
 	if (auto* indexSet = dynamic_cast<IndexSetExpr*>(expr))
 	{
-		// TODO(Hong): 배열 인덱스 쓰기
-		return LiteralValue{};
+		auto array = asArray(evaluate(indexSet->array, environment));
+		size_t index = asArrayIndex(evaluate(indexSet->index, environment), array->items.size());
+		LiteralValue value = evaluate(indexSet->value, environment);
+		array->items[index] = value;
+		return value;
 	}
 
 	if (auto* arrayExpr = dynamic_cast<ArrayExpr*>(expr))
 	{
-		// TODO(Hong): Array(n) 생성
-		return LiteralValue{};
+		// ArrayExpr 자체는 Token을 갖지 않아 line 정보가 없다(0 = 미상, ast.h Stmt::line 관례와 동일).
+		double sizeValue = asNumber(evaluate(arrayExpr->size, environment), 0);
+		if (sizeValue < 0 || sizeValue != static_cast<long long>(sizeValue))
+			throw std::runtime_error("Array size must be a non-negative integer.");
+
+		auto array = std::make_shared<ArrayValue>();
+		array->items.assign(static_cast<size_t>(sizeValue), LiteralValue{});
+		return array;
 	}
 
 	if (auto* binary = dynamic_cast<BinaryExpr*>(expr))

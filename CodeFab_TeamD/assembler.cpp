@@ -22,6 +22,7 @@ namespace
 	const std::string KEYWORD_RETURN = "return";
 	const std::string KEYWORD_CLASS = "Class";
 	const std::string KEYWORD_THIS = "This";
+	const std::string KEYWORD_ARRAY = "Array";
 
 	Token makeSimpleToken(TokenType type, const std::string& origin)
 	{
@@ -44,6 +45,7 @@ namespace
 		if (origin == KEYWORD_FUNC) return makeSimpleToken(TokenType::FUNC, origin);
 		if (origin == KEYWORD_RETURN) return makeSimpleToken(TokenType::RETURN, origin);
 		if (origin == KEYWORD_THIS)  return makeSimpleToken(TokenType::THIS,  origin);
+		if (origin == KEYWORD_ARRAY) return makeSimpleToken(TokenType::ARRAY, origin);
 		return std::nullopt;
 	}
 
@@ -66,6 +68,8 @@ namespace
 		case '}': return makeSimpleToken(TokenType::RIGHT_BRACE, "}");
 		case '.': return makeSimpleToken(TokenType::DOT, ".");
 		case ',': return makeSimpleToken(TokenType::COMMA, ",");
+		case '[': return makeSimpleToken(TokenType::LEFT_BRACKET, "[");
+		case ']': return makeSimpleToken(TokenType::RIGHT_BRACKET, "]");
 		default: return std::nullopt;
 		}
 	}
@@ -204,11 +208,16 @@ namespace
 			if (getCurrentToken().type == TokenType::EQUAL)
 			{
 				getTokenAndAdvance(); // =
-				stmt->initializer = parseExpression();
+				stmt->initializer = isArrayDeclaration() ? parseArrayExpr() : parseExpression();
 			}
 
 			expectAndAdvance(TokenType::SEMICOLON, "Expect ';' after value.");
 			return stmt;
+		}
+
+		bool isArrayDeclaration() const
+		{
+			return getCurrentToken().type == TokenType::ARRAY;
 		}
 
 		// "식 ;" 을 ExpressionStmt로 감싸게 구현
@@ -346,6 +355,15 @@ namespace
 					set->value = value;
 					return set;
 				}
+				// 좌변이 "arr[i]" 형태(IndexGetExpr)면 배열 원소에 대입하는 IndexSetExpr로 바꾼다.
+				if (auto* indexGet = dynamic_cast<IndexGetExpr*>(expr))
+				{
+					auto* indexSet = new IndexSetExpr();
+					indexSet->array = indexGet->array;
+					indexSet->index = indexGet->index;
+					indexSet->value = value;
+					return indexSet;
+				}
 
 				auto* variable = dynamic_cast<VariableExpr*>(expr);
 				if (variable == nullptr)
@@ -438,7 +456,9 @@ namespace
 			return parsePostfixExpr();
 		}
 
-		// Lee(CallExpr/LEFT_PAREN), Park(GetExpr/DOT) 분기 모두 구현 완료 — 체이닝(a.b(x).c 등)까지 지원한다
+		// Lee(CallExpr/LEFT_PAREN), Park(GetExpr/DOT), Hong(IndexGetExpr/LEFT_BRACKET) 분기
+		// 모두 구현 완료 — 체이닝(a.b(x).c, arr[0] 등)까지 지원한다. 대입 좌변(arr[0] = v)으로
+		// 쓰일 경우엔 parseAssignmentExpr이 이 IndexGetExpr을 IndexSetExpr로 다시 감싼다.
 		Expr* parsePostfixExpr()
 		{
 			Expr* expr = parsePrimary();
@@ -468,6 +488,27 @@ namespace
 					get->object = expr;
 					get->name = name;
 					expr = get;
+				}
+				else if (getCurrentToken().type == TokenType::LEFT_BRACKET)
+				{
+					// 대입 좌변(arr[0] = v)으로 쓰일 경우
+					getTokenAndAdvance(); // [
+					Expr* index = parseExpression();
+					expectAndAdvance(TokenType::RIGHT_BRACKET, "Expect ']' after index.");
+
+					// 인덱스 자리에 리터럴이 왔는데 정수가 아니면 파싱 시점에 바로 구문 에러
+					if (auto* literal = dynamic_cast<LiteralExpr*>(index))
+					{
+						bool isIntegerLiteral = std::holds_alternative<double>(literal->value)
+							&& std::get<double>(literal->value) == static_cast<long long>(std::get<double>(literal->value));
+						if (!isIntegerLiteral)
+							throw std::runtime_error("Array index must be an integer.");
+					}
+
+					auto* indexGet = new IndexGetExpr();
+					indexGet->array = expr;
+					indexGet->index = index;
+					expr = indexGet;
 				}
 				else
 				{
@@ -518,6 +559,28 @@ namespace
 			default:
 				throw std::runtime_error("Expect expression.");
 			}
+		}
+
+		// Array 만 허용한다.
+		Expr* parseArrayExpr()
+		{
+			getTokenAndAdvance(); // Array
+			expectAndAdvance(TokenType::LEFT_PAREN, "Expect '(' after 'Array'.");
+
+			Token token = getTokenAndAdvance();
+
+			if (token.type != TokenType::NUMBER ||
+				token.origin.find(DECIMAL_POINT) != std::string::npos)
+				throw std::runtime_error("Array size must be an integer literal.");
+
+			auto* size = new LiteralExpr();
+			size->value = token.value;
+
+			expectAndAdvance(TokenType::RIGHT_PAREN, "Expect ')' after array size.");
+
+			auto* arrayExpr = new ArrayExpr();
+			arrayExpr->size = size;
+			return arrayExpr;
 		}
 	};
 }

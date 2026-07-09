@@ -1,8 +1,11 @@
 ﻿#include <gtest/gtest.h>
+#include <gmock/gmock.h>
 #include <exception>
 #include "../executor.h"
+#include "../assembler.h"
 
 using namespace std;
+using ::testing::HasSubstr;
 
 // [디자인 패턴 사용처] Strategy(io.h)의 테스트용 ConcreteStrategy.
 // 예전에는 std::cout.rdbuf()를 실제 스트림에 갈아끼워 표준 출력을 가로채는 방식(고전적인
@@ -675,4 +678,174 @@ TEST_F(ExecutorTest, DivisionByZeroThrowsRuntimeError)
 	{
 		EXPECT_STREQ(e.what(), "Division by zero.");
 	}
+}
+
+// var arr = Array(3); 가 입력되면 -> Environment에 저장된 "arr"이 크기 3짜리 배열이고,
+// 모든 원소가 아직 값이 없는 상태(monostate, 스펙의 "null")여야 한다.
+TEST_F(ExecutorTest, ArrayDeclaration)
+{
+	Program parsedProgram = Assembler().assemble("var arr = Array(3);");
+
+	Environment environment;
+	executor.execute(parsedProgram, environment);
+
+	LiteralValue arrValue = environment.get(identifier("arr"));
+	ASSERT_TRUE(std::holds_alternative<std::shared_ptr<ArrayValue>>(arrValue));
+
+	auto array = std::get<std::shared_ptr<ArrayValue>>(arrValue);
+	ASSERT_EQ(array->items.size(), 3u);
+	for (const auto& item : array->items)
+		EXPECT_TRUE(std::holds_alternative<std::monostate>(item));
+}
+
+// var arr = Array(-1); 가 입력되면 -> 구문 에러.
+TEST(AssemblerSyntaxErrorTest, ArraySizeNegativeLiteralReportsError)
+{
+	try
+	{
+		Assembler().assemble("var arr = Array(-1);");
+		FAIL() << "Expected a syntax error to be thrown";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Array size must be an integer literal.");
+	}
+}
+
+// var arr = Array(3.0); 가 입력되면 -> 구문 에러.
+TEST(AssemblerSyntaxErrorTest, ArraySizeWholeNumberWithDecimalPointReportsError)
+{
+	try
+	{
+		Assembler().assemble("var arr = Array(3.0);");
+		FAIL() << "Expected a syntax error to be thrown";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Array size must be an integer literal.");
+	}
+}
+
+// var arr = Array(ABC); 가 입력되면 -> 구문 에러.
+TEST(AssemblerSyntaxErrorTest, ArraySizeIdentifierReportsError)
+{
+	try
+	{
+		Assembler().assemble("var arr = Array(ABC);");
+		FAIL() << "Expected a syntax error to be thrown";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Array size must be an integer literal.");
+	}
+}
+
+// var arr = Array(3); arr[0] = 10; 가 입력되면 -> arr[0]이 10.0으로 바뀌어야 한다.
+TEST_F(ExecutorTest, IndexAssignmentStoresValueInArray)
+{
+	Program parsedProgram = Assembler().assemble(
+		"var arr = Array(3);"
+		"arr[0] = 10;");
+
+	Environment environment;
+	executor.execute(parsedProgram, environment);
+
+	LiteralValue arrValue = environment.get(identifier("arr"));
+	auto array = std::get<std::shared_ptr<ArrayValue>>(arrValue);
+
+	ASSERT_TRUE(std::holds_alternative<double>(array->items[0]));
+	EXPECT_DOUBLE_EQ(std::get<double>(array->items[0]), 10.0);
+
+	// 나머지 원소는 그대로 null(monostate)이어야 한다.
+	EXPECT_TRUE(std::holds_alternative<std::monostate>(array->items[1]));
+	EXPECT_TRUE(std::holds_alternative<std::monostate>(array->items[2]));
+}
+
+// var arr = Array(3); arr[0] = ABC; 가 입력되면(A는 미선언 변수) -> 런타임 에러
+TEST_F(ExecutorTest, IndexAssignmentWithUndefinedVariable)
+{
+	Program parsedProgram = Assembler().assemble(
+		"var arr = Array(3);"
+		"arr[0] = ABC;");
+
+	try
+	{
+		executor.execute(parsedProgram);
+		FAIL() << "Expected a runtime error to be thrown";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_THAT(e.what(), HasSubstr("Undefined variable 'ABC'."));
+	}
+}
+
+// var arr = Array(3); arr[3] = 10; 가 입력되면(유효 인덱스는 0~2) -> 런타임 에러
+TEST_F(ExecutorTest, IndexAssignmentOutOfRange)
+{
+	Program parsedProgram = Assembler().assemble(
+		"var arr = Array(3);"
+		"arr[3] = 10;");
+
+	try
+	{
+		executor.execute(parsedProgram);
+		FAIL() << "Expected a runtime error to be thrown";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Array index out of range.");
+	}
+}
+
+// var arr = Array(3); arr[100] = 10; 가 입력되면(경계값 3보다 훨씬 큰 오버플로) -> 런타임 에러
+TEST_F(ExecutorTest, IndexAssignmentOverflow)
+{
+	Program parsedProgram = Assembler().assemble(
+		"var arr = Array(3);"
+		"arr[100] = 10;");
+
+	try
+	{
+		executor.execute(parsedProgram);
+		FAIL() << "Expected a runtime error to be thrown";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Array index out of range.");
+	}
+}
+
+// var arr = Array(3); arr[-1] = 10; 가 입력되면(언더플로, 음수 인덱스) -> 런타임 에러
+TEST_F(ExecutorTest, IndexAssignmentUnderflow)
+{
+	Program parsedProgram = Assembler().assemble(
+		"var arr = Array(3);"
+		"arr[-1] = 10;");
+
+	try
+	{
+		executor.execute(parsedProgram);
+		FAIL() << "Expected a runtime error to be thrown";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_STREQ(e.what(), "Array index out of range.");
+	}
+}
+
+// Array write and read
+TEST_F(ExecutorTest, ArrayValuesWriteAndRead)
+{
+	Program parsedProgram = Assembler().assemble(
+		"var arr = Array(3);"
+		"arr[0] = 10;"
+		"arr[1] = 20;"
+		"arr[2] = 30;"
+		"print arr[0];"
+		"print arr[1];"
+		"print arr[2];");
+
+	executor.execute(parsedProgram);
+
+	EXPECT_EQ(writer.output, "10\n20\n30\n");
 }
