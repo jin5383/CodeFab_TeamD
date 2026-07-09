@@ -21,8 +21,7 @@ public:
 private:
 	Environment environment;
 	// Environment와 마찬가지로 줄 사이에 유지해야, 한 줄에서 선언한 함수를 다른 줄에서
-	// 호출할 때도 Checker가 인자 개수를 검사할 수 있다(Lee: 실사용 경로 검증,
-	// docs/lee-function-impl-plan.md 4절).
+	// 호출할 때도 Checker가 인자 개수를 검사할 수 있다(docs/lee-function-impl-plan.md 4절).
 	Checker::FunctionArities functionArities;
 
 	static bool isExitLine(const std::string& line);

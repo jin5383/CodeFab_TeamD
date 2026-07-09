@@ -22,15 +22,15 @@ enum class CheckerErrno
 	success = 0,
 	selfReferencingInitializer,
 	duplicateDeclarationInSameScope,
-	returnOutsideFunction,        // Lee: 함수 밖 return
-	duplicateParameterName,       // Lee: Func foo(a, a)
-	argumentCountMismatch,        // Lee/Park 공용: 호출부 인자 개수 불일치(정적으로 판단 가능한 경우)
-	undeclaredVariableReference,  // Hong: Array(a) / arr[i]에서 a가 미선언
-	thisOutsideClass,             // Park: 클래스 밖 This
-	superOutsideClass,            // Park: 클래스 밖 Super
-	selfInheritance,              // Park: Class A : A
-	superWithoutParent,           // Park: 부모 없는 클래스에서 Super 사용
-	returnValueInInit,            // Park: init에서 값 있는 return
+	returnOutsideFunction,        // 함수 밖 return
+	duplicateParameterName,       // Func foo(a, a)
+	argumentCountMismatch,        // 호출부 인자 개수 불일치(정적으로 판단 가능한 경우)
+	undeclaredVariableReference,  // Array(a) / arr[i]에서 a가 미선언
+	thisOutsideClass,             // 클래스 밖 This
+	superOutsideClass,            // 클래스 밖 Super
+	selfInheritance,              // Class A : A
+	superWithoutParent,           // 부모 없는 클래스에서 Super 사용
+	returnValueInInit,            // init에서 값 있는 return
 	importInsideLoop,
 	duplicateImportInScope,
 	circularImportDetected,
@@ -42,7 +42,7 @@ enum class CheckerErrno
 class Checker
 {
 public:
-	// Lee/Park 공용: 함수/(향후) 클래스 이름 -> 정적으로 알려진 인자 개수(arity).
+	// 함수/(향후) 클래스 이름 -> 정적으로 알려진 인자 개수(arity).
 	// 호출부의 인자 개수를 정적으로 판단 가능한 경우에만 검사하기 위한 보조 정보(3.1절).
 	// public인 이유: DfineShell처럼 여러 줄에 걸쳐 세션을 유지하는 호출자가 이 맵을
 	// Environment처럼 줄 사이에 들고 있어야, 한 줄에서 선언한 함수를 다른 줄에서 호출할
@@ -76,6 +76,10 @@ private:
 	CheckerErrno checkStmts(const std::vector<Stmt*>& statements, ScopeStack& scopes, CheckContext ctx) const;
 	CheckerErrno checkStmt(Stmt* stmt, ScopeStack& scopes, CheckContext ctx) const;
 	CheckerErrno checkCallArity(Expr* expr, const FunctionArities& functionArities) const;
+	// checkCallArity를 exprReferencesName과 같은 재귀 구조로 감싸, 표현식이 나타날 수 있는
+	// 모든 자리(대입 값, 이항/단항/논리 연산의 좌우항, 괄호 안, 호출 인자 등)에 중첩된
+	// CallExpr까지 훑는다(docs/lee-function-impl-plan.md 5절 후속 작업).
+	CheckerErrno checkExprCallArity(Expr* expr, const FunctionArities& functionArities) const;
 	bool isNameDeclared(const std::string& name, const ScopeStack& scopes) const;
 	bool exprReferencesName(Expr* expr, const std::string& name) const;
 };

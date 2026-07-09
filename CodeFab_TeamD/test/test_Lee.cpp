@@ -657,6 +657,105 @@ TEST_F(CheckerUnitTest, CallArgumentCountMatches_NoError)
 	EXPECT_EQ(CheckerErrno::success, Checker().check(program));
 }
 
+// Checker unit(후속 작업, docs/lee-function-impl-plan.md 5절): "Func foo(a,b,c){...}
+// var x = foo(1, 2);" 처럼 호출이 ExpressionStmt 최상위가 아니라 VarDeclStmt::initializer
+// 안에 중첩돼도 정적으로 인자 개수 불일치를 잡아야 한다.
+TEST_F(CheckerUnitTest, CallArgumentCountMismatchInsideVarDeclInitializer_ReportsError)
+{
+	auto* returnStmt = new ReturnStmt();
+	returnStmt->value = makeVariable("a");
+
+	auto* funcDecl = new FunctionDeclStmt();
+	funcDecl->name = identifierToken("foo");
+	funcDecl->params.push_back(identifierToken("a"));
+	funcDecl->params.push_back(identifierToken("b"));
+	funcDecl->params.push_back(identifierToken("c"));
+	funcDecl->body.push_back(returnStmt);
+
+	auto* call = new CallExpr();
+	call->callee = makeVariable("foo");
+	call->arguments.push_back(makeNumberLiteral(1.0));
+	call->arguments.push_back(makeNumberLiteral(2.0));
+
+	auto* varDecl = new VarDeclStmt();
+	varDecl->name = identifierToken("x");
+	varDecl->initializer = call;
+
+	Program program;
+	program.statements.push_back(funcDecl);
+	program.statements.push_back(varDecl);
+
+	EXPECT_EQ(CheckerErrno::argumentCountMismatch, Checker().check(program));
+}
+
+// Checker unit(후속 작업, 5절): "print foo(1, 2);"처럼 PrintStmt::expression 안에 중첩된
+// 호출도 정적으로 검사돼야 한다(기존에는 PrintStmt 자체를 분기하지 않아 검사가 전혀 없었음).
+TEST_F(CheckerUnitTest, CallArgumentCountMismatchInsidePrintExpression_ReportsError)
+{
+	auto* returnStmt = new ReturnStmt();
+	returnStmt->value = makeVariable("a");
+
+	auto* funcDecl = new FunctionDeclStmt();
+	funcDecl->name = identifierToken("foo");
+	funcDecl->params.push_back(identifierToken("a"));
+	funcDecl->params.push_back(identifierToken("b"));
+	funcDecl->params.push_back(identifierToken("c"));
+	funcDecl->body.push_back(returnStmt);
+
+	auto* call = new CallExpr();
+	call->callee = makeVariable("foo");
+	call->arguments.push_back(makeNumberLiteral(1.0));
+	call->arguments.push_back(makeNumberLiteral(2.0));
+
+	auto* printStmt = new PrintStmt();
+	printStmt->expression = call;
+
+	Program program;
+	program.statements.push_back(funcDecl);
+	program.statements.push_back(printStmt);
+
+	EXPECT_EQ(CheckerErrno::argumentCountMismatch, Checker().check(program));
+}
+
+// Checker unit(후속 작업, 5절): ReturnStmt::value, IfStmt::condition처럼 그 외 표현식 자리에
+// 중첩돼도 잡히는지 확인(BinaryExpr 안에 중첩된 호출까지 재귀적으로 훑어야 함).
+TEST_F(CheckerUnitTest, CallArgumentCountMismatchInsideReturnAndIfCondition_ReportsError)
+{
+	auto* innerReturn = new ReturnStmt();
+	innerReturn->value = makeVariable("a");
+
+	auto* funcDecl = new FunctionDeclStmt();
+	funcDecl->name = identifierToken("foo");
+	funcDecl->params.push_back(identifierToken("a"));
+	funcDecl->params.push_back(identifierToken("b"));
+	funcDecl->params.push_back(identifierToken("c"));
+	funcDecl->body.push_back(innerReturn);
+
+	auto* badCall = new CallExpr();
+	badCall->callee = makeVariable("foo");
+	badCall->arguments.push_back(makeNumberLiteral(1.0));
+	badCall->arguments.push_back(makeNumberLiteral(2.0));
+
+	// return 1 + foo(1, 2); 안에서 함수 몸통 밖 return이 되지 않도록 outerFunc로 감싼다.
+	auto* addExpr = new BinaryExpr();
+	addExpr->left = makeNumberLiteral(1.0);
+	addExpr->op = opToken(TokenType::PLUS, "+");
+	addExpr->right = badCall;
+
+	auto* outerReturn = new ReturnStmt();
+	outerReturn->value = addExpr;
+
+	auto* outerFunc = new FunctionDeclStmt();
+	outerFunc->name = identifierToken("outer");
+	outerFunc->body.push_back(outerReturn);
+
+	Program program;
+	program.statements.push_back(funcDecl);
+	program.statements.push_back(outerFunc);
+
+	EXPECT_EQ(CheckerErrno::argumentCountMismatch, Checker().check(program));
+}
+
 class LeeExecutorTest : public ::testing::Test
 {
 protected:
@@ -824,4 +923,19 @@ TEST(DfineShellIntegrationTest, ArgumentCountMismatchDetectedAcrossSeparateLines
 
 	EXPECT_NE(out.str().find("Argument count mismatch."), std::string::npos)
 		<< "actual output: " << out.str();
+}
+
+// 실사용 경로 검증: Checker가 check() 전체를 통과해야만 execute()가 시작되므로(원자성),
+// "print 5; print foo(1,2);"처럼 한 줄(한 번의 Interpreter::run() 호출) 안에 정상 문장과
+// 인자 개수 불일치 호출이 같이 있으면 앞쪽 print의 부작용조차 전혀 나타나지 않아야 한다.
+// (checkExprCallArity가 PrintStmt를 정적으로 훑기 전에는, "5"가 이미 출력된 뒤에야
+// Executor 런타임 방어선에서 에러가 나 부분 실행이 새어나갔었다.)
+TEST_F(LeeInterpreterIntegrationTest, EarlierPrintDoesNotLeakBeforeLaterArityMismatchInSameBlock)
+{
+	Environment env;
+	EXPECT_THROW(
+		interpreter.run("Func foo(a, b, c) { return a; }\n{ print 5; print foo(1, 2); }\n", env),
+		std::runtime_error);
+
+	EXPECT_EQ(writer.output, "");
 }

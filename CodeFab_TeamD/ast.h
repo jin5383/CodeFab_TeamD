@@ -31,18 +31,18 @@ enum class TokenType
 	LEFT_BRACKET, RIGHT_BRACKET, ARRAY,
 	SEMICOLON, PLUS, MINUS, STAR, SLASH, PERCENT, EQUAL,
 	GREATER, LESS, BANG,
-	DOT, COLON, // Park: r.field / Class A : B
+	DOT, COLON, // r.field / Class A : B
 	IDENTIFIER, STRING, NUMBER,
 	TRUE, FALSE, VAR, IF, ELSE, FOR, AND, OR, PRINT,
-	FUNC, RETURN, COMMA, // Lee: 함수
-	CLASS, THIS, SUPER, INSTANCEOF, // Park: 클래스
+	FUNC, RETURN, COMMA, // 함수
+	CLASS, THIS, SUPER, INSTANCEOF, // 클래스
 	IMPORT, ALIAS,
 	END_OF_FILE
 };
 
 struct FunctionDeclStmt;
-struct ClassDeclStmt; // Park: ClassValue가 non-owning 참조로 보관하기 위해 선행 선언
-struct ClassValue;    // Park: 클래스 선언을 LiteralValue로 환경에 저장하기 위한 핸들
+struct ClassDeclStmt; // ClassValue가 non-owning 참조로 보관하기 위해 선행 선언
+struct ClassValue;    // 클래스 선언을 LiteralValue로 환경에 저장하기 위한 핸들
 struct Instance;
 struct ArrayValue;
 
@@ -80,14 +80,14 @@ struct LiteralExpr : Expr
 struct VariableExpr : Expr
 {
 	Token name;
-	int distance = -1; // Kwon: 정적 바인딩 캐시(몇 단계 위 스코프인지). -1이면 미계산/전역
+	int distance = -1; // 정적 바인딩 캐시(몇 단계 위 스코프인지). -1이면 미계산/전역
 };
 
 struct AssignExpr : Expr
 {
 	Token name;
 	Expr* value = nullptr;
-	int distance = -1; // Kwon: VariableExpr::distance와 동일한 용도
+	int distance = -1; // VariableExpr::distance와 동일한 용도
 };
 
 // 스펙의 'operator' 필드는 C++ 예약어와 충돌하여 'op'로 명명함
@@ -152,14 +152,14 @@ struct InstanceOfExpr : Expr
 	Token className;
 };
 
-// Hong: arr[i]
+// arr[i]
 struct IndexGetExpr : Expr
 {
 	Expr* array = nullptr;
 	Expr* index = nullptr;
 };
 
-// Hong: arr[i] = v
+// arr[i] = v
 struct IndexSetExpr : Expr
 {
 	Expr* array = nullptr;
@@ -167,7 +167,7 @@ struct IndexSetExpr : Expr
 	Expr* value = nullptr;
 };
 
-// Hong: Array(3) - CallExpr과 문법적으로 겹치지 않도록 전용 노드로 분리
+// Array(3) - CallExpr과 문법적으로 겹치지 않도록 전용 노드로 분리
 struct ArrayExpr : Expr
 {
 	Expr* size = nullptr;
@@ -236,7 +236,7 @@ struct ClassDeclStmt : Stmt
 	Token name;
 	Token* superclass = nullptr; // 부모 클래스 이름 토큰, 없으면 nullptr(단일 상속만 지원)
 	std::vector<FunctionDeclStmt*> methods;
-	// Park: superclass 토큰을 실제 ClassDeclStmt로 연결한 캐시. ClassDeclStmt 실행(클래스 선언) 시점에
+	// superclass 토큰을 실제 ClassDeclStmt로 연결한 캐시. ClassDeclStmt 실행(클래스 선언) 시점에
 	// Executor가 environment에서 superclass 이름을 조회해 채운다(findMethod의 상속 체인 탐색, Super/instanceof에 사용).
 	ClassDeclStmt* resolvedSuperclass = nullptr;
 };

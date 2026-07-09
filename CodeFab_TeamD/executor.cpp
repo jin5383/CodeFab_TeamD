@@ -80,7 +80,7 @@ namespace
 
 namespace
 {
-	// Lee: return 문 실행 중 함수 본문을 조기 종료하기 위해 throw하는 신호(Crafting
+	// return 문 실행 중 함수 본문을 조기 종료하기 위해 throw하는 신호(Crafting
 	// Interpreters와 동일한 관용적 패턴). CallExpr 평가 쪽에서 catch해 반환값으로 쓴다.
 	struct ReturnSignal
 	{
@@ -223,7 +223,7 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 		}
 
 		// 3.1.1 확정: 호출 대상이 함수인지는 런타임에만 알 수 있으므로 Executor에서 검사한다
-		// (Checker는 스코프/선언 규칙만 검사, docs/phase0-review-checklist.md Lee 항목).
+		// (Checker는 스코프/선언 규칙만 검사, docs/phase0-review-checklist.md 참고).
 		if (!std::holds_alternative<std::shared_ptr<FunctionDeclStmt>>(calleeValue))
 			throw std::runtime_error("Can only call functions.");
 		auto function = std::get<std::shared_ptr<FunctionDeclStmt>>(calleeValue);
@@ -241,7 +241,7 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 		// (docs/lee-function-impl-plan.md 0절), 콜 프레임의 enclosing은 전역으로 고정한다.
 		// 재귀 호출은 전역에 정의된 자기 이름을 다시 찾는 것으로 충분히 해결된다.
 		// environment는 인터페이스(IEnvironment&)지만, 실행 중 실제로 전달되는 것은 항상
-		// 구체 Environment 체인이므로(Kwon의 gmock Test Double은 함수 호출과 함께 쓰이지
+		// 구체 Environment 체인이므로(gmock Test Double은 함수 호출과 함께 쓰이지
 		// 않는다) root()를 쓰기 위해 다시 Environment&로 캐스팅한다.
 		//
 		// module.func(...) 형태로 호출된 경우는 예외다 — 그 함수의 "전역"은 호출부의 전역이
