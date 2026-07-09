@@ -18,6 +18,8 @@ namespace
 	const std::string KEYWORD_PRINT = "print";
 	const std::string KEYWORD_IMPORT = "import";
 	const std::string KEYWORD_ALIAS = "alias";
+	const std::string KEYWORD_FUNC = "Func";
+	const std::string KEYWORD_RETURN = "return";
 
 	Token makeSimpleToken(TokenType type, const std::string& origin)
 	{
@@ -37,6 +39,8 @@ namespace
 		if (origin == "Class") return makeSimpleToken(TokenType::CLASS, origin);
 		if (origin == KEYWORD_IMPORT) return makeSimpleToken(TokenType::IMPORT, origin);
 		if (origin == KEYWORD_ALIAS) return makeSimpleToken(TokenType::ALIAS, origin);
+		if (origin == KEYWORD_FUNC) return makeSimpleToken(TokenType::FUNC, origin);
+		if (origin == KEYWORD_RETURN) return makeSimpleToken(TokenType::RETURN, origin);
 		return std::nullopt;
 	}
 
