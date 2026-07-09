@@ -59,6 +59,9 @@
     <ClCompile Include="file_runner.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="debug_shell.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
     <ClCompile Include="test\test_Ryu.cpp">
       <Filter>test</Filter>
     </ClCompile>
@@ -113,6 +116,9 @@
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="error_format.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="debug_shell.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>

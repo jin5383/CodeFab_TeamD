@@ -150,6 +150,7 @@
     <ClCompile Include="resolver.cpp" />
     <ClCompile Include="constant_folding.cpp" />
     <ClCompile Include="file_runner.cpp" />
+    <ClCompile Include="debug_shell.cpp" />
     <ClCompile Include="test\test_Ryu.cpp" />
     <ClCompile Include="test\test_Kwon.cpp" />
     <ClCompile Include="test\test_Lee.cpp" />
@@ -170,6 +171,7 @@
     <ClInclude Include="constant_folding.h" />
     <ClInclude Include="file_runner.h" />
     <ClInclude Include="error_format.h" />
+    <ClInclude Include="debug_shell.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
