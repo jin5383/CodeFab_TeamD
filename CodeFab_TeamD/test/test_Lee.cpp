@@ -481,3 +481,18 @@ TEST(AssemblerUnitTest, FunctionDeclWithNoParams_BuildsProgramTree)
 	auto* printStmt = dynamic_cast<PrintStmt*>(funcDecl->body[0]);
 	EXPECT_NE(printStmt, nullptr);
 }
+
+// Assembler_Construct_Unit: "Func add(a, b) { print a; }" -> FunctionDeclStmt{ params: [a, b] }
+// (docs/scenarios/lee-function-scenarios.md 선언+호출 시나리오의 다중 파라미터 전제 조건)
+TEST(AssemblerUnitTest, FunctionDeclWithTwoParams_BuildsParamList)
+{
+	Program program = Assembler().assemble("Func add(a, b) { print a; }");
+
+	ASSERT_EQ(program.statements.size(), 1u);
+
+	auto* funcDecl = dynamic_cast<FunctionDeclStmt*>(program.statements[0]);
+	ASSERT_NE(funcDecl, nullptr);
+	ASSERT_EQ(funcDecl->params.size(), 2u);
+	EXPECT_EQ(funcDecl->params[0].origin, "a");
+	EXPECT_EQ(funcDecl->params[1].origin, "b");
+}
