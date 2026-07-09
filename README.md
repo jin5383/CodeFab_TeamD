@@ -6,6 +6,7 @@ TDD(Google Test)로 개발하는 프로젝트입니다.
 ## 목차
 
 - [파이프라인 개요](#파이프라인-개요)
+- [아키텍처 / 설계 기법](#아키텍처--설계-기법)
 - [기술 스택](#기술-스택)
 - [요구사항 문서](#요구사항-문서)
 - [프로젝트 구조](#프로젝트-구조)
@@ -55,6 +56,11 @@ source code (string)
 `Interpreter`(Facade, `interpreter.h`)가 위 5단계 조합을 `run(source)` 호출 하나로 감싸,
 호출부(`DfineShell`/`FileRunner`/`DebugShell`)는 각 Unit의 존재를 몰라도 됩니다.
 세부 Input/Output 계약은 [`docs/unit-io-spec.md`](docs/unit-io-spec.md)에 정의되어 있습니다.
+
+## 아키텍처 / 설계 기법
+
+위 파이프라인의 각 Unit이 실제로 어떤 설계 기법(Composite+Interpreter, Strategy, Facade, 재귀 하강
+파서 등)으로 구현되어 있는지는 [`docs/architecture.md`](docs/architecture.md)에 정리했습니다.
 
 ## 기술 스택
 

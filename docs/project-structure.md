@@ -36,6 +36,7 @@ CodeFab_TeamD/                  # 단일 프로젝트 (애플리케이션 + Goog
                                     # 실행 전 최적화(ConstantFolder/Resolver)·파일 모드·디버그 모드 테스트
     test_Ryu.cpp                   # import 기능 테스트
 docs/                          # 설계 명세 문서
+  architecture.md                     # 파이프라인 각 Unit의 설계 기법(GoF 패턴 등) 정리
   project-structure.md                # (이 문서) 파일 목록과 docs 문서 설명
   language-guide.md                   # Custom Language 문법/기능 사용법
   unit-io-spec.md                     # Unit 간 Input/Output 계약
@@ -60,6 +61,8 @@ scripts/                       # 보조 스크립트 (요구사항 PDF 텍스트
 
 ## docs 문서 설명
 
+- [`architecture.md`](architecture.md): 파이프라인의 각 Unit이 실제로 어떤 설계 기법(Composite+Interpreter,
+  Strategy, Facade, 재귀 하강 파서 등)으로 구현되어 있는지, 선택 이유와 트레이드오프를 정리합니다.
 - [`language-guide.md`](language-guide.md): 함수/클래스/정적 배열/import 문법과 실행 전 최적화(상수
   폴딩/정적 바인딩)를 예시와 규칙으로 정리한 Custom Language 사용법입니다.
 - [`unit-io-spec.md`](unit-io-spec.md): Assembler → (ConstantFolder → Resolver →) Checker / Executor로
