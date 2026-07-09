@@ -150,8 +150,31 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 				FunctionDeclStmt* method = findMethod(inst->klass, getExpr->name.origin);
 				if (method == nullptr)
 					throw std::runtime_error("Undefined method '" + getExpr->name.origin + "'.");
-				return callMethod(method, inst, call->arguments, environment);
+				ClassDeclStmt* owner = findMethodOwner(inst->klass, getExpr->name.origin);
+				return callMethod(method, inst, call->arguments, environment, owner);
 			}
+		}
+
+		// Super 호출: Super.move(dist) — 현재 메서드가 선언된 클래스(__class__)의 부모에서 찾는다.
+		if (auto* superExpr = dynamic_cast<SuperExpr*>(call->callee))
+		{
+			Token thisToken; thisToken.origin = "This";
+			LiteralValue thisVal = environment.get(thisToken);
+			if (!std::holds_alternative<std::shared_ptr<Instance>>(thisVal))
+				throw std::runtime_error("'Super' can only be used inside a method.");
+			auto instance = std::get<std::shared_ptr<Instance>>(thisVal);
+
+			Token classToken; classToken.origin = "__class__";
+			LiteralValue classVal = environment.get(classToken);
+			ClassDeclStmt* ownerClass = std::get<std::shared_ptr<ClassValue>>(classVal)->decl;
+			if (ownerClass->resolvedSuperclass == nullptr)
+				throw std::runtime_error("'" + ownerClass->name.origin + "' has no superclass.");
+
+			FunctionDeclStmt* method = findMethod(ownerClass->resolvedSuperclass, superExpr->method.origin);
+			if (method == nullptr)
+				throw std::runtime_error("Undefined method '" + superExpr->method.origin + "' in superclass.");
+			ClassDeclStmt* methodOwner = findMethodOwner(ownerClass->resolvedSuperclass, superExpr->method.origin);
+			return callMethod(method, instance, call->arguments, environment, methodOwner);
 		}
 
 		LiteralValue calleeValue = evaluate(call->callee, environment);
@@ -162,7 +185,10 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 			instance->klass = cls->decl;
 			FunctionDeclStmt* initMethod = findMethod(cls->decl, "init");
 			if (initMethod != nullptr)
-				callMethod(initMethod, instance, call->arguments, environment);
+			{
+				ClassDeclStmt* owner = findMethodOwner(cls->decl, "init");
+				callMethod(initMethod, instance, call->arguments, environment, owner);
+			}
 			else if (!call->arguments.empty())
 				throw std::runtime_error("Expected 0 arguments but got " +
 				                         std::to_string(call->arguments.size()) + ".");
@@ -239,14 +265,17 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 
 	if (auto* superExpr = dynamic_cast<SuperExpr*>(expr))
 	{
-		// TODO(Park): super.method 평가
-		return LiteralValue{};
+		// Super.method 자체는 CallExpr의 callee 자리에서만 의미가 있다(evaluate의 CallExpr 분기에서 처리).
+		throw std::runtime_error("'Super' must be called as 'Super." + superExpr->method.origin + "(...)'.");
 	}
 
 	if (auto* instanceOf = dynamic_cast<InstanceOfExpr*>(expr))
 	{
-		// TODO(Park): instanceof 평가
-		return LiteralValue{};
+		LiteralValue object = evaluate(instanceOf->object, environment);
+		if (!std::holds_alternative<std::shared_ptr<Instance>>(object))
+			return false;
+		auto inst = std::get<std::shared_ptr<Instance>>(object);
+		return isInstanceOf(inst->klass, instanceOf->className.origin);
 	}
 
 	if (auto* indexGet = dynamic_cast<IndexGetExpr*>(expr))
@@ -381,6 +410,13 @@ void Executor::executeStmt(Stmt* stmt, IEnvironment& environment) const
 	}
 	else if (auto* classDecl = dynamic_cast<ClassDeclStmt*>(stmt))
 	{
+		if (classDecl->superclass != nullptr)
+		{
+			LiteralValue superVal = environment.get(*classDecl->superclass);
+			if (!std::holds_alternative<std::shared_ptr<ClassValue>>(superVal))
+				throw std::runtime_error("Superclass must be a class.");
+			classDecl->resolvedSuperclass = std::get<std::shared_ptr<ClassValue>>(superVal)->decl;
+		}
 		auto classValue = std::make_shared<ClassValue>();
 		classValue->decl = classDecl;
 		environment.define(classDecl->name.origin, classValue);
@@ -448,20 +484,45 @@ void Executor::execute(const Program& program) const
 
 FunctionDeclStmt* Executor::findMethod(ClassDeclStmt* klass, const std::string& name)
 {
-	for (FunctionDeclStmt* method : klass->methods)
-		if (method->name.origin == name)
-			return method;
+	for (ClassDeclStmt* current = klass; current != nullptr; current = current->resolvedSuperclass)
+		for (FunctionDeclStmt* method : current->methods)
+			if (method->name.origin == name)
+				return method;
 	return nullptr;
 }
 
+ClassDeclStmt* Executor::findMethodOwner(ClassDeclStmt* klass, const std::string& name)
+{
+	for (ClassDeclStmt* current = klass; current != nullptr; current = current->resolvedSuperclass)
+		for (FunctionDeclStmt* method : current->methods)
+			if (method->name.origin == name)
+				return current;
+	return nullptr;
+}
+
+bool Executor::isInstanceOf(ClassDeclStmt* klass, const std::string& className)
+{
+	for (ClassDeclStmt* current = klass; current != nullptr; current = current->resolvedSuperclass)
+		if (current->name.origin == className)
+			return true;
+	return false;
+}
+
 LiteralValue Executor::callMethod(FunctionDeclStmt* method, std::shared_ptr<Instance> instance,
-                                  const std::vector<Expr*>& args, IEnvironment& callerEnv) const
+                                  const std::vector<Expr*>& args, IEnvironment& callerEnv,
+                                  ClassDeclStmt* methodOwnerClass) const
 {
 	if (method->params.size() != args.size())
 		throw std::runtime_error("Expected " + std::to_string(method->params.size()) +
 		                         " arguments but got " + std::to_string(args.size()) + ".");
 	Environment methodEnv;
 	methodEnv.define("This", instance);
+	if (methodOwnerClass != nullptr)
+	{
+		auto ownerHandle = std::make_shared<ClassValue>();
+		ownerHandle->decl = methodOwnerClass;
+		methodEnv.define("__class__", ownerHandle);
+	}
 	for (size_t i = 0; i < method->params.size(); ++i)
 		methodEnv.define(method->params[i].origin, evaluate(args[i], callerEnv));
 	for (Stmt* stmt : method->body)

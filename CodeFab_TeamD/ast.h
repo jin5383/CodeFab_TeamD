@@ -236,6 +236,9 @@ struct ClassDeclStmt : Stmt
 	Token name;
 	Token* superclass = nullptr; // 부모 클래스 이름 토큰, 없으면 nullptr(단일 상속만 지원)
 	std::vector<FunctionDeclStmt*> methods;
+	// Park: superclass 토큰을 실제 ClassDeclStmt로 연결한 캐시. ClassDeclStmt 실행(클래스 선언) 시점에
+	// Executor가 environment에서 superclass 이름을 조회해 채운다(findMethod의 상속 체인 탐색, Super/instanceof에 사용).
+	ClassDeclStmt* resolvedSuperclass = nullptr;
 };
 
 // ClassDeclStmt의 소유권은 Program이 갖고, ClassValue는 non-owning 참조만 보관한다.
