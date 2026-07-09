@@ -108,12 +108,32 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 
 	if (auto* call = dynamic_cast<CallExpr*>(expr))
 	{
+		// 메서드 호출: r.move(5) — callee가 GetExpr이고 object가 Instance인 경우
+		if (auto* getExpr = dynamic_cast<GetExpr*>(call->callee))
+		{
+			LiteralValue object = evaluate(getExpr->object, environment);
+			if (std::holds_alternative<std::shared_ptr<Instance>>(object))
+			{
+				auto inst = std::get<std::shared_ptr<Instance>>(object);
+				FunctionDeclStmt* method = findMethod(inst->klass, getExpr->name.origin);
+				if (method == nullptr)
+					throw std::runtime_error("Undefined method '" + getExpr->name.origin + "'.");
+				return callMethod(method, inst, call->arguments, environment);
+			}
+		}
+
 		LiteralValue callee = evaluate(call->callee, environment);
 		if (std::holds_alternative<std::shared_ptr<ClassValue>>(callee))
 		{
-			auto& cls = std::get<std::shared_ptr<ClassValue>>(callee);
+			auto cls = std::get<std::shared_ptr<ClassValue>>(callee);
 			auto instance = std::make_shared<Instance>();
 			instance->klass = cls->decl;
+			FunctionDeclStmt* initMethod = findMethod(cls->decl, "init");
+			if (initMethod != nullptr)
+				callMethod(initMethod, instance, call->arguments, environment);
+			else if (!call->arguments.empty())
+				throw std::runtime_error("Expected 0 arguments but got " +
+				                         std::to_string(call->arguments.size()) + ".");
 			return instance;
 		}
 		// TODO(Lee): 함수 호출 실행 - Phase 1에서 구현
@@ -144,8 +164,9 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 
 	if (auto* thisExpr = dynamic_cast<ThisExpr*>(expr))
 	{
-		// TODO(Park): this 평가
-		return LiteralValue{};
+		Token thisToken;
+		thisToken.origin = "This";
+		return environment.get(thisToken);
 	}
 
 	if (auto* superExpr = dynamic_cast<SuperExpr*>(expr))
@@ -342,4 +363,27 @@ void Executor::execute(const Program& program) const
 {
 	Environment global;
 	execute(program, global);
+}
+
+FunctionDeclStmt* Executor::findMethod(ClassDeclStmt* klass, const std::string& name)
+{
+	for (FunctionDeclStmt* method : klass->methods)
+		if (method->name.origin == name)
+			return method;
+	return nullptr;
+}
+
+LiteralValue Executor::callMethod(FunctionDeclStmt* method, std::shared_ptr<Instance> instance,
+                                  const std::vector<Expr*>& args, IEnvironment& callerEnv) const
+{
+	if (method->params.size() != args.size())
+		throw std::runtime_error("Expected " + std::to_string(method->params.size()) +
+		                         " arguments but got " + std::to_string(args.size()) + ".");
+	Environment methodEnv;
+	methodEnv.define("This", instance);
+	for (size_t i = 0; i < method->params.size(); ++i)
+		methodEnv.define(method->params[i].origin, evaluate(args[i], callerEnv));
+	for (Stmt* stmt : method->body)
+		executeStmt(stmt, methodEnv);
+	return LiteralValue{};
 }
