@@ -44,14 +44,21 @@ private:
 	// Stmt 실행 시점에 실제로 쓰던 스코프여야 한다(예: 블록 내부에서 멈췄으면 그 블록의 스코프).
 	bool handleCommand(const std::string& commandLine, int depth, IEnvironment& env, std::ostream& out);
 
-	// watches/inspect 출력에 쓸 "이름 = 값" 한 줄을 만든다.
+	// watches 명령과 정지 시 자동 출력이 공유하는 본체. 감시 중인 이름마다 "[WATCH] 이름 = 값"
+	// (없으면 "[WATCH] 이름: 값을 참조할 수 없습니다")을 출력한다.
 	void printWatches(IEnvironment& env, std::ostream& out) const;
+
+	// "--- 현재 스코프 변수 ---" 헤더 뒤에 [로컬]/[전역] 그룹으로 나눠 "이름 = 값 (타입)"을 출력한다.
 	void printInspect(IEnvironment& env, std::ostream& out) const;
 
 	// watch/inspect가 보여줄 값 표현. DebugShell 밖에서는 쓰이지 않아 멤버로 묶어둔다.
 	// 상태(멤버 변수)에 의존하지 않아 static. Executor::stringify(private, print 전용)는
 	// 숫자가 아니면 예외를 던지므로 재사용할 수 없다 - 여기서는 어떤 값이 와도 절대 던지지 않아야 한다.
 	static std::string describeValue(const LiteralValue& value);
+
+	// inspect가 값 옆에 표시하는 타입 이름("Number"/"Boolean" 등). describeValue와 마찬가지로
+	// 상태에 의존하지 않는 순수 함수.
+	static std::string typeName(const LiteralValue& value);
 
 	// 파일 내용을 줄 단위로 쪼갠다 - 정지 메시지에 그 줄의 실제 소스 코드를 보여주기 위함.
 	static std::vector<std::string> splitLines(const std::string& source);

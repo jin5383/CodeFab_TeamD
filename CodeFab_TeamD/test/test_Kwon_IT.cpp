@@ -48,21 +48,23 @@ TEST_F(DebugShellIntegrationTest, NextStepsThroughLoopIterationsWhileWatchingAcc
 	// for문 자신 앞 -> 초기화절 앞을 지나 for 몸통(블록) 앞까지 이동한다(이때 total=0은 이미
 	// 정의돼 있다). 이 블록 앞에서 next를 쓰면 그 회차의 if/else 내부를 통째로 건너뛰고
 	// 다음 회차의 블록 앞(또는 반복문이 끝났으면 그 다음 최상위 문장 앞)에서 다시 멈춘다.
+	// watch로 등록한 변수는 그 다음부터는 정지할 때마다 자동으로 [WATCH]가 찍히므로,
+	// watches를 따로 입력할 필요가 없다.
 	std::istringstream in(
-		"step\nstep\nstep\n"     // for 몸통(블록) 앞으로 이동(total=0 정의됨, 아직 반복 안 함)
-		"watch total\nwatches\nnext\n"  // 반복 시작 전 total=0 확인 -> 1회차 통째로 실행하고 건너뜀
-		"watches\nnext\n"        // 1회차 종료(i=0 else branch, total 그대로 0) -> 2회차 건너뜀
-		"watches\nnext\n"        // 2회차 종료(i=1 then branch, total+=100) -> 3회차 건너뜀
-		"watches\ncontinue\n");  // 3회차 종료(i=2 then branch, total+=100=200) -> 끝까지 실행
+		"step\nstep\nstep\n" // for 몸통(블록) 앞으로 이동(total=0 정의됨, 아직 반복 안 함)
+		"watch total\nnext\n"  // 등록 -> 1회차 통째로 실행하고 건너뜀(자동 출력: total=0)
+		"next\n"               // 2회차 건너뜀(자동 출력: total=100)
+		"next\n"               // 3회차 건너뜀(자동 출력: total=200, print 실행 전)
+		"continue\n");         // 끝까지 실행
 	std::ostringstream out;
 
 	int exitCode = DebugShell().run(path.string(), in, out);
 
 	EXPECT_EQ(exitCode, 0);
-	EXPECT_EQ(countOccurrences(out.str(), "[DEBUG] total = 0"), 2); // 반복 시작 전, 1회차 이후
-	EXPECT_THAT(out.str(), HasSubstr("[DEBUG] total = 100"));       // 2회차 이후
-	EXPECT_THAT(out.str(), HasSubstr("[DEBUG] total = 200"));       // 3회차 이후(print 실행 전)
-	EXPECT_THAT(out.str(), HasSubstr("200"));                       // 최종 print 결과
+	EXPECT_THAT(out.str(), HasSubstr("[WATCH] total = 0"));   // 1회차 이후(i=0 else branch)
+	EXPECT_THAT(out.str(), HasSubstr("[WATCH] total = 100")); // 2회차 이후(i=1 then branch)
+	EXPECT_THAT(out.str(), HasSubstr("[WATCH] total = 200")); // 3회차 이후(print 실행 전)
+	EXPECT_THAT(out.str(), HasSubstr("200"));                 // 최종 print 결과
 
 	std::filesystem::remove(path);
 }
@@ -86,30 +88,32 @@ TEST_F(DebugShellIntegrationTest, InspectAndWatchesCooperateAcrossClassAndArrayV
 	// 정지는 항상 그 줄을 실행하기 전(preorder)이다. (1)line1 Class Robot 앞 -> (2)line2
 	// var count=0 앞 -> (3)line3 for문 자신 앞 -> break 6로 continue하면 arr[0]=i를
 	// "실행하기 전"(1회차, i=0)에 멈춘다 - 이 시점엔 arr가 아직 [nil, nil]이다. step으로
-	// 그 문장을 실행한 뒤(arr=[0, nil]) count=count+1 앞에서 inspect/watches를 확인하고,
-	// continue로 2회차 breakpoint(count=1로 갱신된 상태)까지 이동한다.
+	// 그 문장을 실행한 뒤(arr=[0, nil]) count=count+1 앞에서 inspect를 확인하고, continue로
+	// 2회차 breakpoint(count=1로 갱신된 상태, 자동 출력되는 watch로 확인)까지 이동한다.
 	std::istringstream in(
-		"step\n"                       // (1) -> (2)
-		"watch count\nstep\n"          // (2) -> (3)
-		"break 6\ncontinue\n"          // (3) -> 1회차 breakpoint(arr[0]=i 실행 전, arr=[nil,nil])
-		"step\n"                       // arr[0]=i 실행(arr=[0, nil]) -> count=count+1 앞
-		"inspect\nwatches\ncontinue\n" // 여기서 확인 후 -> 2회차 breakpoint
-		"watches\ncontinue\n");        // 2회차 breakpoint에서 count 확인 -> 끝까지 실행
+		"step\n"               // (1) -> (2)
+		"watch count\nstep\n"  // (2) -> (3, 자동 출력: count=0)
+		"break 6\ncontinue\n"  // (3) -> 1회차 breakpoint(arr[0]=i 실행 전, arr=[nil,nil])
+		"step\n"               // arr[0]=i 실행(arr=[0, nil]) -> count=count+1 앞
+		"inspect\ncontinue\n"  // 여기서 확인 후 -> 2회차 breakpoint(자동 출력: count=1)
+		"continue\n");         // 끝까지 실행
 	std::ostringstream out;
 
 	int exitCode = DebugShell().run(path.string(), in, out);
 
 	EXPECT_EQ(exitCode, 0);
-	// inspect(현재 스코프 = 반복문 몸통 블록)는 그 블록에서 직접 선언한 r/arr만 보여줘야
-	// 한다. i는 for의 loopEnv(enclosing)에 있으므로 나오면 안 된다(inspect가 잘못 엔클로징까지
-	// 올라간다면 i도 함께 보였을 것 - count까지 검사할 필요 없이 이 한 단계만 확인해도 충분하다).
-	EXPECT_THAT(out.str(), HasSubstr("[DEBUG] r = <instance Robot>"));
-	EXPECT_THAT(out.str(), HasSubstr("[DEBUG] arr = [0, nil]"));
-	EXPECT_THAT(out.str(), Not(HasSubstr("[DEBUG] i =")));
-	// watches는(inspect와 달리) 엔클로징까지 재조회하므로 count는 정상적으로 보여야 한다: 1회차
-	// 시점엔 아직 count=count+1이 실행되기 전이라 0, 2회차 시점엔 1회차의 갱신이 반영돼 1.
-	EXPECT_THAT(out.str(), HasSubstr("[DEBUG] count = 0"));
-	EXPECT_THAT(out.str(), HasSubstr("[DEBUG] count = 1"));
+	// inspect는 로컬(전역이 아닌 모든 스코프)과 전역을 함께 보여준다. r/arr(블록 자신에 선언)와
+	// i(for의 loopEnv, 전역이 아니므로 로컬로 합산)는 [로컬]로, Robot/count(전역)는 [전역]으로
+	// 나와야 한다.
+	EXPECT_THAT(out.str(), HasSubstr("[로컬] r = <instance Robot> (Instance)"));
+	EXPECT_THAT(out.str(), HasSubstr("[로컬] arr = [0, nil] (Array)"));
+	EXPECT_THAT(out.str(), HasSubstr("[로컬] i = 0 (Number)"));
+	EXPECT_THAT(out.str(), HasSubstr("[전역] Robot = <class Robot> (Class)"));
+	EXPECT_THAT(out.str(), HasSubstr("[전역] count = 0 (Number)"));
+	// watch는 정지마다 자동으로 출력된다: 1회차 시점엔 아직 count=count+1이 실행되기 전이라
+	// 0, 2회차 시점엔 1회차의 갱신이 반영돼 1.
+	EXPECT_THAT(out.str(), HasSubstr("[WATCH] count = 0"));
+	EXPECT_THAT(out.str(), HasSubstr("[WATCH] count = 1"));
 	EXPECT_THAT(out.str(), HasSubstr("2")); // 최종 print count 결과
 
 	std::filesystem::remove(path);
@@ -123,9 +127,11 @@ TEST_F(DebugShellIntegrationTest, MultipleBreakpointsAndWatchLifecycleCoexistInO
 	auto path = writeTempFile("lifecycle", "var a = 1;\nvar b = 2;\nvar c = 3;\nprint a + b + c;\n");
 	// (1)line1에서: break 2/3 설정 -> Breakpoints로 확인 -> remove 2 -> 다시 Breakpoints로
 	// 확인(2가 빠졌는지) -> continue(line2는 breakpoint 해제됐으니 지나치고 line3에서 정지).
+	// watch는 등록 이후 정지마다 자동 출력되므로, step으로 한 번 더 정지시켜 a=1이 찍히는지
+	// 확인한 뒤 unwatch로 해제한다.
 	std::istringstream in(
 		"break 2\nbreak 3\nBreakpoints\nremove 2\nBreakpoints\ncontinue\n" // (1) -> (2) line3 breakpoint
-		"watch a\nwatches\nunwatch a\nwatches\ncontinue\n");               // (2) -> 끝까지 실행
+		"watch a\nstep\nunwatch a\ncontinue\n");                          // (2) -> line4(자동 출력) -> 끝까지 실행
 	std::ostringstream out;
 
 	int exitCode = DebugShell().run(path.string(), in, out);
@@ -137,9 +143,9 @@ TEST_F(DebugShellIntegrationTest, MultipleBreakpointsAndWatchLifecycleCoexistInO
 	// line2(remove된 breakpoint)에서는 멈추지 않고 line3(남은 breakpoint)에서만 멈춰야 한다.
 	EXPECT_THAT(out.str(), Not(HasSubstr("2번째 줄에서 정지")));
 	EXPECT_THAT(out.str(), HasSubstr("3번째 줄에서 정지 (breakpoint)"));
-	// unwatch 이후에는 watches가 a를 더 이상 보여주지 않아야 한다.
-	EXPECT_EQ(countOccurrences(out.str(), "[DEBUG] a = 1"), 1);
-	EXPECT_THAT(out.str(), HasSubstr("[DEBUG] a 감시 해제"));
+	// unwatch 이후에는 더 이상 a가 자동 출력되지 않아야 한다 - 그래서 총 1회만 나와야 한다.
+	EXPECT_EQ(countOccurrences(out.str(), "[WATCH] a = 1"), 1);
+	EXPECT_THAT(out.str(), HasSubstr("[WATCH] 'a' 감시 해제"));
 	EXPECT_THAT(out.str(), HasSubstr("6")); // 최종 print (a+b+c) 결과
 
 	std::filesystem::remove(path);
