@@ -3,7 +3,8 @@
 #include <stdexcept>
 #include "error_format.h"
 
-void Interpreter::run(const std::string& source, IEnvironment& environment, Checker::FunctionArities& functionArities) const
+void Interpreter::run(const std::string& source, IEnvironment& environment, Checker::FunctionArities& functionArities,
+	const StmtExecutedCallback& onStmtExecuted) const
 {
 	// Facade가 감추는 Unit들의 조합 순서: assemble -> foldConstants(상수 폴딩) ->
 	// resolve(정적 바인딩 distance 계산) -> check -> (에러 없을 때만) execute.
@@ -16,7 +17,13 @@ void Interpreter::run(const std::string& source, IEnvironment& environment, Chec
 	CheckerErrno checkResult = checker.check(program, functionArities);
 	if (checkResult != CheckerErrno::success)
 		throw std::runtime_error(describeCheckerError(checkResult));
-	executor.execute(program, environment);
+	executor.execute(program, environment, onStmtExecuted);
+}
+
+void Interpreter::run(const std::string& source, IEnvironment& environment, const StmtExecutedCallback& onStmtExecuted) const
+{
+	Checker::FunctionArities functionArities;
+	run(source, environment, functionArities, onStmtExecuted);
 }
 
 void Interpreter::run(const std::string& source, IEnvironment& environment) const

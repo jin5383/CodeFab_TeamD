@@ -27,12 +27,21 @@ public:
 	explicit Interpreter(IOutputWriter& output) : executor(output) {}
 
 	// 주어진 environment(변수 값)와 functionArities(함수 인자 개수 정적 정보)를 모두
-	// 유지하며 실행한다. DfineShell처럼 여러 줄에 걸친 세션에서, 한 줄에서 선언한 함수를
-	// 다른 줄에서 호출할 때도 Checker가 인자 개수를 검사할 수 있게 하려면 이 오버로드를
-	// 써야 한다(Environment만 유지하는 아래 오버로드는 매 줄 함수 정보를 잃어버린다).
-	void run(const std::string& source, IEnvironment& environment, Checker::FunctionArities& functionArities) const;
+	// 유지하며 실행하는 기본 구현. DfineShell처럼 여러 줄에 걸친 세션에서, 한 줄에서 선언한
+	// 함수를 다른 줄에서 호출할 때도 Checker가 인자 개수를 검사할 수 있게 하려면 이
+	// 오버로드를 써야 한다. onStmtExecuted: DebugShell의 stepping 훅(기본값 nullptr이면
+	// 기존과 동일하게 콜백 없이 실행) - Facade 뒤에 Assembler/ConstantFolder/Resolver/
+	// Checker/Executor가 있다는 사실을 DebugShell이 몰라도 되도록, 조합 순서는 여기서
+	// 그대로 감춘다. 아래 다른 오버로드들은 모두 이 함수로 위임한다.
+	void run(const std::string& source, IEnvironment& environment, Checker::FunctionArities& functionArities,
+		const StmtExecutedCallback& onStmtExecuted = nullptr) const;
 
-	// 주어진 environment(컨텍스트)를 유지하며 실행 (DfineShell 등 여러 줄에 걸친 세션용)
+	// DebugShell처럼 콜백은 필요하지만 여러 줄에 걸친 함수 인자 정보 유지가 필요 없는
+	// (한 번의 run() 호출로 끝나는) 호출자를 위한 진입점 - functionArities는 매번 새로 만든다.
+	void run(const std::string& source, IEnvironment& environment, const StmtExecutedCallback& onStmtExecuted) const;
+
+	// 주어진 environment(컨텍스트)를 유지하며 실행 (DfineShell 등 여러 줄에 걸친 세션용).
+	// functionArities도 콜백도 필요 없는 가장 흔한 호출부를 위한 진입점.
 	void run(const std::string& source, IEnvironment& environment) const;
 
 	// 매번 새 global Environment로 한 번만 실행하는 호출자를 위한 진입점.

@@ -17,7 +17,10 @@
 #include "environment.h"
 #include "io.h"
 
-using StmtExecutedCallback = std::function<void(const Stmt&, IEnvironment&)>;
+// depth: 최상위 Program.statements가 0, BlockStmt/IfStmt/ForStmt의 자식으로 내려갈 때마다 +1.
+// 복합 Stmt(Block/If/For) 자신도 자식들을 모두 실행한 뒤 이 콜백을 받는다 - 디버그 모드의
+// next(스텝 오버)가 "그 Stmt 전체가 끝난 시점"을 depth만으로 판별할 수 있게 하기 위함이다.
+using StmtExecutedCallback = std::function<void(const Stmt&, IEnvironment&, int depth)>;
 
 class Executor
 {
@@ -58,7 +61,9 @@ private:
 
 	// evaluate()의 Stmt 버전. 값을 만들지 않고 부수효과(출력, 변수 정의/대입, 제어 흐름)를
 	// 일으킨다. BlockStmt/ForStmt에서 재귀 호출 시 새 Environment를 만들어 스코프를 연다.
-	void executeStmt(Stmt* stmt, IEnvironment& environment) const;
+	// onStmtExecuted/depth 기본값(nullptr/0)을 쓰면 기존 호출부(callMethod 등)는 콜백 없이
+	// 그대로 동작한다 - 함수/메서드 본문 내부까지 stepping하는 것은 아직 범위 밖(8.6절).
+	void executeStmt(Stmt* stmt, IEnvironment& environment, const StmtExecutedCallback& onStmtExecuted = nullptr, int depth = 0) const;
 
 	// klass의 methods 목록에서 name을 찾아 반환한다. 자신에게 없으면 resolvedSuperclass를 따라
 	// 조상 클래스까지 계속 탐색한다(메서드 상속). 어디에도 없으면 nullptr.
