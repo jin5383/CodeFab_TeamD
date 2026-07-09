@@ -924,3 +924,18 @@ TEST(DfineShellIntegrationTest, ArgumentCountMismatchDetectedAcrossSeparateLines
 	EXPECT_NE(out.str().find("Argument count mismatch."), std::string::npos)
 		<< "actual output: " << out.str();
 }
+
+// 실사용 경로 검증: Checker가 check() 전체를 통과해야만 execute()가 시작되므로(원자성),
+// "print 5; print foo(1,2);"처럼 한 줄(한 번의 Interpreter::run() 호출) 안에 정상 문장과
+// 인자 개수 불일치 호출이 같이 있으면 앞쪽 print의 부작용조차 전혀 나타나지 않아야 한다.
+// (checkExprCallArity가 PrintStmt를 정적으로 훑기 전에는, "5"가 이미 출력된 뒤에야
+// Executor 런타임 방어선에서 에러가 나 부분 실행이 새어나갔었다.)
+TEST_F(LeeInterpreterIntegrationTest, EarlierPrintDoesNotLeakBeforeLaterArityMismatchInSameBlock)
+{
+	Environment env;
+	EXPECT_THROW(
+		interpreter.run("Func foo(a, b, c) { return a; }\n{ print 5; print foo(1, 2); }\n", env),
+		std::runtime_error);
+
+	EXPECT_EQ(writer.output, "");
+}
