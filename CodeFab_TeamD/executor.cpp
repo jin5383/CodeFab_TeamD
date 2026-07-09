@@ -1,5 +1,6 @@
 ﻿#include "executor.h"
 
+#include <cmath>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -346,6 +347,13 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 			if (divisor == 0)
 				throw std::runtime_error(withLine("Division by zero.", binary->op.line));
 			return asNumber(left, binary->op.line) / divisor;
+		}
+		case TokenType::PERCENT:
+		{
+			double divisor = asNumber(right, binary->op.line);
+			if (divisor == 0)
+				throw std::runtime_error(withLine("Modulo by zero.", binary->op.line));
+			return std::fmod(asNumber(left, binary->op.line), divisor);
 		}
 		case TokenType::LESS:
 			return asNumber(left, binary->op.line) < asNumber(right, binary->op.line);
