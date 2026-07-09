@@ -112,6 +112,38 @@ TEST(AssemblerTokenUnitTest, TokenizeSource_ProducesBraceTokens)
 	EXPECT_EQ(tokens[2].type, TokenType::END_OF_FILE);
 }
 
+// Assembler_Token_Unit: "!true;" -> [BANG, TRUE(value=true), SEMICOLON, END_OF_FILE]
+TEST(AssemblerTokenUnitTest, TokenizeSource_ProducesBangToken)
+{
+	std::vector<Token> tokens = Assembler().tokenize("!true;");
+
+	ASSERT_THAT(tokens, SizeIs(4));
+	EXPECT_EQ(tokens[0].type, TokenType::BANG);
+	EXPECT_EQ(tokens[1].type, TokenType::TRUE);
+	EXPECT_TRUE(std::get<bool>(tokens[1].value));
+	EXPECT_EQ(tokens[2].type, TokenType::SEMICOLON);
+	EXPECT_EQ(tokens[3].type, TokenType::END_OF_FILE);
+}
+
+// Assembler_Construct_Unit: "!true;" -> Program { ExpressionStmt { UnaryExpr(BANG, LiteralExpr(true)) } }
+// C-style !: 피연산자의 truthy 여부를 뒤집는 단항 연산자로 정의한다(isTruthy와 동일한 truthy 규칙 재사용).
+TEST(AssemblerConstructUnitTest, ConstructAssembly_BuildsUnaryBangExprFromTokens)
+{
+	Program program = Assembler().assemble("!true;");
+
+	ASSERT_THAT(program.statements, SizeIs(1));
+	auto* stmt = dynamic_cast<ExpressionStmt*>(program.statements[0]);
+	ASSERT_THAT(stmt, NotNull());
+
+	auto* unary = dynamic_cast<UnaryExpr*>(stmt->expression);
+	ASSERT_THAT(unary, NotNull());
+	EXPECT_EQ(unary->op.type, TokenType::BANG);
+
+	auto* literal = dynamic_cast<LiteralExpr*>(unary->right);
+	ASSERT_THAT(literal, NotNull());
+	EXPECT_TRUE(std::get<bool>(literal->value));
+}
+
 // Assembler_Construct_Unit: 토큰 목록 [IDENTIFIER(a), SEMICOLON, END_OF_FILE]
 // -> Program { ExpressionStmt { VariableExpr(a) } }
 TEST(AssemblerConstructUnitTest, ConstructAssembly_BuildsVariableExprFromTokens)
@@ -702,6 +734,12 @@ namespace
 	{
 		void write(const std::string&) override {}
 	};
+
+	struct CapturingOutputWriter : IOutputWriter
+	{
+		std::string output;
+		void write(const std::string& text) override { output += text; }
+	};
 }
 
 // 런타임 에러 메시지에 줄 번호가 포함돼야 한다.
@@ -717,6 +755,20 @@ TEST(InterpreterLineNumberTest, DivisionByZero_ErrorMessageIncludesLineNumber)
 	{
 		EXPECT_THAT(std::string(e.what()), HasSubstr("[line 2]"));
 	}
+}
+
+// C-style !: 불리언뿐 아니라 언어 전체의 truthy 규칙(isTruthy: monostate/false만 falsy, 그 외는
+// 항상 truthy)을 그대로 재사용해 부정한다 — if/while 조건 판정과 동일한 기준.
+TEST(InterpreterUnitTest, BangOperator_NegatesTruthyEvaluationCStyle)
+{
+	CapturingOutputWriter output;
+	Interpreter(output).run(
+		"print !true;"
+		"print !false;"
+		"print !0;"
+		"print !\"\";");
+
+	EXPECT_EQ(output.output, "false\ntrue\nfalse\nfalse\n");
 }
 
 TEST(InterpreterLineNumberTest, UndefinedVariable_ErrorMessageIncludesLineNumber)
