@@ -1,11 +1,15 @@
 ﻿#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <filesystem>
+#include <fstream>
 #include <sstream>
 #include <stdexcept>
 #include "../ast.h"
 #include "../assembler.h"
+#include "../dfine_shell.h"
 #include "../environment.h"
 #include "../executor.h"
+#include "../file_runner.h"
 #include "../io.h"
 #include "../resolver.h"
 
@@ -537,4 +541,112 @@ TEST_F(ConstantFoldingUnitTest, DoesNotFoldDivisionByZero)
 	ConstantFolder().fold(program);
 
 	EXPECT_THAT(dynamic_cast<BinaryExpr*>(stmt->expression), NotNull());
+}
+
+class FileRunnerTest : public ::testing::Test
+{
+protected:
+	class FakeOutputWriter : public IOutputWriter
+	{
+	public:
+		void write(const std::string& text) override { output += text; }
+		std::string output;
+	};
+
+	std::filesystem::path writeTempFile(const std::string& hint, const std::string& content)
+	{
+		static int counter = 0;
+		auto path = std::filesystem::temp_directory_path() /
+			("codefab_filerunner_test_" + hint + "_" + std::to_string(++counter) + ".txt");
+		std::ofstream file(path);
+		file << content;
+		return path;
+	}
+};
+
+// factory-control-shell-spec.md 1.2절: 정상 스크립트는 그대로 실행되고 성공 코드(0)를 반환한다.
+TEST_F(FileRunnerTest, ValidScript_ExecutesAndReturnsSuccess)
+{
+	auto path = writeTempFile("valid", "print 1 + 2;");
+	FakeOutputWriter output;
+	std::ostringstream errOut;
+
+	int exitCode = FileRunner().run(path.string(), output, errOut);
+
+	EXPECT_EQ(exitCode, 0);
+	EXPECT_EQ(output.output, "3\n");
+	EXPECT_TRUE(errOut.str().empty());
+
+	std::filesystem::remove(path);
+}
+
+// 파일이 없으면 명확한 오류 메시지와 함께 실패(1)를 반환하고, 아무것도 실행하지 않는다.
+TEST_F(FileRunnerTest, MissingFile_ReturnsFailureWithMessage)
+{
+	auto missing = std::filesystem::temp_directory_path() / "codefab_filerunner_missing.txt";
+	std::filesystem::remove(missing);
+	FakeOutputWriter output;
+	std::ostringstream errOut;
+
+	int exitCode = FileRunner().run(missing.string(), output, errOut);
+
+	EXPECT_EQ(exitCode, 1);
+	EXPECT_FALSE(errOut.str().empty());
+	EXPECT_TRUE(output.output.empty());
+}
+
+// Checker 에러가 있으면 아예 실행하지 않고(출력 없음) 실패를 반환한다.
+TEST_F(FileRunnerTest, CheckerError_PreventsExecution)
+{
+	auto path = writeTempFile("checker_error", "{ var a = 1; var a = 2; }");
+	FakeOutputWriter output;
+	std::ostringstream errOut;
+
+	int exitCode = FileRunner().run(path.string(), output, errOut);
+
+	EXPECT_EQ(exitCode, 1);
+	EXPECT_TRUE(output.output.empty());
+	EXPECT_FALSE(errOut.str().empty());
+
+	std::filesystem::remove(path);
+}
+
+// 런타임 에러가 나면 그 시점까지의 출력만 남고 즉시 종료한다(이후 문장은 실행되지 않음).
+TEST_F(FileRunnerTest, RuntimeError_StopsImmediatelyAfterPriorOutput)
+{
+	auto path = writeTempFile("runtime_error", "print 1; var a = 3 / 0; print 2;");
+	FakeOutputWriter output;
+	std::ostringstream errOut;
+
+	int exitCode = FileRunner().run(path.string(), output, errOut);
+
+	EXPECT_EQ(exitCode, 1);
+	EXPECT_EQ(output.output, "1\n");
+	EXPECT_FALSE(errOut.str().empty());
+
+	std::filesystem::remove(path);
+}
+
+// factory-control-shell-spec.md 8.2절: REPL은 exit뿐 아니라 quit으로도 종료돼야 한다.
+// quit 이후의 줄은 처리되지 않아야 하므로, 그 뒷줄의 출력이 없는지로 종료 여부를 확인한다.
+TEST(DfineShellTest, ExitCommand_StopsBeforeProcessingFollowingLines)
+{
+	std::istringstream in("print 1;\nexit\nprint 2;\n");
+	std::ostringstream out;
+
+	DfineShell().run(in, out);
+
+	EXPECT_NE(out.str().find("1"), std::string::npos);
+	EXPECT_EQ(out.str().find("2"), std::string::npos);
+}
+
+TEST(DfineShellTest, QuitCommand_StopsBeforeProcessingFollowingLines)
+{
+	std::istringstream in("print 1;\nquit\nprint 2;\n");
+	std::ostringstream out;
+
+	DfineShell().run(in, out);
+
+	EXPECT_NE(out.str().find("1"), std::string::npos);
+	EXPECT_EQ(out.str().find("2"), std::string::npos);
 }
