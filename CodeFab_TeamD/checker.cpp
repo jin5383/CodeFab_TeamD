@@ -26,6 +26,97 @@ bool Checker::exprReferencesName(Expr* expr, const std::string& name) const
 	return false;
 }
 
+bool Checker::exprUsesSuper(Expr* expr) const
+{
+	if (!expr)
+		return false;
+
+	if (dynamic_cast<SuperExpr*>(expr))
+		return true;
+
+	if (auto* call = dynamic_cast<CallExpr*>(expr))
+	{
+		if (exprUsesSuper(call->callee))
+			return true;
+		for (Expr* arg : call->arguments)
+			if (exprUsesSuper(arg))
+				return true;
+		return false;
+	}
+
+	if (auto* get = dynamic_cast<GetExpr*>(expr))
+		return exprUsesSuper(get->object);
+
+	if (auto* set = dynamic_cast<SetExpr*>(expr))
+		return exprUsesSuper(set->object) || exprUsesSuper(set->value);
+
+	if (auto* assign = dynamic_cast<AssignExpr*>(expr))
+		return exprUsesSuper(assign->value);
+
+	if (auto* binary = dynamic_cast<BinaryExpr*>(expr))
+		return exprUsesSuper(binary->left) || exprUsesSuper(binary->right);
+
+	if (auto* unary = dynamic_cast<UnaryExpr*>(expr))
+		return exprUsesSuper(unary->right);
+
+	if (auto* logical = dynamic_cast<LogicalExpr*>(expr))
+		return exprUsesSuper(logical->left) || exprUsesSuper(logical->right);
+
+	if (auto* grouping = dynamic_cast<GroupingExpr*>(expr))
+		return exprUsesSuper(grouping->expression);
+
+	if (auto* instanceOf = dynamic_cast<InstanceOfExpr*>(expr))
+		return exprUsesSuper(instanceOf->object);
+
+	if (auto* indexGet = dynamic_cast<IndexGetExpr*>(expr))
+		return exprUsesSuper(indexGet->array) || exprUsesSuper(indexGet->index);
+
+	if (auto* indexSet = dynamic_cast<IndexSetExpr*>(expr))
+		return exprUsesSuper(indexSet->array) || exprUsesSuper(indexSet->index) || exprUsesSuper(indexSet->value);
+
+	if (auto* arrayExpr = dynamic_cast<ArrayExpr*>(expr))
+		return exprUsesSuper(arrayExpr->size);
+
+	return false;
+}
+
+bool Checker::stmtUsesSuper(Stmt* stmt) const
+{
+	if (!stmt)
+		return false;
+
+	if (auto* exprStmt = dynamic_cast<ExpressionStmt*>(stmt))
+		return exprUsesSuper(exprStmt->expression);
+
+	if (auto* printStmt = dynamic_cast<PrintStmt*>(stmt))
+		return exprUsesSuper(printStmt->expression);
+
+	if (auto* varDecl = dynamic_cast<VarDeclStmt*>(stmt))
+		return exprUsesSuper(varDecl->initializer);
+
+	if (auto* block = dynamic_cast<BlockStmt*>(stmt))
+	{
+		for (Stmt* inner : block->statements)
+			if (stmtUsesSuper(inner))
+				return true;
+		return false;
+	}
+
+	if (auto* ifStmt = dynamic_cast<IfStmt*>(stmt))
+		return exprUsesSuper(ifStmt->condition) || stmtUsesSuper(ifStmt->thenBranch) || stmtUsesSuper(ifStmt->elseBranch);
+
+	if (auto* forStmt = dynamic_cast<ForStmt*>(stmt))
+		return stmtUsesSuper(forStmt->init) || exprUsesSuper(forStmt->condition)
+			|| exprUsesSuper(forStmt->increment) || stmtUsesSuper(forStmt->body);
+
+	if (auto* returnStmt = dynamic_cast<ReturnStmt*>(stmt))
+		return exprUsesSuper(returnStmt->value);
+
+	// FunctionDeclStmt/ClassDeclStmt는 여기서 재귀하지 않는다 — 함수/메서드 본문은 각자의
+	// 문맥(insideFunction, 클래스의 superclass 존재 여부)을 아는 호출부에서 별도로 검사한다.
+	return false;
+}
+
 bool Checker::isNameDeclared(const std::string& name, const ScopeStack& scopes) const
 {
 	for (auto it = scopes.rbegin(); it != scopes.rend(); ++it)
@@ -156,6 +247,12 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, CheckContext ctx
 	if (!stmt)
 		return CheckerErrno::success;
 
+	// checkStmt는 클래스 메서드 본문에는 절대 재귀하지 않는다(그 아래 classDecl 분기가 메서드를
+	// 직접 순회할 뿐, checkStmts로 넘기지 않음). 그래서 이 일반 경로를 타는 stmt에서 Super가
+	// 발견되면 그건 항상 "클래스 메서드 밖"이라는 뜻이다.
+	if (stmtUsesSuper(stmt))
+		return CheckerErrno::superOutsideClass;
+
 	if (auto* varDecl = dynamic_cast<VarDeclStmt*>(stmt))
 	{
 		const std::string& name = varDecl->name.origin;
@@ -249,6 +346,16 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, CheckContext ctx
 	{
 		if (classDecl->superclass != nullptr && classDecl->superclass->origin == classDecl->name.origin)
 			return CheckerErrno::selfInheritance;
+
+		// superclass가 없는 클래스의 메서드 본문에서 Super를 쓰면 정적으로 바로 알 수 있다.
+		// (superclass가 있으면 이 검사는 필요 없다 — 정당한 Super 사용은 메서드 본문을 여기서
+		// 더 순회하지 않고 그대로 통과시킨다.)
+		if (classDecl->superclass == nullptr)
+			for (FunctionDeclStmt* method : classDecl->methods)
+				for (Stmt* bodyStmt : method->body)
+					if (stmtUsesSuper(bodyStmt))
+						return CheckerErrno::superWithoutParent;
+
 		return CheckerErrno::success;
 	}
 

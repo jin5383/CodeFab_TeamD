@@ -85,6 +85,11 @@ private:
 	// Class A : A(1단계, selfInheritance로 별도 처리)와 달리 Class A : B / Class B : A 처럼
 	// 2단계 이상의 순환은 여기서만 잡힌다.
 	CheckerErrno checkClassInheritanceCycles(const std::vector<Stmt*>& statements) const;
+	// Park: expr/stmt 트리 안에 SuperExpr가 어디든 있으면 true. Super가 클래스 메서드 밖에서
+	// 쓰였는지(superOutsideClass)와, superclass 없는 클래스의 메서드 안에서 쓰였는지
+	// (superWithoutParent)를 정적으로 판별하는 데 쓰인다.
+	bool exprUsesSuper(Expr* expr) const;
+	bool stmtUsesSuper(Stmt* stmt) const;
 	bool isNameDeclared(const std::string& name, const ScopeStack& scopes) const;
 	bool exprReferencesName(Expr* expr, const std::string& name) const;
 };

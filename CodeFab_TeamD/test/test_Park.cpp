@@ -907,6 +907,32 @@ TEST(CheckerClassTest, MutualInheritance_ReportsCircularError)
 	EXPECT_EQ(Checker().check(program), CheckerErrno::circularInheritance);
 }
 
+// 클래스 외부에서 Super 사용: Super.move(); → 정적 오류(Checker)
+TEST(CheckerClassTest, SuperOutsideClass_ReportsError)
+{
+	Program program = Assembler().assemble("Super.move();");
+	EXPECT_EQ(Checker().check(program), CheckerErrno::superOutsideClass);
+}
+
+// 부모 없는 클래스에서 Super 사용 → 정적 오류(Checker)
+TEST(CheckerClassTest, SuperWithoutParent_ReportsError)
+{
+	Program program = Assembler().assemble(
+		"Class Robot { move(dist) { Super.move(dist); } }"
+	);
+	EXPECT_EQ(Checker().check(program), CheckerErrno::superWithoutParent);
+}
+
+// 부모가 있는 클래스에서 Super를 정상적으로 쓰는 경우는 통과해야 한다(오탐 방지).
+TEST(CheckerClassTest, SuperWithParent_IsAllowed)
+{
+	Program program = Assembler().assemble(
+		"Class Robot { move(dist) { print \"move\"; } } "
+		"Class SpeedRobot : Robot { move(dist) { Super.move(dist); } }"
+	);
+	EXPECT_EQ(Checker().check(program), CheckerErrno::success);
+}
+
 // 클래스가 아닌 대상 상속: var x = 10; Class Robot : x { } → 런타임 오류
 TEST(ExecutorClassTest, InheritFromNonClass_ThrowsRuntimeError)
 {
