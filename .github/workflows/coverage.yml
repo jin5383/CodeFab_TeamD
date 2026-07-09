@@ -34,10 +34,14 @@ jobs:
       - name: Run tests under OpenCppCoverage
         shell: pwsh
         run: |
+          # 저장소 루트 폴더명 자체가 CodeFab_TeamD라서 "CodeFab_TeamD" 한 겹만 필터링하면
+          # packages\gmock.1.11.0\... 같은 서드파티 소스까지 부분일치로 걸려 커버리지가
+          # 희석된다(실제 프로덕션 소스는 CodeFab_TeamD\CodeFab_TeamD\*.cpp에 있음). 중첩된
+          # 두 번째 폴더까지 명시해 packages/를 확실히 배제한다.
           $openCppCoverage = "C:\Program Files\OpenCppCoverage\OpenCppCoverage.exe"
           & $openCppCoverage `
-            --sources "CodeFab_TeamD" `
-            --excluded_sources "CodeFab_TeamD\test" `
+            --sources "CodeFab_TeamD\CodeFab_TeamD" `
+            --excluded_sources "CodeFab_TeamD\CodeFab_TeamD\test" `
             --export_type cobertura:coverage.xml `
             -- "x64\Debug\CodeFab_TeamD.exe"
 
