@@ -155,6 +155,8 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 	{
 		if (unary->op.type == TokenType::MINUS)
 			return -asNumber(evaluate(unary->right, environment), unary->op.line);
+		if (unary->op.type == TokenType::BANG)
+			return !isTruthy(evaluate(unary->right, environment));
 	}
 
 	if (auto* call = dynamic_cast<CallExpr*>(expr))

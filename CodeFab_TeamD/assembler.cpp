@@ -76,6 +76,7 @@ namespace
 		case '[': return makeSimpleToken(TokenType::LEFT_BRACKET, "[");
 		case ']': return makeSimpleToken(TokenType::RIGHT_BRACKET, "]");
 		case ':': return makeSimpleToken(TokenType::COLON, ":");
+		case '!': return makeSimpleToken(TokenType::BANG, "!");
 		default: return std::nullopt;
 		}
 	}
@@ -461,7 +462,7 @@ namespace
 		// 단항 마이너스(-a)를 곱셈/나눗셈보다 먼저 결합한다
 		Expr* parseUnaryExpr()
 		{
-			if (getCurrentToken().type == TokenType::MINUS)
+			if (getCurrentToken().type == TokenType::MINUS || getCurrentToken().type == TokenType::BANG)
 			{
 				Token op = getTokenAndAdvance();
 				auto* unary = new UnaryExpr();
