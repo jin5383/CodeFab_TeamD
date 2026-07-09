@@ -379,6 +379,9 @@ protected:
 		MOCK_METHOD(void, assign, (const Token& name, const LiteralValue& value), (override));
 		MOCK_METHOD(LiteralValue, getAt, (int distance, const Token& name), (const, override));
 		MOCK_METHOD(void, assignAt, (int distance, const Token& name, const LiteralValue& value), (override));
+		MOCK_METHOD(bool, tryGet, (const std::string& name, LiteralValue& out), (const, override));
+		MOCK_METHOD(bool, tryGetChain, (const std::string& name, LiteralValue& out), (const, override));
+		MOCK_METHOD((std::vector<std::pair<std::string, LiteralValue>>), entriesInThisScope, (), (const, override));
 	};
 
 	Token identifierToken(const std::string& name)
@@ -711,4 +714,101 @@ TEST(InterpreterLineNumberTest, UndefinedVariable_ErrorMessageIncludesLineNumber
 	{
 		EXPECT_THAT(std::string(e.what()), HasSubstr("[line 2]"));
 	}
+}
+
+// tryGet: 예외 없이 "이 스코프에만" 있는지 조회한다(watch/inspect 용도).
+TEST(EnvironmentUnitTest, TryGetReturnsTrueForNameDefinedInThisScope)
+{
+	::Environment env;
+	env.define("a", 1.0);
+
+	LiteralValue out;
+	ASSERT_TRUE(env.tryGet("a", out));
+	EXPECT_DOUBLE_EQ(std::get<double>(out), 1.0);
+}
+
+TEST(EnvironmentUnitTest, TryGetReturnsFalseWhenNameOnlyExistsInEnclosingScope)
+{
+	::Environment global;
+	global.define("a", 1.0);
+	::Environment local(&global);
+
+	LiteralValue out;
+	EXPECT_FALSE(local.tryGet("a", out));
+}
+
+TEST(EnvironmentUnitTest, TryGetChainFindsNameInEnclosingScope)
+{
+	::Environment global;
+	global.define("a", 1.0);
+	::Environment local(&global);
+
+	LiteralValue out;
+	ASSERT_TRUE(local.tryGetChain("a", out));
+	EXPECT_DOUBLE_EQ(std::get<double>(out), 1.0);
+}
+
+TEST(EnvironmentUnitTest, TryGetChainReturnsFalseWhenNotFoundAnywhereInChain)
+{
+	::Environment global;
+	::Environment local(&global);
+
+	LiteralValue out;
+	EXPECT_FALSE(local.tryGetChain("notDefined", out));
+}
+
+// inspect용: enclosing은 포함하지 않고 이 스코프 자신의 값만 열거한다.
+TEST(EnvironmentUnitTest, EntriesInThisScopeExcludesEnclosingScopeValues)
+{
+	::Environment global;
+	global.define("outer", 1.0);
+	::Environment local(&global);
+	local.define("inner", 2.0);
+
+	auto entries = local.entriesInThisScope();
+	ASSERT_THAT(entries, SizeIs(1));
+	EXPECT_EQ(entries[0].first, "inner");
+	EXPECT_DOUBLE_EQ(std::get<double>(entries[0].second), 2.0);
+}
+
+namespace
+{
+	struct SilentWriter : IOutputWriter
+	{
+		void write(const std::string&) override {}
+	};
+}
+
+// Executor 콜백이 최상위뿐 아니라 블록 내부, 그리고 블록 자신이 끝난 시점까지 정확한
+// depth로 호출되는지 확인한다(디버그 모드의 step/next가 이 depth 정보로 동작할 예정).
+TEST(ExecutorCallbackDepthTest, CallbackFiresForTopLevelNestedAndCompoundStmtWithCorrectDepth)
+{
+	Program program = Assembler().assemble("print 1;\n{\nprint 2;\n}\n");
+
+	SilentWriter output;
+	Executor executor(output);
+	::Environment env;
+
+	std::vector<std::pair<int, int>> calls; // (line, depth)
+	executor.execute(program, env, [&](const Stmt& stmt, IEnvironment&, int depth)
+	{
+		calls.push_back({ stmt.line, depth });
+	});
+
+	ASSERT_THAT(calls, SizeIs(3));
+	EXPECT_EQ(calls[0], std::make_pair(1, 0)); // print 1 (최상위)
+	EXPECT_EQ(calls[1], std::make_pair(3, 1)); // print 2 (블록 내부, depth 1)
+	EXPECT_EQ(calls[2], std::make_pair(2, 0)); // 블록 자신 (자식 다 끝난 뒤, 원래 depth로 복귀)
+}
+
+// Interpreter::run()의 콜백 오버로드가 Facade를 우회하지 않고도 그대로 전달되는지 확인한다.
+TEST(InterpreterCallbackTest, RunWithCallbackInvokesCallbackForEachTopLevelStatement)
+{
+	SilentWriter output;
+	::Environment env;
+	int callCount = 0;
+
+	Interpreter(output).run("print 1;\nprint 2;\n", env, [&](const Stmt&, IEnvironment&, int) { ++callCount; });
+
+	EXPECT_EQ(callCount, 2);
 }

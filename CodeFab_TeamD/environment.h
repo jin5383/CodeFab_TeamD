@@ -3,6 +3,8 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 #include "ast.h"
 #include "error_format.h"
 
@@ -20,6 +22,11 @@ public:
 	// Resolver가 미리 계산해둔 distance로 스코프 체인을 거슬러 올라가지 않고 즉시 접근
 	virtual LiteralValue getAt(int distance, const Token& name) const = 0;
 	virtual void assignAt(int distance, const Token& name, const LiteralValue& value) = 0;
+
+	// 디버그 모드의 watch/inspect용 조회·열거. get()과 달리 예외를 던지지 않는다.
+	virtual bool tryGet(const std::string& name, LiteralValue& out) const = 0;      // 이 스코프만
+	virtual bool tryGetChain(const std::string& name, LiteralValue& out) const = 0; // enclosing까지 재귀
+	virtual std::vector<std::pair<std::string, LiteralValue>> entriesInThisScope() const = 0; // inspect용
 };
 
 // Executor Unit의 변수 컨텍스트. 한 번의 실행뿐 아니라 DfineShell처럼 여러 줄에 걸쳐
@@ -77,6 +84,27 @@ public:
 			return;
 		}
 		enclosing->assignAt(distance - 1, name, value);
+	}
+
+	bool tryGet(const std::string& name, LiteralValue& out) const override
+	{
+		auto it = values.find(name);
+		if (it == values.end())
+			return false;
+		out = it->second;
+		return true;
+	}
+
+	bool tryGetChain(const std::string& name, LiteralValue& out) const override
+	{
+		if (tryGet(name, out))
+			return true;
+		return enclosing ? enclosing->tryGetChain(name, out) : false;
+	}
+
+	std::vector<std::pair<std::string, LiteralValue>> entriesInThisScope() const override
+	{
+		return std::vector<std::pair<std::string, LiteralValue>>(values.begin(), values.end());
 	}
 
 private:

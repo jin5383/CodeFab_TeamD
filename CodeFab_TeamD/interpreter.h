@@ -26,8 +26,11 @@ public:
 	// IOutputWriter는 Executor에게 그대로 전달된다(io.h의 Strategy 패턴 참고).
 	explicit Interpreter(IOutputWriter& output) : executor(output) {}
 
-	// 주어진 environment(컨텍스트)를 유지하며 실행 (DfineShell 등 여러 줄에 걸친 세션용)
-	void run(const std::string& source, IEnvironment& environment) const;
+	// 주어진 environment(컨텍스트)를 유지하며 실행 (DfineShell 등 여러 줄에 걸친 세션용).
+	// onStmtExecuted: DebugShell의 stepping 훅(기본값 nullptr이면 기존과 동일하게 콜백 없이
+	// 실행) - Facade 뒤에 Assembler/ConstantFolder/Resolver/Checker/Executor가 있다는 사실을
+	// DebugShell이 몰라도 되도록, 조합 순서는 여기서 그대로 감춘다.
+	void run(const std::string& source, IEnvironment& environment, const StmtExecutedCallback& onStmtExecuted = nullptr) const;
 
 	// 매번 새 global Environment로 한 번만 실행하는 호출자를 위한 진입점.
 	void run(const std::string& source) const;

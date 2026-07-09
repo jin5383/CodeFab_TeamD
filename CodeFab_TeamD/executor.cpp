@@ -47,6 +47,23 @@ namespace
 		LiteralValue getAt(int, const Token& name) const override { return get(name); }
 		void assignAt(int, const Token& name, const LiteralValue& value) override { assign(name, value); }
 
+		bool tryGet(const std::string& name, LiteralValue& out) const override
+		{
+			auto it = module->fields.find(name);
+			if (it == module->fields.end())
+				return false;
+			out = it->second;
+			return true;
+		}
+
+		// 모듈은 enclosing 체인이 없는 독립된 스코프이므로 체인 탐색도 이 스코프에서 끝난다.
+		bool tryGetChain(const std::string& name, LiteralValue& out) const override { return tryGet(name, out); }
+
+		std::vector<std::pair<std::string, LiteralValue>> entriesInThisScope() const override
+		{
+			return std::vector<std::pair<std::string, LiteralValue>>(module->fields.begin(), module->fields.end());
+		}
+
 	private:
 		std::shared_ptr<Instance> module;
 	};
@@ -248,7 +265,7 @@ std::string Executor::stringify(const LiteralValue& value, int line) const
 	return out.str();
 }
 
-void Executor::executeStmt(Stmt* stmt, IEnvironment& environment) const
+void Executor::executeStmt(Stmt* stmt, IEnvironment& environment, const StmtExecutedCallback& onStmtExecuted, int depth) const
 {
 	if (auto* printStmt = dynamic_cast<PrintStmt*>(stmt))
 	{
@@ -270,23 +287,23 @@ void Executor::executeStmt(Stmt* stmt, IEnvironment& environment) const
 		// 렉시컬 스코프(unit-io-spec.md 6.3절)가 C++ 스택 프레임 수명에 그대로 얹힌다.
 		Environment blockEnv(&environment);
 		for (Stmt* inner : block->statements)
-			executeStmt(inner, blockEnv);
+			executeStmt(inner, blockEnv, onStmtExecuted, depth + 1);
 	}
 	else if (auto* ifStmt = dynamic_cast<IfStmt*>(stmt))
 	{
 		if (isTruthy(evaluate(ifStmt->condition, environment)))
-			executeStmt(ifStmt->thenBranch, environment);
+			executeStmt(ifStmt->thenBranch, environment, onStmtExecuted, depth + 1);
 		else if (ifStmt->elseBranch)
-			executeStmt(ifStmt->elseBranch, environment);
+			executeStmt(ifStmt->elseBranch, environment, onStmtExecuted, depth + 1);
 	}
 	else if (auto* forStmt = dynamic_cast<ForStmt*>(stmt))
 	{
 		Environment loopEnv(&environment);
 		if (forStmt->init)
-			executeStmt(forStmt->init, loopEnv);
+			executeStmt(forStmt->init, loopEnv, onStmtExecuted, depth + 1);
 		while (!forStmt->condition || isTruthy(evaluate(forStmt->condition, loopEnv)))
 		{
-			executeStmt(forStmt->body, loopEnv);
+			executeStmt(forStmt->body, loopEnv, onStmtExecuted, depth + 1);
 			if (forStmt->increment)
 				evaluate(forStmt->increment, loopEnv);
 		}
@@ -348,16 +365,15 @@ void Executor::executeStmt(Stmt* stmt, IEnvironment& environment) const
 
 		environment.define(importStmt->alias.origin, module);
 	}
+
+	if (onStmtExecuted)
+		onStmtExecuted(*stmt, environment, depth);
 }
 
 void Executor::execute(const Program& program, IEnvironment& environment, const StmtExecutedCallback& onStmtExecuted) const
 {
 	for (Stmt* stmt : program.statements)
-	{
-		executeStmt(stmt, environment);
-		if (onStmtExecuted)
-			onStmtExecuted(*stmt, environment);
-	}
+		executeStmt(stmt, environment, onStmtExecuted, 0);
 }
 
 void Executor::execute(const Program& program) const
