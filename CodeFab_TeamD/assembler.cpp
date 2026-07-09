@@ -322,12 +322,18 @@ namespace
 
 			auto* stmt = new ForStmt();
 
+			// init은 parseStatement()를 거치지 않고 parseVarDeclStatement/parseExpressionStatement를
+			// 직접 호출하므로, 그 래퍼가 해주는 line 대입을 여기서 직접 해줘야 한다(안 하면 항상
+			// 기본값 0으로 남아 디버그 모드/에러 메시지에서 "0번째 줄"처럼 잘못 표시된다).
+			int initLine = getCurrentToken().line;
 			if (getCurrentToken().type == TokenType::SEMICOLON)
 				getTokenAndAdvance(); // 초기화 없음: ;
 			else if (getCurrentToken().type == TokenType::VAR)
 				stmt->init = parseVarDeclStatement(); // 내부에서 ; 까지 소비
 			else
 				stmt->init = parseExpressionStatement(); // 내부에서 ; 까지 소비
+			if (stmt->init)
+				stmt->init->line = initLine;
 
 			if (getCurrentToken().type != TokenType::SEMICOLON)
 				stmt->condition = parseExpression();

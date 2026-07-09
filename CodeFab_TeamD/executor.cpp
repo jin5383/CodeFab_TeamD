@@ -405,6 +405,15 @@ std::string Executor::stringify(const LiteralValue& value, int line) const
 
 void Executor::executeStmt(Stmt* stmt, IEnvironment& environment, const StmtExecutedCallback& onStmtExecuted, int depth) const
 {
+	// 이 Stmt를 실행하기 전에 콜백을 부른다(preorder) - 디버그 모드가 "이 줄을 실행하기
+	// 직전"에 멈출 수 있어야 하기 때문이다(additional-requirement-impl-spec.md의 step 설명:
+	// "현재 Stmt 실행 후 다음 Stmt에서 정지" - 정지 상태는 항상 "아직 실행 안 된 다음 문장
+	// 앞"이어야 한다). 실행 후에 부르면 출력/부수효과가 이미 일어난 뒤라 순서가 뒤집히고,
+	// 이 문장이 예외를 던지면 콜백이 전혀 호출되지 않아 에러 발생 직전 상태를 들여다볼
+	// 기회조차 사라진다.
+	if (onStmtExecuted)
+		onStmtExecuted(*stmt, environment, depth);
+
 	if (auto* printStmt = dynamic_cast<PrintStmt*>(stmt))
 	{
 		output.write(stringify(evaluate(printStmt->expression, environment), printStmt->line) + "\n");
@@ -527,9 +536,6 @@ void Executor::executeStmt(Stmt* stmt, IEnvironment& environment, const StmtExec
 
 		environment.define(importStmt->alias.origin, module);
 	}
-
-	if (onStmtExecuted)
-		onStmtExecuted(*stmt, environment, depth);
 }
 
 void Executor::execute(const Program& program, IEnvironment& environment, const StmtExecutedCallback& onStmtExecuted) const

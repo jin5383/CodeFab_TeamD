@@ -153,6 +153,7 @@
     <ClCompile Include="debug_shell.cpp" />
     <ClCompile Include="test\test_Ryu.cpp" />
     <ClCompile Include="test\test_Kwon.cpp" />
+    <ClCompile Include="test\test_Kwon_IT.cpp" />
     <ClCompile Include="test\test_Lee.cpp" />
     <ClCompile Include="test\test_Hong.cpp" />
     <ClCompile Include="test\test_Park.cpp" />
