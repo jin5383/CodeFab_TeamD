@@ -131,7 +131,7 @@ TEST(ImportUnitTest, ImportFile_ReimportAfterEnclosingBlockScopeEnded_Succeeds)
 	{
 		ImportScope blockScope(&parent);
 		blockScope.importFile(path.string(), "m");
-	} // blockScope 소멸: 해당 바인딩도 함께 사라짐
+	}
 
 	ImportScope laterBlockScope(&parent);
 	EXPECT_NO_THROW(laterBlockScope.importFile(path.string(), "m"));
@@ -173,4 +173,24 @@ TEST(ImportUnitTest, ImportFile_NestedImportInsideModule_BindsIntoModulesOwnScop
 
 	filesystem::remove(innerPath);
 	filesystem::remove(outerPath);
+}
+
+TEST(ImportUnitTest, ImportFile_NonDeclarationStatementInFile_Throws)
+{
+	auto path = writeTempFile("nondecl_print", "var value = 1; print value;");
+	ImportScope scope;
+
+	EXPECT_THROW(scope.importFile(path.string(), "m"), ImportError);
+
+	filesystem::remove(path);
+}
+
+TEST(ImportUnitTest, ImportFile_IfStatementInFile_Throws)
+{
+	auto path = writeTempFile("nondecl_if", "if (true) { var value = 1; }");
+	ImportScope scope;
+
+	EXPECT_THROW(scope.importFile(path.string(), "m"), ImportError);
+
+	filesystem::remove(path);
 }

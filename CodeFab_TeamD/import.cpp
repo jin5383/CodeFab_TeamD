@@ -2,14 +2,13 @@
 #include "interpreter.h"
 #include "io.h"
 
+#include <cctype>
 #include <fstream>
 #include <sstream>
 #include <vector>
 
 namespace
 {
-	// import로 로딩되는 파일은 선언만 담아야 하므로 정상적으로는 아무 것도 출력하지 않지만,
-	// Interpreter(Facade) 생성자가 IOutputWriter&를 요구하므로 아무 동작도 하지 않는 구현을 준다.
 	class NullOutputWriter : public IOutputWriter
 	{
 	public:
@@ -25,8 +24,6 @@ namespace
 		return text.substr(begin, end - begin + 1);
 	}
 
-	// 메인 토크나이저가 아직 import/alias 키워드를 모르므로, import 문(들)만 텍스트 단계에서
-	// 먼저 걸러내고 나머지만 Interpreter(assemble/check/execute)에 넘긴다.
 	std::vector<std::string> splitBySemicolon(const std::string& source)
 	{
 		std::vector<std::string> statements;
@@ -45,11 +42,25 @@ namespace
 		return statements;
 	}
 
-	// 순환 임포트 감지용: 현재 로딩 중인 파일 경로 스택 (재귀적인 importFile 호출 전체에서 공유).
 	std::vector<std::string>& importStack()
 	{
 		static std::vector<std::string> stack;
 		return stack;
+	}
+
+	bool startsWithKeyword(const std::string& text, const std::string& keyword)
+	{
+		if (text.compare(0, keyword.size(), keyword) != 0)
+			return false;
+		if (text.size() == keyword.size())
+			return true;
+		char next = text[keyword.size()];
+		return !std::isalnum(static_cast<unsigned char>(next)) && next != '_';
+	}
+
+	bool isDeclarationStatementText(const std::string& trimmed)
+	{
+		return startsWithKeyword(trimmed, "var") || startsWithKeyword(trimmed, "Func");
 	}
 }
 
@@ -145,7 +156,7 @@ Environment& ImportScope::importFile(const std::string& path, const std::string&
 	try
 	{
 		std::string remainingSource;
-		ImportScope moduleImports; // 모듈 내부의 import는 모듈 자신만의 독립된 스코프에 적용된다.
+		ImportScope moduleImports;
 		for (const std::string& statementText : splitBySemicolon(source))
 		{
 			std::string trimmed = trim(statementText);
@@ -156,15 +167,18 @@ Environment& ImportScope::importFile(const std::string& path, const std::string&
 				ImportStatementText nested = parseImportStatementText(trimmed);
 				moduleImports.importFile(nested.path, nested.alias);
 			}
-			else
+			else if (isDeclarationStatementText(trimmed))
 			{
 				remainingSource += trimmed + "\n";
+			}
+			else
+			{
+				throw ImportError("Import target file may only contain declarations: '" + path + "'.");
 			}
 		}
 
 		auto [it, inserted] = bindings.emplace(alias, Binding{ path, Environment{} });
 
-		// Interpreter(Facade)가 이미 assemble -> check -> execute 조합을 알고 있으므로 그대로 재사용한다.
 		NullOutputWriter output;
 		Interpreter(output).run(remainingSource, it->second.environment);
 
