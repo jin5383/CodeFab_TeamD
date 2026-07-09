@@ -86,3 +86,9 @@ scripts/                       # 보조 스크립트 (요구사항 PDF 텍스트
 - PR 단위 100라인 이내로 작게 분할
 - 커밋 메시지: `[feature]` `[fix]` `[refactor]` `[test]` `[docs]` `[chore]` 중 하나의 Prefix 사용
 - 원격 Push/Merge 전 개인 브랜치에 최신 Master를 먼저 Merge
+
+
+## 제약 사항
+- Array에서 다차원 배열은 미지원 합니다.
+- Class 내 멤버변수로 Array는 미지원 합니다. 
+ 
