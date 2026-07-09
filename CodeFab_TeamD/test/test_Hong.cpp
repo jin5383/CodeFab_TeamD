@@ -1,9 +1,11 @@
 ﻿#include <gtest/gtest.h>
+#include <gmock/gmock.h>
 #include <exception>
 #include "../executor.h"
 #include "../assembler.h"
 
 using namespace std;
+using ::testing::HasSubstr;
 
 // [디자인 패턴 사용처] Strategy(io.h)의 테스트용 ConcreteStrategy.
 // 예전에는 std::cout.rdbuf()를 실제 스트림에 갈아끼워 표준 출력을 가로채는 방식(고전적인
@@ -773,7 +775,7 @@ TEST_F(ExecutorTest, IndexAssignmentWithUndefinedVariable)
 	}
 	catch (const std::exception& e)
 	{
-		EXPECT_STREQ(e.what(), "Undefined variable 'ABC'.");
+		EXPECT_THAT(e.what(), HasSubstr("Undefined variable 'ABC'."));
 	}
 }
 

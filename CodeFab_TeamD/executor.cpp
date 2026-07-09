@@ -83,7 +83,7 @@ std::shared_ptr<ArrayValue> Executor::asArray(const LiteralValue& value) const
 // 인덱스 값이 숫자가 아니거나 정수가 아니거나 범위를 벗어나면 런타임 에러.
 size_t Executor::asArrayIndex(const LiteralValue& value, size_t arraySize) const
 {
-	double indexValue = asNumber(value);
+	double indexValue = asNumber(value, 0);
 	bool isIntegerInRange = indexValue >= 0
 		&& indexValue == static_cast<long long>(indexValue)
 		&& static_cast<size_t>(indexValue) < arraySize;
