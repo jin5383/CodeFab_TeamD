@@ -650,3 +650,65 @@ TEST(DfineShellTest, QuitCommand_StopsBeforeProcessingFollowingLines)
 	EXPECT_NE(out.str().find("1"), std::string::npos);
 	EXPECT_EQ(out.str().find("2"), std::string::npos);
 }
+
+#include "../interpreter.h"
+
+// 토크나이저가 개행을 지날 때마다 줄 번호를 올바르게 증가시키는지 확인한다.
+TEST(AssemblerUnitTest, TokenizeSource_TracksLineNumbersAcrossNewlines)
+{
+	std::vector<Token> tokens = Assembler().tokenize("var a = 1;\nprint a;\n");
+
+	ASSERT_THAT(tokens, SizeIs(9));
+	EXPECT_EQ(tokens[0].line, 1);  // var
+	EXPECT_EQ(tokens[4].line, 1);  // ;
+	EXPECT_EQ(tokens[5].line, 2);  // print
+	EXPECT_EQ(tokens[8].line, 3);  // END_OF_FILE
+}
+
+// Parser가 각 Stmt에 그 문장의 첫 토큰 줄 번호를 대입하는지 확인한다(디버그 모드의
+// break <줄번호>가 앞으로 이 필드를 그대로 재사용할 수 있다).
+TEST(AssemblerUnitTest, ParsedStatements_HaveCorrectLineNumbers)
+{
+	Program program = Assembler().assemble("var a = 1;\nprint a;\n");
+
+	ASSERT_THAT(program.statements, SizeIs(2));
+	EXPECT_EQ(program.statements[0]->line, 1);
+	EXPECT_EQ(program.statements[1]->line, 2);
+}
+
+namespace
+{
+	struct SilentOutputWriter : IOutputWriter
+	{
+		void write(const std::string&) override {}
+	};
+}
+
+// factory-control-shell-spec.md 1.2절: 런타임 에러 메시지에 줄 번호가 포함돼야 한다.
+TEST(InterpreterLineNumberTest, DivisionByZero_ErrorMessageIncludesLineNumber)
+{
+	SilentOutputWriter output;
+	try
+	{
+		Interpreter(output).run("print 1;\nvar a = 3 / 0;\n");
+		FAIL() << "런타임 에러가 발생해야 함";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_THAT(std::string(e.what()), HasSubstr("[line 2]"));
+	}
+}
+
+TEST(InterpreterLineNumberTest, UndefinedVariable_ErrorMessageIncludesLineNumber)
+{
+	SilentOutputWriter output;
+	try
+	{
+		Interpreter(output).run("print 1;\nprint notDefined;\n");
+		FAIL() << "런타임 에러가 발생해야 함";
+	}
+	catch (const std::exception& e)
+	{
+		EXPECT_THAT(std::string(e.what()), HasSubstr("[line 2]"));
+	}
+}

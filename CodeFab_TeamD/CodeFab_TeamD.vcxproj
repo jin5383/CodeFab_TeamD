@@ -169,6 +169,7 @@
     <ClInclude Include="resolver.h" />
     <ClInclude Include="constant_folding.h" />
     <ClInclude Include="file_runner.h" />
+    <ClInclude Include="error_format.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

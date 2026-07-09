@@ -4,6 +4,7 @@
 #include <string>
 #include <unordered_map>
 #include "ast.h"
+#include "error_format.h"
 
 // Executor/Interpreter가 구체 타입(Environment) 대신 이 인터페이스에만 의존하게 해,
 // 테스트에서 gmock으로 Environment를 대체(Test Double)할 수 있게 한다.
@@ -40,7 +41,7 @@ public:
 			return it->second;
 		if (enclosing)
 			return enclosing->get(name);
-		throw std::runtime_error("Undefined variable '" + name.origin + "'.");
+		throw std::runtime_error(withLine("Undefined variable '" + name.origin + "'.", name.line));
 	}
 
 	void assign(const Token& name, const LiteralValue& value) override
@@ -56,7 +57,7 @@ public:
 			enclosing->assign(name, value);
 			return;
 		}
-		throw std::runtime_error("Undefined variable '" + name.origin + "'.");
+		throw std::runtime_error(withLine("Undefined variable '" + name.origin + "'.", name.line));
 	}
 
 	// distance == 0이면 이 스코프에서 바로 찾고, 아니면 enclosing에게 (distance - 1)로 위임한다
