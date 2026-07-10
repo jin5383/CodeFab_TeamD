@@ -445,27 +445,6 @@ TEST_F(CheckerUnitTest, SelfReferencingInitializer_ReportsError)
 	EXPECT_EQ(CheckerErrno::selfReferencingInitializer, Checker().check(program));
 }
 
-// Checker unit: `{ var a = 1; var a = 2; }` 에 해당하는 Program -> 같은 로컬 스코프 중복 선언 에러
-TEST_F(CheckerUnitTest, DuplicateDeclarationInSameScope_ReportsError)
-{
-	auto* firstDecl = new VarDeclStmt();
-	firstDecl->name = identifierToken("a");
-	firstDecl->initializer = makeNumberLiteral(1.0);
-
-	auto* secondDecl = new VarDeclStmt();
-	secondDecl->name = identifierToken("a");
-	secondDecl->initializer = makeNumberLiteral(2.0);
-
-	auto* block = new BlockStmt();
-	block->statements.push_back(firstDecl);
-	block->statements.push_back(secondDecl);
-
-	Program program;
-	program.statements.push_back(block);
-
-	EXPECT_EQ(CheckerErrno::duplicateDeclarationInSameScope, Checker().check(program));
-}
-
 // Assembler_Token_Unit: "Func" / "return" 이 각각 TokenType::FUNC / TokenType::RETURN 으로
 // 토큰화되어야 한다(docs/scenarios/lee-function-scenarios.md 1절 함수 선언 시나리오의 전제 조건).
 // 아직 scanKeywordToken에 등록되지 않아 IDENTIFIER로 잡히므로 이 테스트는 RED 상태다.
@@ -762,6 +741,126 @@ protected:
 	LeeFakeOutputWriter writer;
 	Executor executor{ writer };
 };
+
+// var/Func/Class는 모두 같은 scope의 이름 공간을 공유해야 한다(Environment::define/get이
+// 셋을 같은 map에 저장한다). 즉 이름 충돌은 (var, Func, Class) x (var, Func, Class) = 9가지
+// 선언 순서쌍에서 모두 정적으로 duplicateDeclarationInSameScope가 나야 한다. 아래 9개를
+// var-var, var-Func, var-Class, Func-var, Func-Func, Func-Class, Class-var, Class-Func,
+// Class-Class 순서로 모아둔다. var-var(첫 번째)만 실제로 통과하고, checker.cpp의
+// FunctionDeclStmt/ClassDeclStmt 처리가 현재 scopes.back()에 자기 이름을 등록/검사하지
+// 않으므로 나머지 8개는 모두 실패한다.
+
+// Checker unit: `{ var a = 1; var a = 2; }` 에 해당하는 Program -> 같은 로컬 스코프 중복 선언 에러
+TEST_F(CheckerUnitTest, DuplicateDeclarationInSameScope_ReportsError)
+{
+	auto* firstDecl = new VarDeclStmt();
+	firstDecl->name = identifierToken("a");
+	firstDecl->initializer = makeNumberLiteral(1.0);
+
+	auto* secondDecl = new VarDeclStmt();
+	secondDecl->name = identifierToken("a");
+	secondDecl->initializer = makeNumberLiteral(2.0);
+
+	auto* block = new BlockStmt();
+	block->statements.push_back(firstDecl);
+	block->statements.push_back(secondDecl);
+
+	Program program;
+	program.statements.push_back(block);
+
+	EXPECT_EQ(CheckerErrno::duplicateDeclarationInSameScope, Checker().check(program));
+}
+
+// var-Func: var가 먼저, 같은 이름의 Func가 나중.
+TEST_F(LeeExecutorTest, VarThenFunctionSameName_RejectedAsDuplicate)
+{
+	Program program = Assembler().assemble("var foo = 1; Func foo(a) { return a; }");
+
+	EXPECT_EQ(CheckerErrno::duplicateDeclarationInSameScope, Checker().check(program));
+}
+
+// var-Class: var가 먼저, 같은 이름의 Class가 나중.
+TEST_F(LeeExecutorTest, VarThenClassSameName_RejectedAsDuplicate)
+{
+	Program program = Assembler().assemble("var foo = 1; Class foo { }");
+
+	EXPECT_EQ(CheckerErrno::duplicateDeclarationInSameScope, Checker().check(program));
+}
+
+// Func-var: Func가 먼저, 같은 이름의 var가 나중. 뒤에 add(5, 10)/print add; 같은 사용
+// 코드가 있어도(즉, 이 충돌이 실제 호출부에서 문제를 일으킬 상황이어도) 정적 에러가 먼저
+// 잡혀야 한다 — 그렇지 않으면 add는 조용히 3으로 덮어써진 뒤 add(5, 10) 호출에서야
+// "Can only call functions." 런타임 에러로 뒤늦게 드러난다.
+TEST_F(LeeExecutorTest, FunctionThenVarSameName_RejectedAsDuplicate)
+{
+	Program program = Assembler().assemble(
+		"Func add(a, b) { return a + b; } "
+		"var add = 3; "
+		"print add(5, 10); "
+		"print add;");
+
+	EXPECT_EQ(CheckerErrno::duplicateDeclarationInSameScope, Checker().check(program));
+}
+
+// Func-var(변형): 위와 같은 순서쌍이지만, 뒤에 호출/참조 문장이 전혀 없어도 두 선언이
+// 존재하는 것만으로 바로 에러가 트리거되는지 확인한다 — 사용 코드가 있어야 비로소
+// 드러나는 것이 아니라, 선언 시점에 이미 결정된 문제라는 점을 보인다.
+TEST_F(LeeExecutorTest, FunctionThenVarSameName_NoUsageNeeded_RejectedAsDuplicate)
+{
+	Program program = Assembler().assemble("Func Foo(a, b) { return a + b; } var Foo;");
+
+	EXPECT_EQ(CheckerErrno::duplicateDeclarationInSameScope, Checker().check(program));
+}
+
+// Func-Func: 이 언어는 함수 오버로딩(같은 이름, 다른 인자 개수)을 지원하지 않는다 —
+// checker.cpp의 FunctionDeclStmt 처리가 이름만으로 scopes.back()에서 중복을 검사하므로
+// (인자 개수는 보지 않음), 같은 scope에 같은 이름의 함수를 인자 개수가 다르게 두 번
+// 선언해도 여전히 duplicateDeclarationInSameScope로 거부된다 — 예외 없이 둘 다 정의되는
+// 것이 아니다.
+TEST_F(LeeExecutorTest, FunctionThenFunctionSameName_DifferentArity_RejectedAsDuplicate)
+{
+	Program program = Assembler().assemble(
+		"Func foo(a, b) { return a + b; } "
+		"Func foo(a, b, c) { return a + b + c; }");
+
+	EXPECT_EQ(CheckerErrno::duplicateDeclarationInSameScope, Checker().check(program));
+}
+
+// Func-Class: Func가 먼저, 같은 이름의 Class가 나중.
+TEST_F(LeeExecutorTest, FunctionThenClassSameName_RejectedAsDuplicate)
+{
+	Program program = Assembler().assemble("Func foo(a, b) { return a + b; } Class foo { }");
+
+	EXPECT_EQ(CheckerErrno::duplicateDeclarationInSameScope, Checker().check(program));
+}
+
+// Class-var: Class가 먼저, 같은 이름의 var가 나중.
+TEST_F(LeeExecutorTest, ClassThenVarSameName_RejectedAsDuplicate)
+{
+	Program program = Assembler().assemble("Class foo { } var foo = 1;");
+
+	EXPECT_EQ(CheckerErrno::duplicateDeclarationInSameScope, Checker().check(program));
+}
+
+// Class-Func: Class가 먼저, 같은 이름의 Func가 나중.
+TEST_F(LeeExecutorTest, ClassThenFunctionSameName_RejectedAsDuplicate)
+{
+	Program program = Assembler().assemble("Class foo { } Func foo(a, b) { return a + b; }");
+
+	EXPECT_EQ(CheckerErrno::duplicateDeclarationInSameScope, Checker().check(program));
+}
+
+// Class-Class: Func-Func가 "다른 인자 개수"로 서로 다름을 보였던 것처럼, 여기서는 두
+// Foo 클래스가 서로 다른 생성자/메서드를 가진다는 점에서 다르다 — 그럼에도 이름이 같으므로
+// 여전히 거부되어야 한다(클래스 내부가 우연히 같은지 여부와 무관하게, 이름 충돌 자체가 기준).
+TEST_F(LeeExecutorTest, ClassThenClassSameName_DifferentMembers_RejectedAsDuplicate)
+{
+	Program program = Assembler().assemble(
+		"Class Foo { init(a) { This.a = a; } } "
+		"Class Foo { move(dist) { print dist; } }");
+
+	EXPECT_EQ(CheckerErrno::duplicateDeclarationInSameScope, Checker().check(program));
+}
 
 // Executor unit: "Func greet() { return 1; }" 실행 시 environment에 함수 값이
 // 정의되어야 한다(docs/scenarios/lee-function-scenarios.md 선언+호출 시나리오의 전제 조건).
