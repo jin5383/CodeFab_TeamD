@@ -132,10 +132,13 @@ public:
 		std::vector<std::pair<std::string, LiteralValue>>& globalEntries) const override
 	{
 		auto entries = entriesInThisScope();
-		if (enclosing)
+		// enclosing은 IEnvironment*(일반 실행/gmock 대체용)라 collectLocalAndGlobalEntries가 없다 -
+		// tryGetChain/root()와 같은 이유로 실제 체인을 타는 동안만 IInspectableEnvironment로 확인한다.
+		auto* inspectableEnclosing = dynamic_cast<IInspectableEnvironment*>(enclosing);
+		if (inspectableEnclosing)
 		{
 			localEntries.insert(localEntries.end(), entries.begin(), entries.end());
-			enclosing->collectLocalAndGlobalEntries(localEntries, globalEntries);
+			inspectableEnclosing->collectLocalAndGlobalEntries(localEntries, globalEntries);
 		}
 		else
 		{
