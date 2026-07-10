@@ -1,0 +1,17 @@
+Class Robot {
+    init(name, power) {
+        This.name = name;
+        This.power = power;
+    }
+    charge(amount) {
+        This.power = This.power + amount;
+    }
+}
+
+var r = Robot("Wall-E", 10);
+
+for (var i = 0; i < 3; i = i + 1) {
+    r.charge(5);
+}
+
+print r.power;

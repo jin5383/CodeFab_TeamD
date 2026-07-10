@@ -1,0 +1,4 @@
+Func foodPortion(weight) {
+    return weight / 2;
+}
+var dailyVisitors = 12;

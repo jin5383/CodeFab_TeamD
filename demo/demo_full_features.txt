@@ -1,0 +1,59 @@
+import "shelter_utils.txt" alias shelter;
+
+Class Animal {
+    init(name, weight) {
+        This.name = name;
+        This.weight = weight;
+    }
+    speak() {
+        print This.name + " makes a sound.";
+    }
+    feed(portion) {
+        print This.name + "'s meal is ready:";
+        print portion;
+    }
+    totalFood(portion, days) {
+        if (days < 1) return 0;
+        return portion + This.totalFood(portion, days - 1);
+    }
+}
+
+Class Dog : Animal {
+    speak() {
+        print This.name + " says: Woof";
+    }
+}
+
+Class Cat : Animal {
+    speak() {
+        print This.name + " says: Meow";
+    }
+}
+
+var d = Dog("Rex", 20);
+var c = Cat("Nabi", 4);
+
+print "<Morning roll call>";
+for (var i = 0; i < 2; i = i + 1) {
+    d.speak();
+    c.speak();
+}
+
+print "<Feeding time>";
+d.feed(shelter.foodPortion(d.weight));
+c.feed(shelter.foodPortion(c.weight));
+
+print "3-day food total for Rex:";
+print d.totalFood(shelter.foodPortion(d.weight), 3);
+print "3-day food total for Nabi:";
+print c.totalFood(shelter.foodPortion(c.weight), 3);
+
+print "Is Rex an Animal?";
+print d instanceof Animal;
+print "Is Nabi an Animal?";
+print c instanceof Animal;
+print "Is Rex a Cat?";
+print d instanceof Cat;
+
+print "Today's shelter visitors:";
+print shelter.dailyVisitors;
