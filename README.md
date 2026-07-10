@@ -89,9 +89,8 @@ source code (string)
 3. Debug 구성으로 빌드 후 실행하면 `main.cpp`가 등록된 모든 Google Test를 실행합니다.
 4. Release 구성으로 빌드하면 실제 인터프리터 실행 파일이 만들어집니다.
    - 인자 없이 실행: REPL(`DfineShell`) 모드로 진입합니다.
-   - `<실행파일> run <파일경로>`: 해당 파일을 한 번에 실행합니다(`FileRunner`).
-   - `debug <파일경로>`(디버그 모드, `DebugShell`)는 구현/테스트는 완료됐지만 아직 `main.cpp`의
-     인자 분기에는 연결되어 있지 않습니다.
+   - `run <파일경로>`: 해당 파일을 한 번에 실행합니다(`FileRunner`).
+   - `debug <파일경로>`: 디버그 모드(`DebugShell`)로 실행합니다.
 
 ## Custom Language 사용 방법
 
