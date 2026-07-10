@@ -4,9 +4,11 @@
 // step/next/continue/break/remove/Breakpoints로 실행 흐름을 제어하고,
 // watch/unwatch/watches/inspect로 변수 값을 들여다볼 수 있다.
 
+#include <functional>
 #include <iostream>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include "environment.h"
 #include "interpreter.h"
@@ -42,14 +44,33 @@ private:
 	// 하는 명령이면 false를 반환. env는 watch/watches/inspect가 조회할, 정지된 그 시점의
 	// (가장 안쪽) 스코프 — DebugShell::environment(최상위 스코프)가 아니라 Executor가 그
 	// Stmt 실행 시점에 실제로 쓰던 스코프여야 한다(예: 블록 내부에서 멈췄으면 그 블록의 스코프).
-	bool handleCommand(const std::string& commandLine, int depth, IEnvironment& env, std::ostream& out);
+	// IInspectableEnvironment&를 받는다 - watch/inspect가 tryGetChain/entriesInThisScope를 쓰기 때문(ISP).
+	bool handleCommand(const std::string& commandLine, int depth, IInspectableEnvironment& env, std::ostream& out);
+
+	// 명령어 하나의 나머지 인자(tokens)를 파싱해 실행한다. 반환값은 handleCommand와 같다.
+	// 새 명령어를 추가할 때는 이 시그니처의 메서드를 만들어 commandHandlers()에 등록하기만
+	// 하면 되고, 기존 명령어의 처리 코드는 건드리지 않는다(OCP).
+	using CommandHandler = bool (DebugShell::*)(std::istringstream& tokens, int depth, IInspectableEnvironment& env, std::ostream& out);
+	static const std::unordered_map<std::string, CommandHandler>& commandHandlers();
+
+	bool cmdStep(std::istringstream& tokens, int depth, IInspectableEnvironment& env, std::ostream& out);
+	bool cmdNext(std::istringstream& tokens, int depth, IInspectableEnvironment& env, std::ostream& out);
+	bool cmdContinue(std::istringstream& tokens, int depth, IInspectableEnvironment& env, std::ostream& out);
+	bool cmdBreak(std::istringstream& tokens, int depth, IInspectableEnvironment& env, std::ostream& out);
+	bool cmdRemove(std::istringstream& tokens, int depth, IInspectableEnvironment& env, std::ostream& out);
+	bool cmdBreakpoints(std::istringstream& tokens, int depth, IInspectableEnvironment& env, std::ostream& out);
+	bool cmdWatch(std::istringstream& tokens, int depth, IInspectableEnvironment& env, std::ostream& out);
+	bool cmdUnwatch(std::istringstream& tokens, int depth, IInspectableEnvironment& env, std::ostream& out);
+	bool cmdWatches(std::istringstream& tokens, int depth, IInspectableEnvironment& env, std::ostream& out);
+	bool cmdInspect(std::istringstream& tokens, int depth, IInspectableEnvironment& env, std::ostream& out);
 
 	// watches 명령과 정지 시 자동 출력이 공유하는 본체. 감시 중인 이름마다 "[WATCH] 이름 = 값"
 	// (없으면 "[WATCH] 이름: 값을 참조할 수 없습니다")을 출력한다.
-	void printWatches(IEnvironment& env, std::ostream& out) const;
+	// IInspectableEnvironment&를 받는다 - tryGetChain/collectLocalAndGlobalEntries를 쓰기 때문(ISP).
+	void printWatches(IInspectableEnvironment& env, std::ostream& out) const;
 
 	// "--- 현재 스코프 변수 ---" 헤더 뒤에 [로컬]/[전역] 그룹으로 나눠 "이름 = 값 (타입)"을 출력한다.
-	void printInspect(IEnvironment& env, std::ostream& out) const;
+	void printInspect(IInspectableEnvironment& env, std::ostream& out) const;
 
 	// watch/inspect가 보여줄 값 표현. DebugShell 밖에서는 쓰이지 않아 멤버로 묶어둔다.
 	// 상태(멤버 변수)에 의존하지 않아 static. Executor::stringify(private, print 전용)는

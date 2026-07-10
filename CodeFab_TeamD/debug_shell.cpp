@@ -77,9 +77,15 @@ void DebugShell::onStmt(const Stmt& stmt, IEnvironment& env, int depth, std::ist
 	if (stoppedByBreakpoint)
 		out << " (breakpoint)";
 	out << " → " << sourceTextAt(sourceLines, stmt.line) << std::endl;
+
+	// Executor 콜백은 IEnvironment&만 약속하지만, 이 콜백을 타는 env는 항상 DebugShell::environment
+	// (또는 그 블록/for 스코프)인 구체 Environment다 - ModuleEnvironment(import 실행용, watch 기능 없음)는
+	// 콜백 없이 실행되므로 여기 도달하지 않는다. Environment::root()와 같은 근거의 dynamic_cast.
+	auto& inspectableEnv = dynamic_cast<IInspectableEnvironment&>(env);
+
 	// 정지할 때마다 감시 중인 변수 값을 자동으로 보여준다(수동 watches 명령 없이도) -
 	// debug-shell-impl-plan.md 4.1절 케이스1.
-	printWatches(env, out);
+	printWatches(inspectableEnv, out);
 
 	std::string commandLine;
 	while (true)
@@ -87,105 +93,138 @@ void DebugShell::onStmt(const Stmt& stmt, IEnvironment& env, int depth, std::ist
 		out << "> ";
 		if (!std::getline(in, commandLine))
 			return; // 입력 스트림이 예기치 않게 끝나면 조용히 리턴(무한루프 방지)
-		if (handleCommand(commandLine, depth, env, out))
+		if (handleCommand(commandLine, depth, inspectableEnv, out))
 			return;
 		// break/remove/Breakpoints/watch류 등 실행을 재개하지 않는 명령은 루프를 계속 돈다(정지 유지).
 	}
 }
 
-bool DebugShell::handleCommand(const std::string& commandLine, int depth, IEnvironment& env, std::ostream& out)
+const std::unordered_map<std::string, DebugShell::CommandHandler>& DebugShell::commandHandlers()
+{
+	// 새 명령어는 이 맵에 한 줄 추가하는 것만으로 확장된다 - handleCommand 자체는 더 이상
+	// 명령어별 분기를 갖지 않는다(OCP).
+	static const std::unordered_map<std::string, CommandHandler> handlers = {
+		{ COMMAND_STEP, &DebugShell::cmdStep },
+		{ COMMAND_NEXT, &DebugShell::cmdNext },
+		{ COMMAND_CONTINUE, &DebugShell::cmdContinue },
+		{ COMMAND_BREAK, &DebugShell::cmdBreak },
+		{ COMMAND_REMOVE, &DebugShell::cmdRemove },
+		{ COMMAND_BREAKPOINTS, &DebugShell::cmdBreakpoints },
+		{ COMMAND_WATCH, &DebugShell::cmdWatch },
+		{ COMMAND_UNWATCH, &DebugShell::cmdUnwatch },
+		{ COMMAND_WATCHES, &DebugShell::cmdWatches },
+		{ COMMAND_INSPECT, &DebugShell::cmdInspect },
+	};
+	return handlers;
+}
+
+bool DebugShell::handleCommand(const std::string& commandLine, int depth, IInspectableEnvironment& env, std::ostream& out)
 {
 	std::istringstream tokens(commandLine);
 	std::string command;
 	tokens >> command;
 
-	if (command == COMMAND_STEP)
+	auto it = commandHandlers().find(command);
+	if (it == commandHandlers().end())
 	{
-		mode = RunMode::Stepping;
-		skipUntilDepth = -1; // 이전 next로 남아있던 스킵 상태를 취소한다.
-		return true;
-	}
-	if (command == COMMAND_NEXT)
-	{
-		// mode는 Stepping으로 둔다 - skipUntilDepth가 리셋되어 "같은 depth로 복귀"한 순간
-		// shouldPause가 true가 되려면 mode가 Stepping이어야 한다(Continuing이면 breakpoint가
-		// 없는 한 다시 안 멈추고 끝까지 실행돼버린다).
-		mode = RunMode::Stepping;
-		skipUntilDepth = depth;
-		return true;
-	}
-	if (command == COMMAND_CONTINUE)
-	{
-		mode = RunMode::Continuing;
-		skipUntilDepth = -1;
-		return true;
-	}
-	if (command == COMMAND_BREAK)
-	{
-		int line;
-		if (tokens >> line)
-		{
-			breakpoints.insert(line);
-			out << PREFIX_DEBUG << line << "번째 줄에 breakpoint 설정" << std::endl;
-		}
+		out << PREFIX_DEBUG << "알 수 없는 명령어: " << command << std::endl;
 		return false;
 	}
-	if (command == COMMAND_REMOVE)
-	{
-		int line;
-		if (tokens >> line)
-		{
-			breakpoints.erase(line);
-			out << PREFIX_DEBUG << line << "번째 줄의 breakpoint 해제" << std::endl;
-		}
-		return false;
-	}
-	if (command == COMMAND_BREAKPOINTS)
-	{
-		out << PREFIX_DEBUG << "현재 breakpoint 목록:";
-		for (int line : breakpoints)
-			out << " " << line;
-		out << std::endl;
-		return false;
-	}
-	if (command == COMMAND_WATCH)
-	{
-		std::string name;
-		if (tokens >> name)
-		{
-			// 이름 중복은 무시 - 이미 감시 중이면 그대로 둔다.
-			if (std::find(watchedNames.begin(), watchedNames.end(), name) == watchedNames.end())
-				watchedNames.push_back(name);
-			out << PREFIX_WATCH << "'" << name << "' 감시 등록" << std::endl;
-		}
-		return false;
-	}
-	if (command == COMMAND_UNWATCH)
-	{
-		std::string name;
-		if (tokens >> name)
-		{
-			watchedNames.erase(std::remove(watchedNames.begin(), watchedNames.end(), name), watchedNames.end());
-			out << PREFIX_WATCH << "'" << name << "' 감시 해제" << std::endl;
-		}
-		return false;
-	}
-	if (command == COMMAND_WATCHES)
-	{
-		printWatches(env, out);
-		return false;
-	}
-	if (command == COMMAND_INSPECT)
-	{
-		printInspect(env, out);
-		return false;
-	}
+	return (this->*(it->second))(tokens, depth, env, out);
+}
 
-	out << PREFIX_DEBUG << "알 수 없는 명령어: " << command << std::endl;
+bool DebugShell::cmdStep(std::istringstream&, int, IInspectableEnvironment&, std::ostream&)
+{
+	mode = RunMode::Stepping;
+	skipUntilDepth = -1; // 이전 next로 남아있던 스킵 상태를 취소한다.
+	return true;
+}
+
+bool DebugShell::cmdNext(std::istringstream&, int depth, IInspectableEnvironment&, std::ostream&)
+{
+	// mode는 Stepping으로 둔다 - skipUntilDepth가 리셋되어 "같은 depth로 복귀"한 순간
+	// shouldPause가 true가 되려면 mode가 Stepping이어야 한다(Continuing이면 breakpoint가
+	// 없는 한 다시 안 멈추고 끝까지 실행돼버린다).
+	mode = RunMode::Stepping;
+	skipUntilDepth = depth;
+	return true;
+}
+
+bool DebugShell::cmdContinue(std::istringstream&, int, IInspectableEnvironment&, std::ostream&)
+{
+	mode = RunMode::Continuing;
+	skipUntilDepth = -1;
+	return true;
+}
+
+bool DebugShell::cmdBreak(std::istringstream& tokens, int, IInspectableEnvironment&, std::ostream& out)
+{
+	int line;
+	if (tokens >> line)
+	{
+		breakpoints.insert(line);
+		out << PREFIX_DEBUG << line << "번째 줄에 breakpoint 설정" << std::endl;
+	}
 	return false;
 }
 
-void DebugShell::printWatches(IEnvironment& env, std::ostream& out) const
+bool DebugShell::cmdRemove(std::istringstream& tokens, int, IInspectableEnvironment&, std::ostream& out)
+{
+	int line;
+	if (tokens >> line)
+	{
+		breakpoints.erase(line);
+		out << PREFIX_DEBUG << line << "번째 줄의 breakpoint 해제" << std::endl;
+	}
+	return false;
+}
+
+bool DebugShell::cmdBreakpoints(std::istringstream&, int, IInspectableEnvironment&, std::ostream& out)
+{
+	out << PREFIX_DEBUG << "현재 breakpoint 목록:";
+	for (int line : breakpoints)
+		out << " " << line;
+	out << std::endl;
+	return false;
+}
+
+bool DebugShell::cmdWatch(std::istringstream& tokens, int, IInspectableEnvironment&, std::ostream& out)
+{
+	std::string name;
+	if (tokens >> name)
+	{
+		// 이름 중복은 무시 - 이미 감시 중이면 그대로 둔다.
+		if (std::find(watchedNames.begin(), watchedNames.end(), name) == watchedNames.end())
+			watchedNames.push_back(name);
+		out << PREFIX_WATCH << "'" << name << "' 감시 등록" << std::endl;
+	}
+	return false;
+}
+
+bool DebugShell::cmdUnwatch(std::istringstream& tokens, int, IInspectableEnvironment&, std::ostream& out)
+{
+	std::string name;
+	if (tokens >> name)
+	{
+		watchedNames.erase(std::remove(watchedNames.begin(), watchedNames.end(), name), watchedNames.end());
+		out << PREFIX_WATCH << "'" << name << "' 감시 해제" << std::endl;
+	}
+	return false;
+}
+
+bool DebugShell::cmdWatches(std::istringstream&, int, IInspectableEnvironment& env, std::ostream& out)
+{
+	printWatches(env, out);
+	return false;
+}
+
+bool DebugShell::cmdInspect(std::istringstream&, int, IInspectableEnvironment& env, std::ostream& out)
+{
+	printInspect(env, out);
+	return false;
+}
+
+void DebugShell::printWatches(IInspectableEnvironment& env, std::ostream& out) const
 {
 	// 매 정지 시점마다 현재 스코프 체인에서 다시 찾는다(고정 참조 캐시가 아님).
 	// 못 찾으면(스코프를 벗어났거나 아직 선언되지 않음) "값을 참조할 수 없습니다"를 출력한다.
@@ -199,7 +238,7 @@ void DebugShell::printWatches(IEnvironment& env, std::ostream& out) const
 	}
 }
 
-void DebugShell::printInspect(IEnvironment& env, std::ostream& out) const
+void DebugShell::printInspect(IInspectableEnvironment& env, std::ostream& out) const
 {
 	// "로컬"은 전역이 아닌 모든 스코프, "전역"은 enclosing이 없는 최상위 스코프뿐이다
 	// (debug-shell-impl-plan.md 4.1절 케이스2). 현재 스코프가 이미 최상위면 로컬 목록은
