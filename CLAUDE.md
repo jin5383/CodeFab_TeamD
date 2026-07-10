@@ -21,3 +21,7 @@
   * `[docs]`: 문서 수정
   * `[chore]`: 빌드 시스템 등 코드 외적인 수정
 * 예시: `[feature] 사용자 인증 함수 추가 및 유효성 검사 unit test 구현`
+
+## 4. Pull Request 작성 규칙
+* PR을 생성할 때는 [`pull_request_template.md`](pull_request_template.md)의 구조(제목/설명/Test 목록/PR Checklist)를 그대로 따라 본문을 작성한다.
+* 템플릿의 안내 문구(`> ...`로 시작하는 줄)는 실제 PR 본문에 남기지 않고, 해당 브랜치의 커밋 내역을 바탕으로 실제 내용으로 채운다.
