@@ -39,7 +39,7 @@ jobs:
         id: tests
         shell: pwsh
         run: |
-          $output = & "x64\Debug\CodeFab_TeamD.exe" 2>&1 | Tee-Object -Variable lines
+          & "x64\Debug\CodeFab_TeamD.exe" 2>&1 | Tee-Object -Variable lines
           $lines | Out-File -FilePath test_output.txt -Encoding utf8
 
           $summary = $lines | Select-String -Pattern '\[==========\]\s+(\d+)\s+tests? from \d+ test suites ran' | Select-Object -Last 1

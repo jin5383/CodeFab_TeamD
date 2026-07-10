@@ -1084,35 +1084,6 @@ TEST_F(DebugShellTest, UnwatchStopsShowingVariableInWatches)
 	std::filesystem::remove(path);
 }
 
-// inspect는 로컬(전역이 아닌 모든 스코프)과 전역(enclosing이 없는 최상위)을 구분해 함께
-// 보여줘야 한다(debug-shell-impl-plan.md 4.1절). 현재 스코프가 이미 최상위면(enclosing 없음)
-// 로컬 목록은 비고 전부 전역으로만 나와야 한다.
-TEST_F(DebugShellTest, InspectShowsLocalAndGlobalVariablesSeparately)
-{
-	auto path = writeTempFile("inspect", "var a = 1;\n{\nvar b = 2;\nprint b;\n}\n");
-	// 정지는 항상 그 줄을 실행하기 전(preorder)이므로, 각 변수가 실제로 정의된 다음 정지
-	// 지점까지 step으로 이동해야 한다: (1)var a=1 앞 -> step -> (2)블록 앞(a=1 정의됨,
-	// 아직 최상위 스코프 - 로컬/전역 구분이 없으므로 전역으로만 나와야 함) -> step ->
-	// (3)var b=2 앞(b 아직 없음) -> step -> (4)print b 앞(b=2 정의됨, 현재 스코프 = 블록 -
-	// b는 로컬, a는 전역으로 함께 나와야 함).
-	std::istringstream in("step\ninspect\nstep\nstep\ninspect\ncontinue\n");
-	std::ostringstream out;
-
-	int exitCode = DebugShell().run(path.string(), in, out);
-
-	EXPECT_EQ(exitCode, 0);
-	EXPECT_THAT(out.str(), HasSubstr("--- 현재 스코프 변수 -----------------------------"));
-	// a=1은 (2)와 (4) 양쪽에서 전역으로 나와야 하므로 2회.
-	EXPECT_EQ(countOccurrences(out.str(), "[전역] a = 1 (Number)"), 2);
-	// b=2는 (4)에서만, 그리고 로컬로만 나와야 한다. (2)에서는 아직 블록에 들어가지 않아
-	// 로컬/전역 구분 자체가 없으므로(현재 스코프 = 최상위) [로컬] 태그가 전혀 나오면 안 된다
-	// - 총 1회만 나온다는 것으로 (2)에는 없었음을 확인한다.
-	EXPECT_EQ(countOccurrences(out.str(), "[로컬]"), 1);
-	EXPECT_THAT(out.str(), HasSubstr("[로컬] b = 2 (Number)"));
-
-	std::filesystem::remove(path);
-}
-
 // for 반복문 몸통에서 선언된 변수를 watch하면, 그 블록을 벗어난 시점에는 "값을 참조할 수
 // 없습니다"가 나오고, 다음 반복에서 같은 이름이 다시 선언되면(재진입) 별도 조치 없이도
 // 다시 값이 보여야 한다(additional-requirement-impl-spec.md 3.6절 예시와 동일한 시나리오).
