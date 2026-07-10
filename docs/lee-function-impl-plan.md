@@ -1,7 +1,7 @@
 # Lee 담당 — 함수(Function) 기능 구현 계획
 
 > 근거: `docs/additional-requirement-impl-spec.md` 3.1절, `docs/phase0-review-checklist.md`(Lee 항목),
-> `docs/tdd-workflow-rule.md`(Red-Green 사이클 규칙)
+> `skills/tdd-workflow-rule.md`(Red-Green 사이클 규칙)
 > 대상: `Func` 선언/호출/`return`/재귀
 
 ## 0. 전제 확인

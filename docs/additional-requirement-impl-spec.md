@@ -362,7 +362,7 @@ Phase 0 PR 리뷰 시 5명 모두가 자기 담당 분량의 시그니처가 맞
 - [ ] 해당 기능의 새 Stmt/Expr 타입이 `Checker_Unit.cpp`(있다면 `Resolver_Unit.cpp`)와 `Executor_Unit.cpp`
       dynamic_cast 체인 양쪽에 모두 분기가 있는지 확인(한쪽만 있으면 조용히 no-op 되어 버그로 이어짐).
 - [ ] 기존 전체 테스트(`test_Hong.cpp` ~ `test_Ryu.cpp` 전부)가 머지 브랜치에서 여전히 통과하는지 빌드+실행으로 확인
-      (`docs/tdd-workflow-rule.md` 4절의 빌드 명령 사용).
+      (`skills/tdd-workflow-rule.md` 4절의 빌드 명령 사용).
 - [ ] `테스트 스크립트.md`류의 통합 시나리오 문서에 이번에 머지한 기능의 최소 시나리오 1~2개를 추가(회귀 방지).
 - [ ] README.md 갱신 필요 여부 확인(7절).
 
@@ -417,4 +417,4 @@ README의 "docs 문서 설명"/"프로젝트 구조" 절을 갱신해온 이력 
 - 텍스트 추출에서 빠진 이미지 슬라이드(24, 31~35, 38페이지)는 원본 `CodeFab_Additional_Requirement.pdf`를 직접
   렌더링해 확인했으며, 그 내용(CLI 명령 형태, stepping/watch 예시 트랜스크립트)은 이 문서 3.6절에 반영했다.
 - 기존 구현 계약 문서: `docs/unit-io-spec.md`, `docs/unit-layout-spec.md`, `docs/program-tree-struct-spec.md`,
-  `docs/tdd-workflow-rule.md` — 이번 추가 기능도 이 문서들의 "Program 트리 불변, Unit 간 계약" 원칙을 그대로 따른다.
+  `skills/tdd-workflow-rule.md` — 이번 추가 기능도 이 문서들의 "Program 트리 불변, Unit 간 계약" 원칙을 그대로 따른다.

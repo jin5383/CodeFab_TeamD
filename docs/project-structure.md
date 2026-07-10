@@ -43,7 +43,6 @@ docs/                          # 설계 명세 문서
   unit-layout-spec.md                 # (초기 설계 문서) 최초 파일 구성 계획 — 이후 ast.h/각 Unit
                                        # 클래스 구조로 바뀌어 현재 파일 구성과는 다름
   program-tree-struct-spec.md         # Program/Expr/Stmt 트리 구조 명세
-  tdd-workflow-rule.md                # TDD 진행 규칙 (Red → Green 사이클)
   additional-requirement-impl-spec.md # 추가 기능 요구사항 구현 명세 및 5인 작업 분배/통합 계획
   lee-function-impl-plan.md           # 함수(Function) 기능 구현 계획
   phase0-review-checklist.md          # 5인 병렬 개발 전 공유 계약(Phase 0) 리뷰 체크리스트
@@ -51,6 +50,8 @@ docs/                          # 설계 명세 문서
     lee-function-scenarios.md            # 함수(Function) 시나리오
   CodeFab_Requirement.extracted.txt   # 요구사항 PDF 텍스트 추출본
   CodeFab_Additional_Requirement.extracted.txt  # 추가 요구사항 PDF 텍스트 추출본
+skills/                        # 반복 가능한 작업 절차(skill) 문서
+  tdd-workflow-rule.md                # TDD 진행 규칙 (Red → Green 사이클)
 packages/                      # NuGet 패키지 (GoogleTest/GoogleMock)
 scripts/                       # 보조 스크립트 (요구사항 PDF 텍스트 추출 등)
 ```
@@ -58,6 +59,9 @@ scripts/                       # 보조 스크립트 (요구사항 PDF 텍스트
 `CodeFab_TeamD` 프로젝트는 별도 테스트 프로젝트 없이 `main.cpp`가 Debug 빌드에서
 `InitGoogleMock()` + `RUN_ALL_TESTS()`를 실행하는 방식으로 모든 Unit의 테스트를 한 번에
 실행합니다. Unit 구현은 프로젝트 루트에, 팀원별 테스트 코드는 `test/`에 위치합니다.
+
+> 요구사항/설계 문서를 어떤 순서로 읽어야 하는지는 프로젝트 루트의 [`../design.md`](../design.md)를
+> 먼저 참고하세요.
 
 ## docs 문서 설명
 
@@ -73,8 +77,6 @@ scripts/                       # 보조 스크립트 (요구사항 PDF 텍스트
   Unit이 클래스(`Assembler`/`Checker`/`Executor` 등)로 재구성되며 현재 파일 구성과는 달라졌습니다(역사적 참고용).
 - [`program-tree-struct-spec.md`](program-tree-struct-spec.md): Assembler의 Output이자 Checker/Executor의
   Input인 Program 트리(Token/Expr/Stmt 각 하위 타입)의 필드와 계층 구조를 `ast.h` 구현 기준으로 확정합니다.
-- [`tdd-workflow-rule.md`](tdd-workflow-rule.md): [`테스트 스크립트.md`](../테스트%20스크립트.md)의 시나리오를
-  gtest 케이스로 옮기며 Red → Green을 반복하는 TDD 진행 절차(사이클 규칙)를 정의합니다.
 - [`additional-requirement-impl-spec.md`](additional-requirement-impl-spec.md): 추가 요구사항
   (함수/클래스/정적배열/실행 전 최적화/import/공장제어쉘)을 5명이 서로 막히지 않고 병행 개발하도록 나눈 작업
   분배와, 각자 작업이 다시 합쳐질 때의 통합 절차를 정의합니다.
@@ -86,3 +88,5 @@ scripts/                       # 보조 스크립트 (요구사항 PDF 텍스트
 - [`CodeFab_Requirement.extracted.txt`](CodeFab_Requirement.extracted.txt): 요구사항 원본 PDF의 텍스트 추출본입니다.
 - [`CodeFab_Additional_Requirement.extracted.txt`](CodeFab_Additional_Requirement.extracted.txt): 추가
   요구사항 원본 PDF의 텍스트 추출본입니다.
+- [`../skills/tdd-workflow-rule.md`](../skills/tdd-workflow-rule.md): [`테스트 스크립트.md`](../테스트%20스크립트.md)의
+  시나리오를 gtest 케이스로 옮기며 Red → Green을 반복하는 TDD 진행 절차(사이클 규칙)를 정의합니다.
