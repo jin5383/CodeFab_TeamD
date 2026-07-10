@@ -804,6 +804,46 @@ TEST(InterpreterUnitTest, BangOperator_NegatesTruthyEvaluationCStyle)
 	EXPECT_EQ(output.output, "false\ntrue\nfalse\nfalse\n");
 }
 
+// "printn"은 별도 키워드로 토큰화돼야 한다(기존 "print"와 문자열이 겹치지 않는 완전히
+// 다른 identifier). 토크나이저가 최대 길이의 alnum 뭉치를 먼저 모은 뒤 정확히 일치하는
+// 키워드만 인식하므로 "print"의 접두어로 오인되지 않는다.
+TEST(AssemblerTokenUnitTest, TokenizeSource_ProducesPrintnToken)
+{
+	std::vector<Token> tokens = Assembler().tokenize("printn 1;");
+
+	ASSERT_THAT(tokens, SizeIs(4));
+	EXPECT_EQ(tokens[0].type, TokenType::PRINTN);
+	EXPECT_EQ(tokens[0].origin, "printn");
+}
+
+// "printn 식;"은 PrintStmt로 파싱되되 suppressNewline이 true여야 하고, 기존 "print 식;"은
+// 여전히 false(기본값)를 유지해야 한다(회귀 확인).
+TEST(AssemblerConstructUnitTest, ParsesPrintnAsPrintStmtWithSuppressNewlineFlag)
+{
+	Program printnProgram = Assembler().assemble("printn 1;");
+	Program printProgram = Assembler().assemble("print 1;");
+
+	auto* printnStmt = dynamic_cast<PrintStmt*>(printnProgram.statements[0]);
+	auto* printStmt = dynamic_cast<PrintStmt*>(printProgram.statements[0]);
+
+	ASSERT_THAT(printnStmt, NotNull());
+	ASSERT_THAT(printStmt, NotNull());
+	EXPECT_TRUE(printnStmt->suppressNewline);
+	EXPECT_FALSE(printStmt->suppressNewline);
+}
+
+// printn으로 출력한 값들은 줄바꿈 없이 이어 붙고, 뒤이은 일반 print만 줄바꿈을 낸다.
+TEST(InterpreterUnitTest, Printn_OmitsTrailingNewlineUnlikeOrdinaryPrint)
+{
+	CapturingOutputWriter output;
+	Interpreter(output).run(
+		"printn 1;"
+		"printn 2;"
+		"print 3;");
+
+	EXPECT_EQ(output.output, "123\n");
+}
+
 TEST(InterpreterLineNumberTest, UndefinedVariable_ErrorMessageIncludesLineNumber)
 {
 	SilentOutputWriter output;

@@ -33,7 +33,7 @@ enum class TokenType
 	GREATER, LESS, BANG,
 	DOT, COLON, // r.field / Class A : B
 	IDENTIFIER, STRING, NUMBER,
-	TRUE, FALSE, VAR, IF, ELSE, FOR, AND, OR, PRINT,
+	TRUE, FALSE, VAR, IF, ELSE, FOR, AND, OR, PRINT, PRINTN, // printn: print와 동일하되 줄바꿈을 붙이지 않음
 	FUNC, RETURN, COMMA, // 함수
 	CLASS, THIS, SUPER, INSTANCEOF, // 클래스
 	IMPORT, ALIAS,
@@ -191,6 +191,7 @@ struct ExpressionStmt : Stmt
 struct PrintStmt : Stmt
 {
 	Expr* expression = nullptr;
+	bool suppressNewline = false; // printn으로 파싱된 경우 true - 출력 뒤에 "\n"을 붙이지 않는다
 };
 
 struct VarDeclStmt : Stmt
