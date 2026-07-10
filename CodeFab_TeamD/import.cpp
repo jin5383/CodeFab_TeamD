@@ -123,16 +123,6 @@ bool ImportScope::findAliasInChain(const std::string& alias, bool& sameScope)
 	return false;
 }
 
-Environment* ImportScope::findModule(const std::string& alias)
-{
-	auto it = bindings.find(alias);
-	if (it != bindings.end())
-		return &it->second.environment;
-	if (enclosing)
-		return enclosing->findModule(alias);
-	return nullptr;
-}
-
 Environment& ImportScope::importFile(const std::string& path, const std::string& alias)
 {
 	bool sameScope = false;

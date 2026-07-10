@@ -27,8 +27,6 @@ public:
 
 	Environment& importFile(const std::string& path, const std::string& alias);
 
-	Environment* findModule(const std::string& alias);
-
 private:
 	struct Binding
 	{
