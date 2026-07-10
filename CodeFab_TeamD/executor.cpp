@@ -67,6 +67,16 @@ namespace
 			return std::vector<std::pair<std::string, LiteralValue>>(module->fields.begin(), module->fields.end());
 		}
 
+		// tryGetChain과 동일한 이유로 enclosing 체인이 없다 - 이 스코프 자신이 이미 최상위이므로
+		// 전부 전역으로 분류된다.
+		void collectLocalAndGlobalEntries(
+			std::vector<std::pair<std::string, LiteralValue>>&,
+			std::vector<std::pair<std::string, LiteralValue>>& globalEntries) const override
+		{
+			auto entries = entriesInThisScope();
+			globalEntries.insert(globalEntries.end(), entries.begin(), entries.end());
+		}
+
 	private:
 		std::shared_ptr<Instance> module;
 	};

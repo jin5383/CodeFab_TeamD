@@ -415,6 +415,9 @@ protected:
 		MOCK_METHOD(bool, tryGet, (const std::string& name, LiteralValue& out), (const, override));
 		MOCK_METHOD(bool, tryGetChain, (const std::string& name, LiteralValue& out), (const, override));
 		MOCK_METHOD((std::vector<std::pair<std::string, LiteralValue>>), entriesInThisScope, (), (const, override));
+		MOCK_METHOD(void, collectLocalAndGlobalEntries,
+			((std::vector<std::pair<std::string, LiteralValue>>&), (std::vector<std::pair<std::string, LiteralValue>>&)),
+			(const, override));
 	};
 
 	Token identifierToken(const std::string& name)
@@ -571,6 +574,36 @@ TEST_F(ConstantFoldingUnitTest, DoesNotFoldDivisionByZero)
 {
 	auto* divideByZero = makeBinary(TokenType::SLASH, "/", makeNumberLiteral(3), makeNumberLiteral(0));
 	auto* stmt = makeExprStmt(divideByZero);
+
+	Program program;
+	program.statements.push_back(stmt);
+	ConstantFolder().fold(program);
+
+	EXPECT_THAT(dynamic_cast<BinaryExpr*>(stmt->expression), NotNull());
+}
+
+// %(나머지)도 리터럴끼리면 폴딩 대상이다 - std::fmod로 계산하며, Executor의 실제 % 연산과
+// 동일한 결과를 내야 한다(7 % 3 = 1).
+TEST_F(ConstantFoldingUnitTest, FoldsModuloOfPureLiterals)
+{
+	auto* modulo = makeBinary(TokenType::PERCENT, "%", makeNumberLiteral(7), makeNumberLiteral(3));
+	auto* stmt = makeExprStmt(modulo);
+
+	Program program;
+	program.statements.push_back(stmt);
+	ConstantFolder().fold(program);
+
+	auto* folded = dynamic_cast<LiteralExpr*>(stmt->expression);
+	ASSERT_THAT(folded, NotNull());
+	EXPECT_DOUBLE_EQ(std::get<double>(folded->value), 1.0);
+}
+
+// 0으로 나머지 연산도 SLASH와 동일한 이유로 폴딩하지 않고, 실행 시점의 런타임 에러로
+// 그대로 남겨둔다.
+TEST_F(ConstantFoldingUnitTest, DoesNotFoldModuloByZero)
+{
+	auto* moduloByZero = makeBinary(TokenType::PERCENT, "%", makeNumberLiteral(3), makeNumberLiteral(0));
+	auto* stmt = makeExprStmt(moduloByZero);
 
 	Program program;
 	program.statements.push_back(stmt);
@@ -1018,17 +1051,16 @@ TEST_F(DebugShellTest, WatchesShowsCurrentValueOfWatchedVariable)
 {
 	auto path = writeTempFile("watch", "var a = 3;\nprint a;\n");
 	// 정지는 항상 "그 줄을 실행하기 전"이므로(preorder), 최초 정지 시점엔 아직 a가 정의되지
-	// 않았다. step으로 "var a=3;"을 실행한 뒤 다음 정지 지점(print a; 앞)에서 확인한다.
-	std::istringstream in("watch a\nstep\nwatches\ncontinue\n");
+	// 않았다. step으로 "var a=3;"을 실행하면, 그 다음 정지(print a; 앞)에서 watch 중인 값이
+	// 자동으로 [WATCH]로 출력된다(수동 watches 명령 없이도).
+	std::istringstream in("watch a\nstep\ncontinue\n");
 	std::ostringstream out;
 
 	int exitCode = DebugShell().run(path.string(), in, out);
 
 	EXPECT_EQ(exitCode, 0);
-	EXPECT_THAT(out.str(), HasSubstr("a 감시 시작"));
-	// 소스 텍스트("var a = 3;")에도 "a = 3"이 등장하므로, watches가 실제로 출력하는
-	// "[DEBUG] a = 3" 형식으로 구체적으로 검사한다.
-	EXPECT_THAT(out.str(), HasSubstr("[DEBUG] a = 3"));
+	EXPECT_THAT(out.str(), HasSubstr("[WATCH] 'a' 감시 등록"));
+	EXPECT_THAT(out.str(), HasSubstr("[WATCH] a = 3"));
 
 	std::filesystem::remove(path);
 }
@@ -1037,43 +1069,46 @@ TEST_F(DebugShellTest, WatchesShowsCurrentValueOfWatchedVariable)
 TEST_F(DebugShellTest, UnwatchStopsShowingVariableInWatches)
 {
 	auto path = writeTempFile("unwatch", "var a = 3;\nprint a;\n");
-	std::istringstream in("watch a\nunwatch a\nwatches\ncontinue\n");
+	// unwatch 이후에 step으로 다음 정지 지점까지 이동해도(자동 출력 시점이 와도) a는
+	// 더 이상 보이지 않아야 한다.
+	std::istringstream in("watch a\nunwatch a\nstep\ncontinue\n");
 	std::ostringstream out;
 
 	int exitCode = DebugShell().run(path.string(), in, out);
 
 	EXPECT_EQ(exitCode, 0);
-	EXPECT_THAT(out.str(), HasSubstr("a 감시 해제"));
-	// "a = 3"은 최초 정지 메시지의 소스 텍스트("var a = 3;")에도 등장하므로, watches가
-	// 실제로 출력하는 형식("[DEBUG] a =")으로 구체적으로 검사해야 오탐이 없다.
-	EXPECT_THAT(out.str(), Not(HasSubstr("[DEBUG] a =")));
+	EXPECT_THAT(out.str(), HasSubstr("[WATCH] 'a' 감시 해제"));
+	EXPECT_THAT(out.str(), Not(HasSubstr("[WATCH] a =")));
 	EXPECT_THAT(out.str(), Not(HasSubstr("값을 참조할 수 없습니다")));
 
 	std::filesystem::remove(path);
 }
 
-// inspect는 entriesInThisScope()만 사용 - 현재(가장 안쪽) 스코프만 보여주고 enclosing(바깥
-// 스코프)의 변수는 포함하지 않아야 한다.
-TEST_F(DebugShellTest, InspectListsOnlyCurrentScopeVariables)
+// inspect는 로컬(전역이 아닌 모든 스코프)과 전역(enclosing이 없는 최상위)을 구분해 함께
+// 보여줘야 한다(debug-shell-impl-plan.md 4.1절). 현재 스코프가 이미 최상위면(enclosing 없음)
+// 로컬 목록은 비고 전부 전역으로만 나와야 한다.
+TEST_F(DebugShellTest, InspectShowsLocalAndGlobalVariablesSeparately)
 {
 	auto path = writeTempFile("inspect", "var a = 1;\n{\nvar b = 2;\nprint b;\n}\n");
 	// 정지는 항상 그 줄을 실행하기 전(preorder)이므로, 각 변수가 실제로 정의된 다음 정지
 	// 지점까지 step으로 이동해야 한다: (1)var a=1 앞 -> step -> (2)블록 앞(a=1 정의됨,
-	// 아직 최상위 스코프) -> step -> (3)var b=2 앞(b 아직 없음) -> step -> (4)print b 앞
-	// (b=2 정의됨, 현재 스코프 = 블록). (2)에서 inspect로 a=1을, (4)에서 inspect로 b=2만
-	// (a는 없이) 보이는지 확인한다.
+	// 아직 최상위 스코프 - 로컬/전역 구분이 없으므로 전역으로만 나와야 함) -> step ->
+	// (3)var b=2 앞(b 아직 없음) -> step -> (4)print b 앞(b=2 정의됨, 현재 스코프 = 블록 -
+	// b는 로컬, a는 전역으로 함께 나와야 함).
 	std::istringstream in("step\ninspect\nstep\nstep\ninspect\ncontinue\n");
 	std::ostringstream out;
 
 	int exitCode = DebugShell().run(path.string(), in, out);
 
 	EXPECT_EQ(exitCode, 0);
-	// (2)에서 최상위 스코프의 a=1만 보여야 한다. (4)에서 inspect를 다시 호출했을 때
-	// "[DEBUG] a = 1"이 또 나오면 enclosing까지 잘못 포함한 것이다 - 그래서 총 1회만 나와야
-	// 한다.(참고: "a = 1"만으로 검사하면 최초 정지 메시지의 소스 텍스트("var a = 1;")와
-	// 겹쳐 오탐하므로, inspect가 실제로 출력하는 "[DEBUG] a = 1" 형식으로 검사한다.)
-	EXPECT_EQ(countOccurrences(out.str(), "[DEBUG] a = 1"), 1);
-	EXPECT_THAT(out.str(), HasSubstr("[DEBUG] b = 2"));
+	EXPECT_THAT(out.str(), HasSubstr("--- 현재 스코프 변수 -----------------------------"));
+	// a=1은 (2)와 (4) 양쪽에서 전역으로 나와야 하므로 2회.
+	EXPECT_EQ(countOccurrences(out.str(), "[전역] a = 1 (Number)"), 2);
+	// b=2는 (4)에서만, 그리고 로컬로만 나와야 한다. (2)에서는 아직 블록에 들어가지 않아
+	// 로컬/전역 구분 자체가 없으므로(현재 스코프 = 최상위) [로컬] 태그가 전혀 나오면 안 된다
+	// - 총 1회만 나온다는 것으로 (2)에는 없었음을 확인한다.
+	EXPECT_EQ(countOccurrences(out.str(), "[로컬]"), 1);
+	EXPECT_THAT(out.str(), HasSubstr("[로컬] b = 2 (Number)"));
 
 	std::filesystem::remove(path);
 }

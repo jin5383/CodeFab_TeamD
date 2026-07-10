@@ -27,6 +27,14 @@ public:
 	virtual bool tryGet(const std::string& name, LiteralValue& out) const = 0;      // 이 스코프만
 	virtual bool tryGetChain(const std::string& name, LiteralValue& out) const = 0; // enclosing까지 재귀
 	virtual std::vector<std::pair<std::string, LiteralValue>> entriesInThisScope() const = 0; // inspect용
+
+	// inspect의 로컬/전역 구분 표시용(debug-shell-impl-plan.md 4.1절): "로컬"은 전역이 아닌
+	// 모든 스코프(가장 안쪽부터 전역 바로 아래까지)를 합친 것, "전역"은 enclosing이 없는
+	// 최상위 스코프뿐이다. 이 스코프 자신이 이미 최상위이면(enclosing 없음) 전부 전역으로
+	// 분류된다(로컬 목록은 비어 있음).
+	virtual void collectLocalAndGlobalEntries(
+		std::vector<std::pair<std::string, LiteralValue>>& localEntries,
+		std::vector<std::pair<std::string, LiteralValue>>& globalEntries) const = 0;
 };
 
 // Executor Unit의 변수 컨텍스트. 한 번의 실행뿐 아니라 DfineShell처럼 여러 줄에 걸쳐
@@ -105,6 +113,22 @@ public:
 	std::vector<std::pair<std::string, LiteralValue>> entriesInThisScope() const override
 	{
 		return std::vector<std::pair<std::string, LiteralValue>>(values.begin(), values.end());
+	}
+
+	void collectLocalAndGlobalEntries(
+		std::vector<std::pair<std::string, LiteralValue>>& localEntries,
+		std::vector<std::pair<std::string, LiteralValue>>& globalEntries) const override
+	{
+		auto entries = entriesInThisScope();
+		if (enclosing)
+		{
+			localEntries.insert(localEntries.end(), entries.begin(), entries.end());
+			enclosing->collectLocalAndGlobalEntries(localEntries, globalEntries);
+		}
+		else
+		{
+			globalEntries.insert(globalEntries.end(), entries.begin(), entries.end());
+		}
 	}
 
 	// 함수 호출 시 콜 프레임의 enclosing으로 쓸 최상위(전역) Environment를 찾는다.

@@ -18,6 +18,7 @@ namespace
 	const std::string COMMAND_WATCHES = "watches";
 	const std::string COMMAND_INSPECT = "inspect";
 	const std::string PREFIX_DEBUG = "[DEBUG] ";
+	const std::string PREFIX_WATCH = "[WATCH] ";
 }
 
 int DebugShell::run(const std::string& path, std::istream& in, std::ostream& out)
@@ -76,6 +77,9 @@ void DebugShell::onStmt(const Stmt& stmt, IEnvironment& env, int depth, std::ist
 	if (stoppedByBreakpoint)
 		out << " (breakpoint)";
 	out << " → " << sourceTextAt(sourceLines, stmt.line) << std::endl;
+	// 정지할 때마다 감시 중인 변수 값을 자동으로 보여준다(수동 watches 명령 없이도) -
+	// debug-shell-impl-plan.md 4.1절 케이스1.
+	printWatches(env, out);
 
 	std::string commandLine;
 	while (true)
@@ -152,7 +156,7 @@ bool DebugShell::handleCommand(const std::string& commandLine, int depth, IEnvir
 			// 이름 중복은 무시 - 이미 감시 중이면 그대로 둔다.
 			if (std::find(watchedNames.begin(), watchedNames.end(), name) == watchedNames.end())
 				watchedNames.push_back(name);
-			out << PREFIX_DEBUG << name << " 감시 시작" << std::endl;
+			out << PREFIX_WATCH << "'" << name << "' 감시 등록" << std::endl;
 		}
 		return false;
 	}
@@ -162,7 +166,7 @@ bool DebugShell::handleCommand(const std::string& commandLine, int depth, IEnvir
 		if (tokens >> name)
 		{
 			watchedNames.erase(std::remove(watchedNames.begin(), watchedNames.end(), name), watchedNames.end());
-			out << PREFIX_DEBUG << name << " 감시 해제" << std::endl;
+			out << PREFIX_WATCH << "'" << name << "' 감시 해제" << std::endl;
 		}
 		return false;
 	}
@@ -189,23 +193,26 @@ void DebugShell::printWatches(IEnvironment& env, std::ostream& out) const
 	{
 		LiteralValue value;
 		if (env.tryGetChain(name, value))
-			out << PREFIX_DEBUG << name << " = " << describeValue(value) << std::endl;
+			out << PREFIX_WATCH << name << " = " << describeValue(value) << std::endl;
 		else
-			out << PREFIX_DEBUG << name << ": 값을 참조할 수 없습니다" << std::endl;
+			out << PREFIX_WATCH << name << ": 값을 참조할 수 없습니다" << std::endl;
 	}
 }
 
 void DebugShell::printInspect(IEnvironment& env, std::ostream& out) const
 {
-	// entriesInThisScope()만 사용 - 현재(가장 안쪽) 스코프만, enclosing은 포함하지 않는다.
-	auto entries = env.entriesInThisScope();
-	if (entries.empty())
-	{
-		out << PREFIX_DEBUG << "현재 스코프에 변수가 없습니다" << std::endl;
-		return;
-	}
-	for (const auto& entry : entries)
-		out << PREFIX_DEBUG << entry.first << " = " << describeValue(entry.second) << std::endl;
+	// "로컬"은 전역이 아닌 모든 스코프, "전역"은 enclosing이 없는 최상위 스코프뿐이다
+	// (debug-shell-impl-plan.md 4.1절 케이스2). 현재 스코프가 이미 최상위면 로컬 목록은
+	// 자연히 비고 전부 전역으로만 나온다.
+	std::vector<std::pair<std::string, LiteralValue>> localEntries;
+	std::vector<std::pair<std::string, LiteralValue>> globalEntries;
+	env.collectLocalAndGlobalEntries(localEntries, globalEntries);
+
+	out << "--- 현재 스코프 변수 -----------------------------" << std::endl;
+	for (const auto& entry : localEntries)
+		out << "[로컬] " << entry.first << " = " << describeValue(entry.second) << " (" << typeName(entry.second) << ")" << std::endl;
+	for (const auto& entry : globalEntries)
+		out << "[전역] " << entry.first << " = " << describeValue(entry.second) << " (" << typeName(entry.second) << ")" << std::endl;
 }
 
 std::string DebugShell::describeValue(const LiteralValue& value)
@@ -239,6 +246,25 @@ std::string DebugShell::describeValue(const LiteralValue& value)
 		result += describeValue(array->items[i]);
 	}
 	return result + "]";
+}
+
+std::string DebugShell::typeName(const LiteralValue& value)
+{
+	if (std::holds_alternative<std::monostate>(value))
+		return "Nil";
+	if (std::holds_alternative<bool>(value))
+		return "Boolean";
+	if (std::holds_alternative<std::string>(value))
+		return "String";
+	if (std::holds_alternative<double>(value))
+		return "Number";
+	if (std::holds_alternative<std::shared_ptr<FunctionDeclStmt>>(value))
+		return "Function";
+	if (std::holds_alternative<std::shared_ptr<ClassValue>>(value))
+		return "Class";
+	if (std::holds_alternative<std::shared_ptr<Instance>>(value))
+		return "Instance";
+	return "Array"; // 남은 경우는 shared_ptr<ArrayValue>
 }
 
 std::vector<std::string> DebugShell::splitLines(const std::string& source)
