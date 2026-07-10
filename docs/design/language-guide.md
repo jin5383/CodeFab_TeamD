@@ -1,6 +1,6 @@
 # Custom Language 사용 방법
 
-[`README.md`](../README.md)의 파이프라인을 통해 실제로 실행되는 언어 문법과 기능을 예시로 정리합니다.
+[`README.md`](../../README.md)의 파이프라인을 통해 실제로 실행되는 언어 문법과 기능을 예시로 정리합니다.
 
 ## 연산자(Operator)
 

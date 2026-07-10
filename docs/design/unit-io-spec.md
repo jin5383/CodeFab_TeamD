@@ -138,6 +138,6 @@ Program := Stmt 목록 (최상위 statement의 순서 있는 리스트)
 
 ## 8. 참고 자료
 
-- 추출된 원문(한글 포함 전체 텍스트, PDF 없이도 바로 읽을 수 있음): `docs/CodeFab_Requirement.extracted.txt`
+- 추출된 원문(한글 포함 전체 텍스트, PDF 없이도 바로 읽을 수 있음): `docs/requirements/CodeFab_Requirement.extracted.txt`
   - PDF 갱신 시 재생성: `python scripts/extract_requirement_pdf.py`
 - 표지/구분 슬라이드 등 이미지 전용 페이지는 텍스트가 없어(추출본 상단 목록 참고) 원본 `CodeFab_Requirement.pdf`를 봐야 한다.

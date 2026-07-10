@@ -1,6 +1,6 @@
 # 추가 기능 요구사항 구현 명세 및 5인 작업 분배 계획
 
-> 근거: `docs/CodeFab_Additional_Requirement.extracted.txt` (텍스트 추출본), `CodeFab_Additional_Requirement.pdf`
+> 근거: `docs/requirements/CodeFab_Additional_Requirement.extracted.txt` (텍스트 추출본), `CodeFab_Additional_Requirement.pdf`
 > (텍스트 추출에서 빠진 이미지 슬라이드 8장 — 24, 31~35, 38페이지 — 을 PyMuPDF로 직접 렌더링해 육안으로 확인함)
 > 현재 구현 기준: `CodeFab_TeamD/ast.h`, `function.h`, `function/*.cpp`, `environment.h`, `dfine_shell.*`
 > 목적: 3~4일차 기능 추가 미션(function/class/정적배열/실행전 최적화/import/공장제어쉘)을 **5명이 서로 막히지 않고
@@ -321,7 +321,7 @@ $ ./factory debug <파일경로>       # 디버그 모드
    Lee가 자기 브랜치에서 채운다).
 4. `Checker_Unit.cpp`/`Executor_Unit.cpp`도 동일하게, 각 새 노드 타입에 대한 `dynamic_cast` 분기를 **빈 스텁**으로만
    추가(`// TODO(Park)` 주석과 함께 `return CheckerErrno::success;` 또는 no-op).
-5. `docs/program-tree-struct-spec.md`, `docs/unit-io-spec.md`를 이 문서 3절 내용에 맞춰 갱신(새 노드 타입 반영).
+5. `docs/design/program-tree-struct-spec.md`, `docs/design/unit-io-spec.md`를 이 문서 3절 내용에 맞춰 갱신(새 노드 타입 반영).
 
 Phase 0 PR 리뷰 시 5명 모두가 자기 담당 분량의 시그니처가 맞는지 확인하고 승인한다. 이후 각자의 작업은 "새 파일
 추가(`Assembler_Function_Unit.cpp` 등) + Phase 0에서 만든 빈 스텁 채우기"로 좁혀지므로 공유 파일 충돌이 크게
@@ -378,7 +378,7 @@ Phase 0 PR 리뷰 시 5명 모두가 자기 담당 분량의 시그니처가 맞
 
 ### 6.4 최종 통합 테스트
 
-5개 기능이 모두 master에 들어온 뒤, 아래를 새 통합 테스트 시나리오 문서(예: `docs/scenarios/additional-requirement-scenarios.md`
+5개 기능이 모두 master에 들어온 뒤, 아래를 새 통합 테스트 시나리오 문서(예: `docs/additional-requirement/scenarios/additional-requirement-scenarios.md`
 또는 `테스트 스크립트.md`에 새 섹션 추가 — 5절 참고)로 만들어 한 번에 검증한다.
 
 ```
@@ -404,7 +404,7 @@ r.move(5);
 아래 시점마다 README.md를 갱신한다(CLAUDE.md에는 명시돼 있지 않지만 이 프로젝트의 기존 관례 — 문서 추가마다
 README의 "docs 문서 설명"/"프로젝트 구조" 절을 갱신해온 이력 — 을 따른다).
 
-- Phase 0 병합 시: "프로젝트 구조" 절에 새로 생긴 파일들과 이 문서(`docs/additional-requirement-impl-spec.md`) 링크 추가.
+- Phase 0 병합 시: "프로젝트 구조" 절에 새로 생긴 파일들과 이 문서(`docs/additional-requirement/additional-requirement-impl-spec.md`) 링크 추가.
 - 각 기능 병합 시: "Custom Language 사용 방법"에 새 문법 예시 추가(요구사항 원본 p.94의 "Custom Language 사용 방법을
   README.md에 명시" 요건).
 - 공장제어쉘 병합 시: `./factory run|debug` 사용법을 "빌드 및 테스트 실행" 절 근처에 별도 절로 추가.
@@ -413,8 +413,8 @@ README의 "docs 문서 설명"/"프로젝트 구조" 절을 갱신해온 이력 
 
 ## 8. 참고 자료
 
-- 추출된 원문: `docs/CodeFab_Additional_Requirement.extracted.txt`
+- 추출된 원문: `docs/requirements/CodeFab_Additional_Requirement.extracted.txt`
 - 텍스트 추출에서 빠진 이미지 슬라이드(24, 31~35, 38페이지)는 원본 `CodeFab_Additional_Requirement.pdf`를 직접
   렌더링해 확인했으며, 그 내용(CLI 명령 형태, stepping/watch 예시 트랜스크립트)은 이 문서 3.6절에 반영했다.
-- 기존 구현 계약 문서: `docs/unit-io-spec.md`, `docs/unit-layout-spec.md`, `docs/program-tree-struct-spec.md`,
+- 기존 구현 계약 문서: `docs/design/unit-io-spec.md`, `docs/design/unit-layout-spec.md`, `docs/design/program-tree-struct-spec.md`,
   `skills/tdd-workflow-rule.md` — 이번 추가 기능도 이 문서들의 "Program 트리 불변, Unit 간 계약" 원칙을 그대로 따른다.

@@ -1,7 +1,7 @@
 # 함수(Function) 기능 테스트 스크립트 (Lee 담당)
 
 > 기존 `테스트 스크립트.md`와 별도로 관리한다(사용자 요청). 형식은 `테스트 스크립트.md`를 따르되,
-> 이 문서는 `docs/additional-requirement-impl-spec.md` 3.1절(Lee — 함수) 기능만 다룬다.
+> 이 문서는 `docs/additional-requirement/additional-requirement-impl-spec.md` 3.1절(Lee — 함수) 기능만 다룬다.
 > 사용 문법은 각 Custom 언어에 맞도록 변환하여 사용하되, 구현의 의미론이 맞도록 사용한다.
 
 # 1. 정상동작 테스트

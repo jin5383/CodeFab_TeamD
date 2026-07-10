@@ -1,7 +1,7 @@
 # Program(Expr/Stmt 트리) 구조 명세
 
-> 근거: `docs/unit-io-spec.md` (Token/Expr/Stmt/Program 정의, Unit 간 계약),
-> `docs/unit-layout-spec.md` (파일 구성 및 Assembler/Checker/Executor 진입점 함수),
+> 근거: `docs/design/unit-io-spec.md` (Token/Expr/Stmt/Program 정의, Unit 간 계약),
+> `docs/design/unit-layout-spec.md` (파일 구성 및 Assembler/Checker/Executor 진입점 함수),
 > `CodeFab_TeamD/ast.h`, `CodeFab_TeamD/function.h` (실제 구현)
 > 목적: Assembler Unit의 Output이자 Checker/Executor Unit의 Input인 **Program 트리를 구성하는
 > 모든 노드의 필드를 확정**한다. 이 문서는 `CodeFab_TeamD/ast.h`에 구현된 현재 구조를 그대로
@@ -324,7 +324,7 @@ Program
 
 ## 8. PDF 원문 대조 확인
 
-`docs/CodeFab_Requirement.extracted.txt`의 아래 구간을 직접 대조하여 이 문서의 필드 구성이
+`docs/requirements/CodeFab_Requirement.extracted.txt`의 아래 구간을 직접 대조하여 이 문서의 필드 구성이
 원문과 일치함을 확인했다.
 
 - p.27~28 (TokenType 표, line 309~369): `TokenType` 목록과 일치.
@@ -335,7 +335,7 @@ Program
   일치.
 - p.48~51 (IfStmt/BlockStmt/VarDeclStmt 트리, line 716~786): `IfStmt`(condition/thenBranch/
   elseBranch), `BlockStmt`(statements), `VarDeclStmt`(name/initializer) 필드명과 일치.
-  단, 원문 표기는 **"VarDeclareStmt"** 이나, 이 프로젝트의 `docs/unit-io-spec.md`와 현재 구현
+  단, 원문 표기는 **"VarDeclareStmt"** 이나, 이 프로젝트의 `docs/design/unit-io-spec.md`와 현재 구현
   (`CodeFab_TeamD/ast.h`)이 이미 **"VarDeclStmt"**로 명명해 사용 중이므로 이 문서도 그 명명을
   따른다(원문과 다른 점을 인지하고 의도적으로 유지).
 - p.80~81 (ForStmt 순회 예시, line 1197~1307): `ForStmt`(init/condition/increment/body)

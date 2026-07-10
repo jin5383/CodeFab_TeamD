@@ -235,7 +235,7 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 		}
 
 		// 3.1.1 확정: 호출 대상이 함수인지는 런타임에만 알 수 있으므로 Executor에서 검사한다
-		// (Checker는 스코프/선언 규칙만 검사, docs/phase0-review-checklist.md 참고).
+		// (Checker는 스코프/선언 규칙만 검사, docs/additional-requirement/phase0-review-checklist.md 참고).
 		if (!std::holds_alternative<std::shared_ptr<FunctionDeclStmt>>(calleeValue))
 			throw std::runtime_error("Can only call functions.");
 		auto function = std::get<std::shared_ptr<FunctionDeclStmt>>(calleeValue);
@@ -250,7 +250,7 @@ LiteralValue Executor::evaluate(Expr* expr, IEnvironment& environment) const
 			throw std::runtime_error(formatArityMismatch(function->params.size(), call->arguments.size()));
 
 		// 이 언어는 클로저(중첩 함수의 선언 시점 지역 스코프 캡처)를 지원하지 않으므로
-		// (docs/lee-function-impl-plan.md 0절), 콜 프레임의 enclosing은 전역으로 고정한다.
+		// (docs/additional-requirement/lee-function-impl-plan.md 0절), 콜 프레임의 enclosing은 전역으로 고정한다.
 		// 재귀 호출은 전역에 정의된 자기 이름을 다시 찾는 것으로 충분히 해결된다.
 		// environment는 인터페이스(IEnvironment&)지만, 실행 중 실제로 전달되는 것은 항상
 		// 구체 Environment 체인이므로(gmock Test Double은 함수 호출과 함께 쓰이지
@@ -614,7 +614,7 @@ LiteralValue Executor::callMethod(FunctionDeclStmt* method, std::shared_ptr<Inst
 	catch (const ReturnSignal& signal)
 	{
 		// init은 인스턴스를 초기화하는 생성자 역할이라 값을 반환하는 return을 허용하지 않는다
-		// (docs/additional-requirement-impl-spec.md 3.2.1 — return;은 초기화를 조기 종료하는
+		// (docs/additional-requirement/additional-requirement-impl-spec.md 3.2.1 — return;은 초기화를 조기 종료하는
 		// 용도로 허용, 값 있는 return만 금지).
 		if (method->name.origin == "init" && !std::holds_alternative<std::monostate>(signal.value))
 			throw std::runtime_error("Can't return a value from 'init'.");

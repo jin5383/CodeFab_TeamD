@@ -446,7 +446,7 @@ TEST_F(CheckerUnitTest, SelfReferencingInitializer_ReportsError)
 }
 
 // Assembler_Token_Unit: "Func" / "return" 이 각각 TokenType::FUNC / TokenType::RETURN 으로
-// 토큰화되어야 한다(docs/scenarios/lee-function-scenarios.md 1절 함수 선언 시나리오의 전제 조건).
+// 토큰화되어야 한다(docs/additional-requirement/scenarios/lee-function-scenarios.md 1절 함수 선언 시나리오의 전제 조건).
 // 아직 scanKeywordToken에 등록되지 않아 IDENTIFIER로 잡히므로 이 테스트는 RED 상태다.
 TEST(AssemblerTokenUnitTest, TokenizeSource_ProducesFuncAndReturnKeywordTokens)
 {
@@ -458,7 +458,7 @@ TEST(AssemblerTokenUnitTest, TokenizeSource_ProducesFuncAndReturnKeywordTokens)
 }
 
 // Assembler_Construct_Unit: "Func greet() { print "hi"; }" -> FunctionDeclStmt{ name: greet,
-// params: [], body: [PrintStmt] } (docs/scenarios/lee-function-scenarios.md 인자 없는 함수 시나리오)
+// params: [], body: [PrintStmt] } (docs/additional-requirement/scenarios/lee-function-scenarios.md 인자 없는 함수 시나리오)
 TEST(AssemblerUnitTest, FunctionDeclWithNoParams_BuildsProgramTree)
 {
 	Program program = Assembler().assemble("Func greet() { print \"hi\"; }");
@@ -476,7 +476,7 @@ TEST(AssemblerUnitTest, FunctionDeclWithNoParams_BuildsProgramTree)
 }
 
 // Assembler_Construct_Unit: "Func add(a, b) { print a; }" -> FunctionDeclStmt{ params: [a, b] }
-// (docs/scenarios/lee-function-scenarios.md 선언+호출 시나리오의 다중 파라미터 전제 조건)
+// (docs/additional-requirement/scenarios/lee-function-scenarios.md 선언+호출 시나리오의 다중 파라미터 전제 조건)
 TEST(AssemblerUnitTest, FunctionDeclWithTwoParams_BuildsParamList)
 {
 	Program program = Assembler().assemble("Func add(a, b) { print a; }");
@@ -491,7 +491,7 @@ TEST(AssemblerUnitTest, FunctionDeclWithTwoParams_BuildsParamList)
 }
 
 // Assembler_Construct_Unit: "return 식;" / "return;" 이 각각 값 있는/없는 ReturnStmt로
-// 파싱되어야 한다(docs/scenarios/lee-function-scenarios.md return 시나리오).
+// 파싱되어야 한다(docs/additional-requirement/scenarios/lee-function-scenarios.md return 시나리오).
 TEST(AssemblerUnitTest, ReturnStatementParsesValueAndNoValueForms)
 {
 	Program withValue = Assembler().assemble("Func f() { return 1 + 2; }");
@@ -512,7 +512,7 @@ TEST(AssemblerUnitTest, ReturnStatementParsesValueAndNoValueForms)
 }
 
 // Assembler_Construct_Unit: "add(3, 7);" -> ExpressionStmt{ CallExpr{ callee: VariableExpr(add),
-// arguments: [3, 7] } } (docs/scenarios/lee-function-scenarios.md 선언+호출 시나리오)
+// arguments: [3, 7] } } (docs/additional-requirement/scenarios/lee-function-scenarios.md 선언+호출 시나리오)
 TEST(AssemblerUnitTest, FunctionCallWithTwoArguments_BuildsCallExprTree)
 {
 	Program program = Assembler().assemble("add(3, 7);");
@@ -636,7 +636,7 @@ TEST_F(CheckerUnitTest, CallArgumentCountMatches_NoError)
 	EXPECT_EQ(CheckerErrno::success, Checker().check(program));
 }
 
-// Checker unit(후속 작업, docs/lee-function-impl-plan.md 5절): "Func foo(a,b,c){...}
+// Checker unit(후속 작업, docs/additional-requirement/lee-function-impl-plan.md 5절): "Func foo(a,b,c){...}
 // var x = foo(1, 2);" 처럼 호출이 ExpressionStmt 최상위가 아니라 VarDeclStmt::initializer
 // 안에 중첩돼도 정적으로 인자 개수 불일치를 잡아야 한다.
 TEST_F(CheckerUnitTest, CallArgumentCountMismatchInsideVarDeclInitializer_ReportsError)
@@ -863,7 +863,7 @@ TEST_F(LeeExecutorTest, ClassThenClassSameName_DifferentMembers_RejectedAsDuplic
 }
 
 // Executor unit: "Func greet() { return 1; }" 실행 시 environment에 함수 값이
-// 정의되어야 한다(docs/scenarios/lee-function-scenarios.md 선언+호출 시나리오의 전제 조건).
+// 정의되어야 한다(docs/additional-requirement/scenarios/lee-function-scenarios.md 선언+호출 시나리오의 전제 조건).
 TEST_F(LeeExecutorTest, FunctionDeclDefinesFunctionValueInEnvironment)
 {
 	Program program = Assembler().assemble("Func greet() { return 1; }");
@@ -893,7 +893,7 @@ TEST_F(LeeExecutorTest, FunctionCallBindsArgumentAndExecutesBody)
 }
 
 // Executor unit: return이 함수 실행을 조기 종료시키고, 그 값이 호출식의 결과가 되어야 한다
-// (docs/scenarios/lee-function-scenarios.md 선언+호출 시나리오).
+// (docs/additional-requirement/scenarios/lee-function-scenarios.md 선언+호출 시나리오).
 TEST_F(LeeExecutorTest, ReturnValueBecomesCallExpressionResult)
 {
 	Program program = Assembler().assemble("Func add(a, b) { return a + b; } print add(3, 7);");
@@ -916,7 +916,7 @@ TEST_F(LeeExecutorTest, StatementsAfterReturnAreSkipped)
 }
 
 // Executor unit: 재귀 호출 검증 - fact(5) == 120
-// (docs/scenarios/lee-function-scenarios.md 재귀 시나리오). 새 프로덕션 코드 없이
+// (docs/additional-requirement/scenarios/lee-function-scenarios.md 재귀 시나리오). 새 프로덕션 코드 없이
 // 기능 9~11(함수 선언/호출/return 조기 종료)의 조합만으로 통과해야 하는 확인용 테스트.
 TEST_F(LeeExecutorTest, RecursiveFactorialComputesOneTwenty)
 {
@@ -930,7 +930,7 @@ TEST_F(LeeExecutorTest, RecursiveFactorialComputesOneTwenty)
 }
 
 // Executor unit: 함수가 아닌 값을 호출("var x = "hello"; x();")하면 명확한 런타임 에러가
-// 나야 한다(3.1.1 확정: Checker가 아닌 Executor 런타임 에러로 처리, docs/phase0-review-checklist.md).
+// 나야 한다(3.1.1 확정: Checker가 아닌 Executor 런타임 에러로 처리, docs/additional-requirement/phase0-review-checklist.md).
 TEST_F(LeeExecutorTest, CallingNonFunctionValueThrowsRuntimeError)
 {
 	Program program = Assembler().assemble("var x = \"hello\"; x();");
@@ -967,7 +967,7 @@ TEST_F(LeeExecutorTest, CallWithTooFewArgumentsInsideExpressionThrowsRuntimeErro
 	}
 }
 
-// docs/lee-function-impl-plan.md 4절: Checker/Executor 유닛 테스트만으로는 Interpreter
+// docs/additional-requirement/lee-function-impl-plan.md 4절: Checker/Executor 유닛 테스트만으로는 Interpreter
 // (실사용 경로)를 통해 실행했을 때의 동작을 보장하지 못한다 — 여기서는 Interpreter를 직접
 // 사용해 그 경로까지 검증한다.
 class LeeInterpreterIntegrationTest : public ::testing::Test
@@ -1009,7 +1009,7 @@ TEST_F(LeeInterpreterIntegrationTest, RecursiveFactorialWorksThroughInterpreter)
 }
 
 // 실사용 경로(DfineShell REPL) 검증: 함수 선언과 호출이 "서로 다른 줄"에 입력되는 흔한
-// REPL 사용 패턴에서도 인자 개수 불일치가 검출돼야 한다(docs/lee-function-impl-plan.md 4절).
+// REPL 사용 패턴에서도 인자 개수 불일치가 검출돼야 한다(docs/additional-requirement/lee-function-impl-plan.md 4절).
 // DfineShell::runLine()이 매 줄 새 Interpreter/Checker를 만들어, 이전 줄에서 선언한 함수의
 // 인자 개수 정보가 다음 줄까지 남아있지 않으므로 지금은 실패한다(Red).
 TEST(DfineShellIntegrationTest, ArgumentCountMismatchDetectedAcrossSeparateLines)

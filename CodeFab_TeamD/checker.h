@@ -79,7 +79,7 @@ private:
 	CheckerErrno checkCallArity(Expr* expr, const FunctionArities& functionArities) const;
 	// checkCallArity를 exprReferencesName과 같은 재귀 구조로 감싸, 표현식이 나타날 수 있는
 	// 모든 자리(대입 값, 이항/단항/논리 연산의 좌우항, 괄호 안, 호출 인자 등)에 중첩된
-	// CallExpr까지 훑는다(docs/lee-function-impl-plan.md 5절 후속 작업).
+	// CallExpr까지 훑는다(docs/additional-requirement/lee-function-impl-plan.md 5절 후속 작업).
 	CheckerErrno checkExprCallArity(Expr* expr, const FunctionArities& functionArities) const;
 	// 최상위 ClassDeclStmt들의 (클래스 이름 -> superclass 이름) 관계를 모아 순환 상속을 찾는다.
 	// Class A : A(1단계, selfInheritance로 별도 처리)와 달리 Class A : B / Class B : A 처럼

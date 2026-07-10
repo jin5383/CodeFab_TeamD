@@ -3,7 +3,7 @@
 > 대상 커밋: `ast.h`/`function.h`/`environment.h`/`function/Assembler_Construct_Unit.cpp`/
 > `function/Checker_Unit.cpp`/`function/Executor_Unit.cpp`에 5개 기능(함수/클래스/배열/최적화/import+쉘)의
 > 공유 선언과 빈 스텁을 한 번에 추가한 Phase 0 PR.
-> 근거: `docs/additional-requirement-impl-spec.md` 3절(기능별 구현 명세), 4절(Phase 0 정의)
+> 근거: `docs/additional-requirement/additional-requirement-impl-spec.md` 3절(기능별 구현 명세), 4절(Phase 0 정의)
 >
 > 담당자가 아닌 사람(Lee)이 명세만 보고 대신 채운 부분이 많으므로, 각 담당자는 아래 항목을
 > **자기 기능에 해당하는 절만** 확인하고 체크한다. "선택"이 있는 항목은 보기 중 하나를 골라
@@ -11,7 +11,7 @@
 
 ## 공통 (5명 모두)
 
-- [ ] 새로 추가된 `TokenType`/`Expr`/`Stmt` 구조체 이름과 필드가 `docs/additional-requirement-impl-spec.md` 3절의
+- [ ] 새로 추가된 `TokenType`/`Expr`/`Stmt` 구조체 이름과 필드가 `docs/additional-requirement/additional-requirement-impl-spec.md` 3절의
       명세와 일치하는지 확인했다.
 - [ ] `Checker_Unit.cpp`/`Executor_Unit.cpp`의 dynamic_cast 스텁 분기(`// TODO(이름)` 주석)가 내가 Phase 1에서
       채워야 할 자리와 정확히 대응하는지 확인했다.

@@ -56,12 +56,12 @@ source code (string)
 
 `Interpreter`(Facade, `interpreter.h`)가 위 5단계 조합을 `run(source)` 호출 하나로 감싸,
 호출부(`DfineShell`/`FileRunner`/`DebugShell`)는 각 Unit의 존재를 몰라도 됩니다.
-세부 Input/Output 계약은 [`docs/unit-io-spec.md`](docs/unit-io-spec.md)에 정의되어 있습니다.
+세부 Input/Output 계약은 [`docs/design/unit-io-spec.md`](docs/design/unit-io-spec.md)에 정의되어 있습니다.
 
 ## 아키텍처 / 설계 기법
 
 위 파이프라인의 각 Unit이 실제로 어떤 설계 기법(Composite+Interpreter, Strategy, Facade, 재귀 하강
-파서 등)으로 구현되어 있는지는 [`docs/architecture.md`](docs/architecture.md)에 정리했습니다.
+파서 등)으로 구현되어 있는지는 [`docs/design/architecture.md`](docs/design/architecture.md)에 정리했습니다.
 
 ## 기술 스택
 
@@ -72,11 +72,11 @@ source code (string)
 ## 요구사항 문서
 
 - 원본: [`CodeFab_Requirement.pdf`](CodeFab_Requirement.pdf)
-- 텍스트 추출본(한글 포함): [`docs/CodeFab_Requirement.extracted.txt`](docs/CodeFab_Requirement.extracted.txt)
+- 텍스트 추출본(한글 포함): [`docs/requirements/CodeFab_Requirement.extracted.txt`](docs/requirements/CodeFab_Requirement.extracted.txt)
   - PDF가 갱신되면 `python scripts/extract_requirement_pdf.py`로 재생성합니다.
 - 추가 요구사항(3~4일차 기능 추가 미션) 원본: [`CodeFab_Additional_Requirement.pdf`](CodeFab_Additional_Requirement.pdf)
-  - 텍스트 추출본: [`docs/CodeFab_Additional_Requirement.extracted.txt`](docs/CodeFab_Additional_Requirement.extracted.txt)
-  - 구현 명세 및 5인 작업 분배/통합 계획: [`docs/additional-requirement-impl-spec.md`](docs/additional-requirement-impl-spec.md)
+  - 텍스트 추출본: [`docs/requirements/CodeFab_Additional_Requirement.extracted.txt`](docs/requirements/CodeFab_Additional_Requirement.extracted.txt)
+  - 구현 명세 및 5인 작업 분배/통합 계획: [`docs/additional-requirement/additional-requirement-impl-spec.md`](docs/additional-requirement/additional-requirement-impl-spec.md)
 
 ## 프로젝트 구조
 
@@ -116,7 +116,7 @@ source code (string)
 ## Custom Language 사용 방법
 
 함수/클래스/정적 배열/import 문법과 실행 전 최적화(상수 폴딩/정적 바인딩)의 예시와 규칙은
-[`docs/language-guide.md`](docs/language-guide.md)에 정리했습니다.
+[`docs/design/language-guide.md`](docs/design/language-guide.md)에 정리했습니다.
 
 ## 개발 규칙
 
@@ -133,7 +133,7 @@ source code (string)
 
 초기 기본 구현 모델에서는 Assembler/Checker/Executor 세 Unit을 5인이 나누어
 TDD로 구현했고, 이후 `additional` 단계에서 기능별로 다시 나누어 병행 개발했습니다(자세한 작업 분배는
-[`docs/additional-requirement-impl-spec.md`](docs/additional-requirement-impl-spec.md) 참고).
+[`docs/additional-requirement/additional-requirement-impl-spec.md`](docs/additional-requirement/additional-requirement-impl-spec.md) 참고).
 
 | 담당 | 기초 Unit (`additional` 이전) | `additional` 기능 |
 |---|---|---|

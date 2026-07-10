@@ -1,4 +1,4 @@
-"""<이름>.pdf -> docs/<이름>.extracted.txt
+"""<이름>.pdf -> docs/requirements/<이름>.extracted.txt
 
 PyMuPDF(fitz)로 텍스트를 추출한다. poppler(pdftotext)는 이 PDF들에 쓰인
 한글 폰트의 ToUnicode 매핑을 읽지 못해 한글이 대부분 누락되지만,
@@ -33,7 +33,7 @@ HEADER_TEMPLATE = """\
 
 
 def extract_one(src: pathlib.Path) -> None:
-    dest = ROOT / "docs" / f"{src.stem}.extracted.txt"
+    dest = ROOT / "docs" / "requirements" / f"{src.stem}.extracted.txt"
 
     doc = fitz.open(src)
     empty_pages = []
