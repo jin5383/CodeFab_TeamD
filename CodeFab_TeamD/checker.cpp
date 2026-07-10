@@ -316,7 +316,16 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, CheckContext ctx
 
 	if (auto* funcDecl = dynamic_cast<FunctionDeclStmt*>(stmt))
 	{
-		ctx.functionArities[funcDecl->name.origin] = funcDecl->params.size();
+		// 함수 이름도 var/Class와 같은 namespace를 공유한다 — Environment::define/get이
+		// 셋을 실제로 같은 map에 저장하므로, 같은 scope에서 이름이 충돌하면 var끼리의 중복
+		// 선언과 동일하게 정적 에러로 잡아야 한다(그렇지 않으면 나중 선언이 조용히 앞의 것을
+		// 덮어써, 사용부에서야 뒤늦게 혼란스러운 런타임 에러로 드러난다).
+		const std::string& funcName = funcDecl->name.origin;
+		if (scopes.back().count(funcName))
+			return CheckerErrno::duplicateDeclarationInSameScope;
+		scopes.back().insert(funcName);
+
+		ctx.functionArities[funcName] = funcDecl->params.size();
 
 		scopes.push_back({});
 		for (const Token& param : funcDecl->params)
@@ -344,6 +353,12 @@ CheckerErrno Checker::checkStmt(Stmt* stmt, ScopeStack& scopes, CheckContext ctx
 
 	if (auto* classDecl = dynamic_cast<ClassDeclStmt*>(stmt))
 	{
+		// Class 이름도 var/Func와 같은 namespace를 공유한다(위 FunctionDeclStmt 분기와 동일한 이유).
+		const std::string& className = classDecl->name.origin;
+		if (scopes.back().count(className))
+			return CheckerErrno::duplicateDeclarationInSameScope;
+		scopes.back().insert(className);
+
 		if (classDecl->superclass != nullptr && classDecl->superclass->origin == classDecl->name.origin)
 			return CheckerErrno::selfInheritance;
 
