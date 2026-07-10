@@ -150,3 +150,46 @@ TEST_F(DebugShellIntegrationTest, MultipleBreakpointsAndWatchLifecycleCoexistInO
 
 	std::filesystem::remove(path);
 }
+
+// 필드가 있는 인스턴스는 watch/inspect 출력에 필드 이름과 값이 "{name: value, ...}" 형태로
+// 함께 나와야 한다(기존에는 "<instance Robot>"까지만 나오고 필드가 생략됐었다). 필드 이름은
+// unordered_map 순회 순서가 실행마다 달라질 수 있어 항상 이름 기준 정렬된 순서로 나와야 한다.
+TEST_F(DebugShellIntegrationTest, InspectShowsInstanceFieldsSortedByName)
+{
+	auto path = writeTempFile("class_with_fields",
+		"Class Robot { init(name, speed) { This.name = name; This.speed = speed; } }\n"
+		"var r = Robot(\"Wall-E\", 3);\n"
+		"print r.name;\n");
+	std::istringstream in("step\nstep\ninspect\ncontinue\n");
+	std::ostringstream out;
+
+	int exitCode = DebugShell().run(path.string(), in, out);
+
+	EXPECT_EQ(exitCode, 0);
+	EXPECT_THAT(out.str(), HasSubstr("[전역] r = <instance Robot {name: Wall-E, speed: 3}> (Instance)"));
+
+	std::filesystem::remove(path);
+}
+
+// 인스턴스끼리 서로를 필드로 참조하는 순환 구조(a.next=b; b.next=a;)에서도 inspect가
+// 무한 재귀 없이 안전하게 끝나야 한다 - 이미 펼치고 있는 인스턴스를 다시 만나면
+// "<circular ClassName>"으로 표시하고 재귀를 끊는다.
+TEST_F(DebugShellIntegrationTest, InspectBreaksCircularInstanceReferenceSafely)
+{
+	auto path = writeTempFile("circular_instances",
+		"Class Node { }\n"
+		"var a = Node();\n"
+		"var b = Node();\n"
+		"a.next = b;\n"
+		"b.next = a;\n"
+		"print 1;\n");
+	std::istringstream in("step\nstep\nstep\nstep\nstep\ninspect\ncontinue\n");
+	std::ostringstream out;
+
+	int exitCode = DebugShell().run(path.string(), in, out);
+
+	EXPECT_EQ(exitCode, 0);
+	EXPECT_THAT(out.str(), HasSubstr("<circular Node>"));
+
+	std::filesystem::remove(path);
+}

@@ -217,6 +217,12 @@ void DebugShell::printInspect(IEnvironment& env, std::ostream& out) const
 
 std::string DebugShell::describeValue(const LiteralValue& value)
 {
+	std::set<const Instance*> visitedInstances;
+	return describeValue(value, visitedInstances);
+}
+
+std::string DebugShell::describeValue(const LiteralValue& value, std::set<const Instance*>& visitedInstances)
+{
 	if (std::holds_alternative<std::monostate>(value))
 		return "nil";
 	if (std::holds_alternative<bool>(value))
@@ -234,7 +240,38 @@ std::string DebugShell::describeValue(const LiteralValue& value)
 	if (std::holds_alternative<std::shared_ptr<ClassValue>>(value))
 		return "<class " + std::get<std::shared_ptr<ClassValue>>(value)->decl->name.origin + ">";
 	if (std::holds_alternative<std::shared_ptr<Instance>>(value))
-		return "<instance " + std::get<std::shared_ptr<Instance>>(value)->klass->name.origin + ">";
+	{
+		auto instance = std::get<std::shared_ptr<Instance>>(value);
+		const std::string& className = instance->klass->name.origin;
+
+		if (instance->fields.empty())
+			return "<instance " + className + ">";
+
+		// 이미 이 재귀 경로에서 펼치고 있는 인스턴스를 다시 만나면(순환 참조) 필드를
+		// 또 펼치지 않고 여기서 끊는다 - 그렇지 않으면 a.next=b; b.next=a; 같은 경우
+		// 무한 재귀로 스택 오버플로우가 난다.
+		if (!visitedInstances.insert(instance.get()).second)
+			return "<circular " + className + ">";
+
+		// unordered_map은 순회 순서가 실행마다 달라질 수 있어, watch 출력이 매번
+		// 다른 순서로 보이지 않도록 필드 이름 기준으로 정렬한 뒤 순회한다.
+		std::vector<std::pair<std::string, LiteralValue>> sortedFields(
+			instance->fields.begin(), instance->fields.end());
+		std::sort(sortedFields.begin(), sortedFields.end(),
+			[](const auto& a, const auto& b) { return a.first < b.first; });
+
+		std::string result = "<instance " + className + " {";
+		for (size_t i = 0; i < sortedFields.size(); ++i)
+		{
+			if (i > 0)
+				result += ", ";
+			result += sortedFields[i].first + ": " + describeValue(sortedFields[i].second, visitedInstances);
+		}
+		result += "}>";
+
+		visitedInstances.erase(instance.get());
+		return result;
+	}
 
 	// 남은 경우는 배열(shared_ptr<ArrayValue>) - 원소도 재귀적으로 describeValue.
 	auto array = std::get<std::shared_ptr<ArrayValue>>(value);
@@ -243,7 +280,7 @@ std::string DebugShell::describeValue(const LiteralValue& value)
 	{
 		if (i > 0)
 			result += ", ";
-		result += describeValue(array->items[i]);
+		result += describeValue(array->items[i], visitedInstances);
 	}
 	return result + "]";
 }

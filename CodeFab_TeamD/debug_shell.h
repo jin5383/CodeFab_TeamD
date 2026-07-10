@@ -56,6 +56,11 @@ private:
 	// 숫자가 아니면 예외를 던지므로 재사용할 수 없다 - 여기서는 어떤 값이 와도 절대 던지지 않아야 한다.
 	static std::string describeValue(const LiteralValue& value);
 
+	// describeValue의 실제 구현. visitedInstances는 지금 재귀 경로상에서 이미 펼친
+	// Instance*의 집합 - 인스턴스 필드가 서로를 순환 참조해도(a.next=b; b.next=a;)
+	// 무한 재귀에 빠지지 않고 "<circular ClassName>"으로 끊기 위해 필요하다.
+	static std::string describeValue(const LiteralValue& value, std::set<const Instance*>& visitedInstances);
+
 	// inspect가 값 옆에 표시하는 타입 이름("Number"/"Boolean" 등). describeValue와 마찬가지로
 	// 상태에 의존하지 않는 순수 함수.
 	static std::string typeName(const LiteralValue& value);
