@@ -428,7 +428,8 @@ void Executor::executeStmt(Stmt* stmt, IEnvironment& environment, const StmtExec
 
 	if (auto* printStmt = dynamic_cast<PrintStmt*>(stmt))
 	{
-		output.write(stringify(evaluate(printStmt->expression, environment), printStmt->line) + "\n");
+		std::string text = stringify(evaluate(printStmt->expression, environment), printStmt->line);
+		output.write(printStmt->suppressNewline ? text : text + "\n");
 	}
 	else if (auto* exprStmt = dynamic_cast<ExpressionStmt*>(stmt))
 	{

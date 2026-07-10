@@ -101,7 +101,8 @@ if (x < 0) {
 
 | 종류 | 이름 | 비고 |
 | --- | --- | --- |
-| print | `print <expr>;` | 유일한 출력 수단. 불리언은 `"true"/"false"`, 문자열은 그대로, 숫자는 `double` 그대로 출력. |
+| print | `print <expr>;` | 유일한 출력 수단. 불리언은 `"true"/"false"`, 문자열은 그대로, 숫자는 `double` 그대로 출력. 출력 뒤 줄바꿈 포함. |
+| printn | `printn <expr>;` | `print`와 동일하나 출력 뒤 줄바꿈을 붙이지 않음. |
 | 전역 함수 | 없음 | `clock()`, `len()`, `input()` 등 사전 등록된 전역 함수가 하나도 없음. |
 
 ## 함수(Function)

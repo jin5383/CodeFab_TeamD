@@ -16,6 +16,7 @@ namespace
 	const std::string KEYWORD_ELSE = "else";
 	const std::string KEYWORD_FOR = "for";
 	const std::string KEYWORD_PRINT = "print";
+	const std::string KEYWORD_PRINTN = "printn";
 	const std::string KEYWORD_IMPORT = "import";
 	const std::string KEYWORD_ALIAS = "alias";
 	const std::string KEYWORD_FUNC = "Func";
@@ -41,6 +42,7 @@ namespace
 		if (origin == KEYWORD_ELSE) return makeSimpleToken(TokenType::ELSE, origin);
 		if (origin == KEYWORD_FOR) return makeSimpleToken(TokenType::FOR, origin);
 		if (origin == KEYWORD_PRINT) return makeSimpleToken(TokenType::PRINT, origin);
+		if (origin == KEYWORD_PRINTN) return makeSimpleToken(TokenType::PRINTN, origin);
 		if (origin == KEYWORD_CLASS) return makeSimpleToken(TokenType::CLASS, origin);
 		if (origin == KEYWORD_IMPORT) return makeSimpleToken(TokenType::IMPORT, origin);
 		if (origin == KEYWORD_ALIAS) return makeSimpleToken(TokenType::ALIAS, origin);
@@ -135,6 +137,7 @@ namespace
 			{
 			case TokenType::VAR: return parseVarDeclStatement();
 			case TokenType::PRINT: return parsePrintStatement();
+			case TokenType::PRINTN: return parsePrintStatement();
 			case TokenType::LEFT_BRACE: return parseBlockStatement();
 			case TokenType::IF: return parseIfStatement();
 			case TokenType::FOR: return parseForStatement();
@@ -274,11 +277,13 @@ namespace
 			return stmt;
 		}
 
-		// "print 식 ;" 을 읽어 PrintStmt를 만든다
+		// "print 식 ;" 또는 "printn 식 ;" 을 읽어 PrintStmt를 만든다. printn은 print와 동일하되
+		// 출력 뒤에 줄바꿈을 붙이지 않는다(PrintStmt::suppressNewline).
 		Stmt* parsePrintStatement()
 		{
-			getTokenAndAdvance(); // print
+			Token keyword = getTokenAndAdvance(); // print 또는 printn
 			auto* stmt = new PrintStmt();
+			stmt->suppressNewline = (keyword.type == TokenType::PRINTN);
 			stmt->expression = parseExpression();
 			getTokenAndAdvance(); // ;
 			return stmt;

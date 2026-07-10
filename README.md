@@ -89,9 +89,28 @@ source code (string)
 3. Debug 구성으로 빌드 후 실행하면 `main.cpp`가 등록된 모든 Google Test를 실행합니다.
 4. Release 구성으로 빌드하면 실제 인터프리터 실행 파일이 만들어집니다.
    - 인자 없이 실행: REPL(`DfineShell`) 모드로 진입합니다.
-   - `<실행파일> run <파일경로>`: 해당 파일을 한 번에 실행합니다(`FileRunner`).
-   - `debug <파일경로>`(디버그 모드, `DebugShell`)는 구현/테스트는 완료됐지만 아직 `main.cpp`의
-     인자 분기에는 연결되어 있지 않습니다.
+   - `run <파일경로>`: 해당 파일을 한 번에 실행합니다(`FileRunner`).
+   - `debug <파일경로>`: 디버그 모드(`DebugShell`)로 실행합니다.
+
+## 디버그 모드 사용법
+
+`debug <파일경로>`로 실행하면 파일을 `Stmt` 단위로 멈춰가며 실행 상태를 점검할 수 있습니다.
+멈춘 상태에서 `>` 프롬프트에 아래 명령을 입력합니다.
+
+| 명령 | 형태 | 설명 |
+| --- | --- | --- |
+| `step` | `step` | 다음 `Stmt`(함수 호출 내부 포함)에서 멈춤 |
+| `next` | `next` | 현재 depth 기준으로 한 단계 실행(함수 호출 내부는 건너뛰고 스텝 오버) |
+| `continue` | `continue` | 다음 breakpoint까지 실행 재개 |
+| `break` | `break <줄번호>` | 해당 줄에 breakpoint 설정 |
+| `remove` | `remove <줄번호>` | 해당 줄의 breakpoint 해제 |
+| `Breakpoints` | `Breakpoints` | 현재 설정된 breakpoint 목록 출력 |
+| `watch` | `watch <변수명>` | 해당 변수를 감시 목록에 등록(정지할 때마다 값 자동 출력) |
+| `unwatch` | `unwatch <변수명>` | 감시 목록에서 해당 변수 제거 |
+| `watches` | `watches` | 현재 감시 중인 변수와 값 출력 |
+| `inspect` | `inspect` | 현재 멈춘 지점의 스코프에 있는 모든 변수를 [로컬]/[전역]으로 나눠 출력 |
+
+`step`/`next`/`continue`만 실행을 재개하며, 나머지 명령은 정지 상태를 유지한 채 결과만 출력합니다.
 
 ## Custom Language 사용 방법
 
