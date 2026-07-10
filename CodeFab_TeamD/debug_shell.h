@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 // 디버그 모드. 파일을 읽어 Stmt 단위로 멈추며 실행 상태를 점검한다.
 // step/next/continue/break/remove/Breakpoints로 실행 흐름을 제어하고,

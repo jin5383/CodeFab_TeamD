@@ -1,4 +1,4 @@
-#include "constant_folding.h"
+﻿#include "constant_folding.h"
 
 #include <cmath>
 
