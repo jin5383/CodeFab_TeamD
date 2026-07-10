@@ -10,6 +10,9 @@
 
 // Executor/Interpreter가 구체 타입(Environment) 대신 이 인터페이스에만 의존하게 해,
 // 테스트에서 gmock으로 Environment를 대체(Test Double)할 수 있게 한다.
+// 실행에 꼭 필요한 핵심 연산만 담는다 - 디버그 watch/inspect 전용 연산은
+// IInspectableEnvironment로 분리했다(ISP: import 모듈 실행용 ModuleEnvironment처럼
+// watch 기능이 필요 없는 구현이 그 메서드들까지 억지로 구현하지 않도록).
 class IEnvironment
 {
 public:
@@ -22,8 +25,13 @@ public:
 	// Resolver가 미리 계산해둔 distance로 스코프 체인을 거슬러 올라가지 않고 즉시 접근
 	virtual LiteralValue getAt(int distance, const Token& name) const = 0;
 	virtual void assignAt(int distance, const Token& name, const LiteralValue& value) = 0;
+};
 
-	// 디버그 모드의 watch/inspect용 조회·열거. get()과 달리 예외를 던지지 않는다.
+// DebugShell의 watch/inspect처럼 스코프를 조회·열거해야 하는 호출자를 위한 확장.
+// get()과 달리 예외를 던지지 않는다.
+class IInspectableEnvironment : public IEnvironment
+{
+public:
 	virtual bool tryGet(const std::string& name, LiteralValue& out) const = 0;      // 이 스코프만
 	virtual bool tryGetChain(const std::string& name, LiteralValue& out) const = 0; // enclosing까지 재귀
 	virtual std::vector<std::pair<std::string, LiteralValue>> entriesInThisScope() const = 0; // inspect용
@@ -39,7 +47,8 @@ public:
 
 // Executor Unit의 변수 컨텍스트. 한 번의 실행뿐 아니라 DfineShell처럼 여러 줄에 걸쳐
 // 컨텍스트를 유지해야 하는 실행 주체가 소유할 수 있도록 Executor_Unit.cpp에서 분리했다.
-class Environment : public IEnvironment
+// DebugShell의 watch/inspect가 필요로 하므로 IInspectableEnvironment까지 구현한다.
+class Environment : public IInspectableEnvironment
 {
 public:
 	explicit Environment(IEnvironment* enclosing = nullptr) : enclosing(enclosing) {}
@@ -107,7 +116,10 @@ public:
 	{
 		if (tryGet(name, out))
 			return true;
-		return enclosing ? enclosing->tryGetChain(name, out) : false;
+		// enclosing은 IEnvironment*(일반 실행/gmock 대체용)라 tryGetChain이 없다 - root()와 같은 이유로
+		// 실제 체인을 타는 동안만 IInspectableEnvironment로 확인하며 올라간다.
+		auto* inspectableEnclosing = dynamic_cast<IInspectableEnvironment*>(enclosing);
+		return inspectableEnclosing ? inspectableEnclosing->tryGetChain(name, out) : false;
 	}
 
 	std::vector<std::pair<std::string, LiteralValue>> entriesInThisScope() const override

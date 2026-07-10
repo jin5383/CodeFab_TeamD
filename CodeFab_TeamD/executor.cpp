@@ -50,33 +50,6 @@ namespace
 		LiteralValue getAt(int, const Token& name) const override { return get(name); }
 		void assignAt(int, const Token& name, const LiteralValue& value) override { assign(name, value); }
 
-		bool tryGet(const std::string& name, LiteralValue& out) const override
-		{
-			auto it = module->fields.find(name);
-			if (it == module->fields.end())
-				return false;
-			out = it->second;
-			return true;
-		}
-
-		// 모듈은 enclosing 체인이 없는 독립된 스코프이므로 체인 탐색도 이 스코프에서 끝난다.
-		bool tryGetChain(const std::string& name, LiteralValue& out) const override { return tryGet(name, out); }
-
-		std::vector<std::pair<std::string, LiteralValue>> entriesInThisScope() const override
-		{
-			return std::vector<std::pair<std::string, LiteralValue>>(module->fields.begin(), module->fields.end());
-		}
-
-		// tryGetChain과 동일한 이유로 enclosing 체인이 없다 - 이 스코프 자신이 이미 최상위이므로
-		// 전부 전역으로 분류된다.
-		void collectLocalAndGlobalEntries(
-			std::vector<std::pair<std::string, LiteralValue>>&,
-			std::vector<std::pair<std::string, LiteralValue>>& globalEntries) const override
-		{
-			auto entries = entriesInThisScope();
-			globalEntries.insert(globalEntries.end(), entries.begin(), entries.end());
-		}
-
 	private:
 		std::shared_ptr<Instance> module;
 	};

@@ -403,7 +403,8 @@ protected:
 	};
 
 	// Environment/IEnvironment를 gmock으로 대체한 Test Double. Executor가 distance 유무에 따라
-	// getAt/get 중 정확히 하나만 호출하는지(3.1절) 검증하는 데 쓴다.
+	// getAt/get 중 정확히 하나만 호출하는지(3.1절) 검증하는 데 쓴다. watch/inspect 전용 연산은
+	// IInspectableEnvironment로 분리되어 있어(ISP) 여기서는 구현할 필요가 없다.
 	class MockEnvironment : public IEnvironment
 	{
 	public:
@@ -412,12 +413,6 @@ protected:
 		MOCK_METHOD(void, assign, (const Token& name, const LiteralValue& value), (override));
 		MOCK_METHOD(LiteralValue, getAt, (int distance, const Token& name), (const, override));
 		MOCK_METHOD(void, assignAt, (int distance, const Token& name, const LiteralValue& value), (override));
-		MOCK_METHOD(bool, tryGet, (const std::string& name, LiteralValue& out), (const, override));
-		MOCK_METHOD(bool, tryGetChain, (const std::string& name, LiteralValue& out), (const, override));
-		MOCK_METHOD((std::vector<std::pair<std::string, LiteralValue>>), entriesInThisScope, (), (const, override));
-		MOCK_METHOD(void, collectLocalAndGlobalEntries,
-			((std::vector<std::pair<std::string, LiteralValue>>&), (std::vector<std::pair<std::string, LiteralValue>>&)),
-			(const, override));
 	};
 
 	Token identifierToken(const std::string& name)
